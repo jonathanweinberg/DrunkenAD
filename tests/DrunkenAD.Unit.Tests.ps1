@@ -1,0 +1,442 @@
+$modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
+Import-Module $modulePath -Force -ErrorAction Stop
+
+$global:DrunkenADTest_GetADUserCalls = @()
+$global:DrunkenADTest_GetADUserHandler = { throw 'Get-ADUser test stub should be configured by the current test.' }
+$global:DrunkenADTest_GetADRootDSECalls = @()
+$global:DrunkenADTest_GetADRootDSEHandler = { throw 'Get-ADRootDSE test stub should be configured by the current test.' }
+$global:DrunkenADTest_GetADObjectCalls = @()
+$global:DrunkenADTest_GetADObjectHandler = { throw 'Get-ADObject test stub should be configured by the current test.' }
+$global:DrunkenADTest_SetADUserCalls = @()
+$global:DrunkenADTest_SetADUserHandler = { return }
+
+function Global:Get-ADUser {
+    param(
+        $Identity,
+        $LDAPFilter,
+        $Properties,
+        $ErrorAction,
+        $Server
+    )
+
+    $global:DrunkenADTest_GetADUserCalls += ,(@{} + $PSBoundParameters)
+    & $global:DrunkenADTest_GetADUserHandler @PSBoundParameters
+}
+
+function Global:Get-ADRootDSE {
+    param(
+        $Server,
+        $ErrorAction
+    )
+
+    $global:DrunkenADTest_GetADRootDSECalls += ,(@{} + $PSBoundParameters)
+    & $global:DrunkenADTest_GetADRootDSEHandler @PSBoundParameters
+}
+
+function Global:Get-ADObject {
+    param(
+        $SearchBase,
+        $LDAPFilter,
+        $Properties,
+        $ErrorAction,
+        $Server
+    )
+
+    $global:DrunkenADTest_GetADObjectCalls += ,(@{} + $PSBoundParameters)
+    & $global:DrunkenADTest_GetADObjectHandler @PSBoundParameters
+}
+
+function Global:Set-ADUser {
+    param(
+        $Identity,
+        $ErrorAction,
+        $Server,
+        $Clear,
+        $Replace
+    )
+
+    $global:DrunkenADTest_SetADUserCalls += ,(@{} + $PSBoundParameters)
+    & $global:DrunkenADTest_SetADUserHandler @PSBoundParameters
+}
+
+Describe 'DrunkenAD unit tests' {
+    InModuleScope DrunkenAD {
+        Context 'ConvertTo-DrunkenADPrefixMap' {
+            It 'maps a single prefix to multiple values' {
+                $result = ConvertTo-DrunkenADPrefixMap -Prefixes 'Demo-' -DrinkValues 'One', 'Two'
+
+                $result.Keys | Should -Be @('Demo-')
+                $result['Demo-'] | Should -Be @('One', 'Two')
+            }
+
+            It 'fans out a single value to many prefixes' {
+                $result = ConvertTo-DrunkenADPrefixMap -Prefixes 'One-', 'Two-' -DrinkValues 'Shared'
+
+                $result['One-'] | Should -Be @('Shared')
+                $result['Two-'] | Should -Be @('Shared')
+            }
+
+            It 'merges repeated prefixes when values are aligned' {
+                $result = ConvertTo-DrunkenADPrefixMap -Prefixes 'One-', 'One-', 'Two-' -DrinkValues 'A', 'B', 'C'
+
+                $result.Keys | Should -Be @('One-', 'Two-')
+                $result['One-'] | Should -Be @('A', 'B')
+                $result['Two-'] | Should -Be @('C')
+            }
+
+            It 'rejects mismatched arrays that cannot be mapped safely' {
+                {
+                    ConvertTo-DrunkenADPrefixMap -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B', 'C'
+                } | Should -Throw
+            }
+
+            It 'rejects blank prefixes' {
+                {
+                    ConvertTo-DrunkenADPrefixMap -Prefixes 'One-', '' -DrinkValues 'A', 'B'
+                } | Should -Throw
+            }
+        }
+
+        Context 'Resolve-DrunkenADUser' {
+            BeforeEach {
+                Mock Get-Module { [pscustomobject]@{ Name = 'ActiveDirectory' } }
+                Mock Import-Module {}
+                $global:DrunkenADTest_GetADUserCalls = @()
+            }
+
+            It 'uses an exact escaped LDAP filter for mail lookups' {
+                $global:DrunkenADTest_GetADUserHandler = {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @()
+                    }
+                }
+
+                Resolve-DrunkenADUser -Mail 'user*(test)\name@example.com' -Server 'dc01.contoso.com' | Out-Null
+
+                $global:DrunkenADTest_GetADUserCalls.Count | Should -Be 1
+                $global:DrunkenADTest_GetADUserCalls[0]['LDAPFilter'] | Should -Be '(mail=user\2a\28test\29\5cname@example.com)'
+                $global:DrunkenADTest_GetADUserCalls[0]['Server'] | Should -Be 'dc01.contoso.com'
+                $global:DrunkenADTest_GetADUserCalls[0]['ErrorAction'] | Should -Be 'Stop'
+            }
+
+            It 'throws when a lookup returns more than one user' {
+                $global:DrunkenADTest_GetADUserHandler = {
+                    @(
+                        [pscustomobject]@{ SamAccountName = 'demo1'; DistinguishedName = 'CN=Demo1,DC=contoso,DC=com' }
+                        [pscustomobject]@{ SamAccountName = 'demo2'; DistinguishedName = 'CN=Demo2,DC=contoso,DC=com' }
+                    )
+                }
+
+                {
+                    Resolve-DrunkenADUser -SamAccountName 'demo'
+                } | Should -Throw '*matched 2 users*'
+            }
+        }
+
+        Context 'Test-ADDrinkAttributeEnabled' {
+            BeforeEach {
+                Mock Get-Module { [pscustomobject]@{ Name = 'ActiveDirectory' } }
+                Mock Import-Module {}
+                $global:DrunkenADTest_GetADRootDSECalls = @()
+                $global:DrunkenADTest_GetADObjectCalls = @()
+                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+            }
+
+            It 'returns true when the drink attribute exists and is active' {
+                $global:DrunkenADTest_GetADObjectHandler = { [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+
+                Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' | Should -BeTrue
+
+                $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 1
+                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 1
+                $global:DrunkenADTest_GetADObjectCalls[0]['SearchBase'] | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
+                $global:DrunkenADTest_GetADObjectCalls[0]['LDAPFilter'] | Should -Be '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))'
+                $global:DrunkenADTest_GetADObjectCalls[0]['Server'] | Should -Be 'dc01.contoso.com'
+            }
+
+            It 'returns false when the drink attribute is missing' {
+                $global:DrunkenADTest_GetADObjectHandler = { @() }
+
+                Test-ADDrinkAttributeEnabled | Should -BeFalse
+            }
+        }
+
+        Context 'Get-AdUserDrinkPrefixedData' {
+            BeforeEach {
+                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        drink = @('Prefix[01]-Old', 'Prefix01-Other', 'Keep-Me')
+                    }
+                }
+            }
+
+            It 'treats the requested prefix literally instead of as a regex' {
+                $result = Get-AdUserDrinkPrefixedData -SamAccountName 'demo' -DrinkValuePrefix 'Prefix[01]-'
+
+                $result | Should -Be @('Prefix[01]-Old')
+            }
+
+            It 'returns an empty array when no values match the prefix' {
+                $result = Get-AdUserDrinkPrefixedData -SamAccountName 'demo' -DrinkValuePrefix 'Missing-'
+
+                @($result) | Should -Be @()
+            }
+        }
+
+        Context 'Get-ADUserDrinkData' {
+            BeforeEach {
+                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        drink = @('Profile-Tier=Gold', 'Flags-Audited', 'Flags-Enabled')
+                    }
+                }
+            }
+
+            It 'returns the whole generic data set when no prefix is supplied' {
+                $result = Get-ADUserDrinkData -SamAccountName 'demo'
+
+                $result | Should -Be @('Profile-Tier=Gold', 'Flags-Audited', 'Flags-Enabled')
+            }
+
+            It 'filters the generic data set by literal prefix when requested' {
+                $result = Get-ADUserDrinkData -SamAccountName 'demo' -Prefix 'Flags-'
+
+                $result | Should -Be @('Flags-Audited', 'Flags-Enabled')
+            }
+        }
+
+        Context 'Set-ADUserDrinkPrefixedData' {
+            BeforeEach {
+                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Write-DrunkenADLog {}
+                $global:DrunkenADTest_SetADUserCalls = @()
+            }
+
+            It 'replaces only the targeted literal prefix and preserves unrelated values' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @('Test[1]-old', 'Test1-old', 'Keep-me')
+                    }
+                }
+
+                $result = Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Test[1]-' = @('new') } -Confirm:$false -PassThru
+
+                $result | Should -Contain 'Test[1]-new'
+                $result | Should -Contain 'Test1-old'
+                $result | Should -Contain 'Keep-me'
+                $result | Should -Not -Contain 'Test[1]-old'
+
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
+                $global:DrunkenADTest_SetADUserCalls[0]['Identity'] | Should -Be 'CN=Demo User,DC=contoso,DC=com'
+                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Test[1]-new'
+                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Test1-old'
+                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Keep-me'
+                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Not -Contain 'Test[1]-old'
+            }
+
+            It 'clears the attribute when all values are removed' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @('OnlyPrefix-old')
+                    }
+                }
+
+                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'OnlyPrefix-' = @() } -Confirm:$false
+
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
+                $global:DrunkenADTest_SetADUserCalls[0]['Identity'] | Should -Be 'CN=Demo User,DC=contoso,DC=com'
+                $global:DrunkenADTest_SetADUserCalls[0]['Clear'] | Should -Be 'drink'
+            }
+
+            It 'does not write when the attribute is already in the desired state' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @('Stable-value', 'Keep-me')
+                    }
+                }
+
+                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Stable-' = @('value') } -Confirm:$false
+
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
+            }
+
+            It 'respects WhatIf and skips the underlying write' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @('Old-value')
+                    }
+                }
+
+                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Old-' = @('new') } -WhatIf
+
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
+            }
+        }
+
+        Context 'Set-ADUserDrinkData' {
+            BeforeEach {
+                Mock Set-ADUserDrinkPrefixedData {}
+            }
+
+            It 'forwards the generic DataMap to the lower-level prefixed writer' {
+                Set-ADUserDrinkData -SamAccountName 'demo' -DataMap @{ 'Profile-' = @('Tier=Gold'); 'Flags-' = @('Enabled') }
+
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    ((@($PrefixMap['Profile-']) -join ',') -eq 'Tier=Gold') -and
+                    ((@($PrefixMap['Flags-']) -join ',') -eq 'Enabled')
+                }
+            }
+
+            It 'honors WhatIf at the generic writer layer' {
+                Set-ADUserDrinkData -SamAccountName 'demo' -DataMap @{ 'Profile-' = @('Tier=Gold') } -WhatIf
+
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+            }
+        }
+
+        Context 'Remove-ADUserDrinkData' {
+            BeforeEach {
+                Mock Set-ADUserDrinkData {}
+            }
+
+            It 'builds an empty namespace map for the prefixes being removed' {
+                Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes 'Profile-', 'Flags-'
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    $DataMap.Contains('Profile-') -and
+                    $DataMap.Contains('Flags-') -and
+                    (@($DataMap['Profile-']).Count -eq 0) -and
+                    (@($DataMap['Flags-']).Count -eq 0)
+                }
+            }
+
+            It 'honors WhatIf at the generic remover layer' {
+                Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes 'Profile-' -WhatIf
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+        }
+
+        Context 'Invoke-ADUserDrinkDataDemo' {
+            BeforeEach {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        userPrincipalName = 'demo@contoso.com'
+                        employeeID        = '123456'
+                        mail              = 'demo@contoso.com'
+                        pager             = '555-0100'
+                        department        = 'Identity'
+                        title             = 'Engineer'
+                        company           = 'Contoso'
+                        description       = 'Demo account'
+                    }
+                }
+                Mock Set-ADUserDrinkData {
+                    @('Profile-samAccountName=demo')
+                }
+            }
+
+            It 'uses the built-in default attribute map when none is supplied' {
+                $result = Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -Confirm:$false -PassThru
+
+                Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    (@($Properties) -contains 'samAccountName') -and
+                    (@($Properties) -contains 'userPrincipalName') -and
+                    (@($Properties) -contains 'employeeID') -and
+                    (@($Properties) -contains 'mail') -and
+                    (@($Properties) -contains 'pager')
+                }
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    ((@($DataMap['Profile-']) -join ',') -eq 'samAccountName=demo') -and
+                    ((@($DataMap['Identity-']) -join ',') -eq 'userPrincipalName=demo@contoso.com') -and
+                    ((@($DataMap['Meta-']) -join ',') -eq 'employeeID=123456') -and
+                    ((@($DataMap['Routing-']) -join ',') -eq 'mail=demo@contoso.com') -and
+                    ((@($DataMap['Notify-']) -join ',') -eq 'pager=555-0100')
+                }
+
+                $result.SamAccountName | Should -Be 'demo'
+                $result.DataMap.Contains('Profile-') | Should -BeTrue
+            }
+
+            It 'replaces the default demo map when a custom map is supplied' {
+                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('department', 'title') } -Confirm:$false | Out-Null
+
+                Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    (@($Properties).Count -eq 2) -and
+                    (@($Properties) -contains 'department') -and
+                    (@($Properties) -contains 'title')
+                }
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    $DataMap.Count -eq 1 -and
+                    ((@($DataMap['Org-']) | Sort-Object) -join ',') -eq 'department=Identity,title=Engineer'
+                }
+            }
+
+            It 'merges a custom map with the default demo map when requested' {
+                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('company') } -IncludeDefaultAttributeMap -Confirm:$false | Out-Null
+
+                Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    (@($Properties) -contains 'company') -and
+                    (@($Properties) -contains 'samAccountName')
+                }
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $DataMap.Contains('Org-') -and
+                    $DataMap.Contains('Profile-') -and
+                    ((@($DataMap['Org-']) -join ',') -eq 'company=Contoso')
+                }
+            }
+
+            It 'honors WhatIf at the demo layer' {
+                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -WhatIf
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+        }
+
+        Context 'Update-ADUserDrinkAttribute' {
+            BeforeEach {
+                Mock Set-ADUserDrinkPrefixedData {}
+            }
+
+            It 'maps aligned prefix and value arrays into the safer PrefixMap shape' {
+                Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B'
+
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    ((@($PrefixMap['One-']) -join ',') -eq 'A') -and
+                    ((@($PrefixMap['Two-']) -join ',') -eq 'B')
+                }
+            }
+
+            It 'honors WhatIf at the wrapper layer' {
+                Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-' -DrinkValues 'A' -WhatIf
+
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+            }
+        }
+    }
+}
