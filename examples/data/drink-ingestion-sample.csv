@@ -1,0 +1,4 @@
+SamAccountName,ProfileTier,ProfileRegion,Flags,RoutingMailbox,TenantId,SyncState
+alice.bennett,Gold,NA,"Enabled;Audited",alice.bennett@contoso.com,TEN-001,Ready
+brandon.cho,Silver,EMEA,"Enabled;RemoteEligible",brandon.cho@contoso.com,TEN-002,Pending
+casey.morgan,Platinum,APAC,"Audited;Privileged",casey.morgan@contoso.com,TEN-003,Synced

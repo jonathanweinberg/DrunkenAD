@@ -1,6 +1,8 @@
 # Drink Data Store Model
 
-The `drink` attribute is a multivalued string attribute. This module now treats it as a lightweight prefixed data store attached to an Active Directory user.
+The `drink` attribute is a multivalued string attribute. DrunkenAD treats it as a lightweight prefixed data store attached to an Active Directory user.
+
+That assumes `drink` is actually writable on the `user` class, not just present in schema. Check `Test-ADDrinkAttributeReadyForUserWrite` before using the write paths, and use [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md) if the attribute exists but is not yet legal on `user`.
 
 ## Core Idea
 
@@ -26,14 +28,16 @@ The preferred API is:
 - [Get-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
 - [Set-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
 - [Remove-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [Invoke-ADUserDrinkDataDemo](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
+- [Set-ADUserDrinkProjection](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
+- [Import-ADUserDrinkCsvData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
 
 That API treats `drink` as a namespace store:
 
 - `Get-ADUserDrinkData` reads either everything or one namespace
 - `Set-ADUserDrinkData` replaces one or more namespaces
 - `Remove-ADUserDrinkData` deletes one or more namespaces
-- `Invoke-ADUserDrinkDataDemo` builds namespace records from actual user attributes
+- `Set-ADUserDrinkProjection` builds namespace records from actual user attributes
+- `Import-ADUserDrinkCsvData` turns CSV rows into namespace maps and writes them through the same API
 
 ## Namespace Rules
 
@@ -41,7 +45,7 @@ Prefixes are treated literally, not as regexes.
 
 That matters because prefixes like these are allowed and safe:
 
-- `Demo[01]-`
+- `App[01]-`
 - `Flags+`
 - `Meta.(v2)-`
 
@@ -80,6 +84,28 @@ then:
 
 If you remove `Flags-`, all `Flags-...` values disappear, but `Profile-...` and any unrelated values remain.
 
+## Why This Works Well
+
+Repurposing `drink` this way is useful when you want a small amount of application data to travel with the user object itself:
+
+- feature flags
+- routing hints
+- application profile fields
+- environment or tenant markers
+- compact synchronization metadata
+
+The model is intentionally narrow. It is designed for concise strings, not large payloads or document storage.
+
+## Common Namespace Patterns
+
+Teams usually get the most value from a few well-defined namespaces with clear overwrite semantics:
+
+- `Profile-` for compact user-facing metadata such as tier, region, or role
+- `Flags-` for discrete state markers such as `Enabled` or `Audited`
+- `Routing-` for downstream processing hints such as mailbox or workflow targets
+- `Tenant-` for tenant, environment, or business-unit identifiers
+- `Sync-` for integration state such as import status or checkpoint markers
+
 ## Compatibility Layer
 
 The older prefixed-data commands still exist:
@@ -88,11 +114,11 @@ The older prefixed-data commands still exist:
 - `Set-ADUserDrinkPrefixedData`
 - `Update-ADUserDrinkAttribute`
 
-They are still supported, but the generic `DrinkData` names are now the preferred public surface.
+They are still supported, but the generic `DrinkData` names are the preferred public surface.
 
-## Demo Mode
+## Attribute Projection
 
-`Invoke-ADUserDrinkDataDemo` is meant to seed realistic example data into `drink`.
+`Set-ADUserDrinkProjection` is meant to project selected AD user attributes into `drink`.
 
 By default it uses a built-in attribute map:
 
@@ -110,7 +136,7 @@ That yields records like:
 You can also provide your own `AttributeMap`:
 
 ```powershell
-Invoke-ADUserDrinkDataDemo `
+Set-ADUserDrinkProjection `
     -SamAccountName 'TesterAccount' `
     -AttributeMap @{
         'Org-' = @('department', 'title')
@@ -119,4 +145,4 @@ Invoke-ADUserDrinkDataDemo `
     -Confirm:$false
 ```
 
-And if you want your custom namespaces plus the default demo payload, add `-IncludeDefaultAttributeMap`.
+If you want your custom namespaces plus the default projection payload, add `-IncludeDefaultAttributeMap`.

@@ -1,0 +1,36 @@
+{
+  "Profile-": [
+    {
+      "Column": "ProfileTier",
+      "Label": "Tier"
+    },
+    {
+      "Column": "ProfileRegion",
+      "Label": "Region"
+    }
+  ],
+  "Flags-": [
+    {
+      "Column": "Flags",
+      "SplitOn": ";"
+    }
+  ],
+  "Routing-": [
+    {
+      "Column": "RoutingMailbox",
+      "Label": "Mailbox"
+    }
+  ],
+  "Tenant-": [
+    {
+      "Column": "TenantId",
+      "Label": "Id"
+    }
+  ],
+  "Sync-": [
+    {
+      "Column": "SyncState",
+      "Label": "State"
+    }
+  ]
+}

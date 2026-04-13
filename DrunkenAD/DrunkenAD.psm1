@@ -33,6 +33,32 @@ function ConvertTo-DrunkenADLdapFilterValue {
     $builder.ToString()
 }
 
+function ConvertTo-DrunkenADStringArray {
+    [CmdletBinding()]
+    param(
+        $Values,
+
+        [switch]$SkipBlank
+    )
+
+    $result = New-Object System.Collections.Generic.List[string]
+
+    foreach ($value in @($Values)) {
+        if ($null -eq $value) {
+            continue
+        }
+
+        $stringValue = [string]$value
+        if ($SkipBlank -and [string]::IsNullOrWhiteSpace($stringValue)) {
+            continue
+        }
+
+        $result.Add($stringValue)
+    }
+
+    return ,([string[]]$result.ToArray())
+}
+
 function Resolve-DrunkenADLogPath {
     [CmdletBinding()]
     param(
@@ -186,13 +212,99 @@ function Resolve-DrunkenADUser {
     $users[0]
 }
 
+function Get-DrunkenADDrinkAttributeStatus {
+    [CmdletBinding()]
+    param(
+        [string]$Server
+    )
+
+    Initialize-DrunkenADModule
+
+    $rootDseParams = @{
+        ErrorAction = 'Stop'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Server)) {
+        $rootDseParams['Server'] = $Server
+    }
+
+    $rootDse = Get-ADRootDSE @rootDseParams
+    $commonSchemaParams = @{
+        SearchBase  = $rootDse.SchemaNamingContext
+        ErrorAction = 'Stop'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Server)) {
+        $commonSchemaParams['Server'] = $Server
+    }
+
+    $attributeMatches = @(Get-ADObject @commonSchemaParams -LDAPFilter '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' -Properties @('isDefunct', 'lDAPDisplayName', 'distinguishedName'))
+    if ($attributeMatches.Count -gt 1) {
+        throw "Multiple schema entries named 'drink' were returned. Aborting because the schema lookup is ambiguous."
+    }
+
+    $userClassMatches = @(Get-ADObject @commonSchemaParams -LDAPFilter '(&(objectClass=classSchema)(lDAPDisplayName=user))' -Properties @('mayContain', 'systemMayContain', 'lDAPDisplayName', 'distinguishedName'))
+    if ($userClassMatches.Count -gt 1) {
+        throw "Multiple schema entries for the Active Directory user class were returned. Aborting because the schema lookup is ambiguous."
+    }
+
+    if ($userClassMatches.Count -eq 0) {
+        throw 'The Active Directory user class could not be resolved from the target schema.'
+    }
+
+    $attributeObject = if ($attributeMatches.Count -eq 1) { $attributeMatches[0] } else { $null }
+    $userClassObject = $userClassMatches[0]
+    $attributePresent = $null -ne $attributeObject
+    $isDefunct = if ($attributePresent) { [bool]$attributeObject.isDefunct } else { $null }
+    $isEnabled = $attributePresent -and (-not $isDefunct)
+    $allowedOnUserClass = $false
+
+    if ($isEnabled) {
+        $allowedAttributes = @($userClassObject.mayContain) + @($userClassObject.systemMayContain)
+        $allowedOnUserClass = @($allowedAttributes) -contains 'drink'
+    }
+
+    $blockingReason = $null
+    $blockingMessage = $null
+
+    if (-not $attributePresent) {
+        $blockingReason = 'AttributeMissing'
+        $blockingMessage = "The 'drink' attribute was not found in the target Active Directory schema."
+    }
+    elseif ($isDefunct) {
+        $blockingReason = 'AttributeDefunct'
+        $blockingMessage = "The 'drink' attribute is defunct in the target Active Directory schema."
+    }
+    elseif (-not $allowedOnUserClass) {
+        $blockingReason = 'NotAllowedOnUserClass'
+        $blockingMessage = "The 'drink' attribute exists in the target Active Directory schema but is not allowed on the Active Directory user class."
+    }
+
+    [pscustomobject]@{
+        Server                   = $Server
+        Enabled                  = $isEnabled
+        IsDefunct                = $isDefunct
+        DistinguishedName        = if ($attributePresent) { $attributeObject.DistinguishedName } else { $null }
+        AttributeDistinguishedName = if ($attributePresent) { $attributeObject.DistinguishedName } else { $null }
+        SchemaNamingContext      = $rootDse.SchemaNamingContext
+        UserClassDistinguishedName = $userClassObject.DistinguishedName
+        AllowedOnUserClass       = $allowedOnUserClass
+        ReadyForUserWrite        = ($isEnabled -and $allowedOnUserClass)
+        BlockingReason           = $blockingReason
+        BlockingMessage          = $blockingMessage
+    }
+}
+
 <#
 .SYNOPSIS
-Tests whether the Active Directory `drink` attribute is available for use.
+Tests whether the Active Directory `drink` attribute exists and is not defunct.
 
 .DESCRIPTION
 Queries the schema naming context on the target domain controller and verifies
 that an attribute with the LDAP display name `drink` exists and is not defunct.
+The Boolean result preserves the original meaning of schema presence. Use
+`Test-ADDrinkAttributeReadyForUserWrite` when you need to know whether the
+attribute is also allowed on the Active Directory `user` class.
 
 .PARAMETER Server
 Optional domain controller to query. When omitted, the default AD connection
@@ -213,7 +325,8 @@ Returns `$true` when the `drink` attribute is enabled on the target schema.
 .EXAMPLE
 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' -PassThru
 
-Returns detailed schema lookup information for troubleshooting.
+Returns detailed schema lookup information, including whether `drink` is allowed
+on the Active Directory `user` class.
 #>
 function Test-ADDrinkAttributeEnabled {
     [CmdletBinding()]
@@ -223,52 +336,64 @@ function Test-ADDrinkAttributeEnabled {
         [switch]$PassThru
     )
 
-    Initialize-DrunkenADModule
-
-    $rootDseParams = @{
-        ErrorAction = 'Stop'
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Server)) {
-        $rootDseParams['Server'] = $Server
-    }
-
-    $rootDse = Get-ADRootDSE @rootDseParams
-    $attributeParams = @{
-        SearchBase = $rootDse.SchemaNamingContext
-        LDAPFilter = '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))'
-        Properties = @('isDefunct', 'lDAPDisplayName')
-        ErrorAction = 'Stop'
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Server)) {
-        $attributeParams['Server'] = $Server
-    }
-
-    $attributeMatches = @(Get-ADObject @attributeParams)
-    $isEnabled = $false
-    $attributeObject = $null
-
-    if ($attributeMatches.Count -gt 1) {
-        throw "Multiple schema entries named 'drink' were returned. Aborting because the schema lookup is ambiguous."
-    }
-
-    if ($attributeMatches.Count -eq 1) {
-        $attributeObject = $attributeMatches[0]
-        $isEnabled = -not [bool]$attributeObject.isDefunct
-    }
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
 
     if ($PassThru) {
-        [pscustomobject]@{
-            Server            = $Server
-            Enabled           = $isEnabled
-            IsDefunct         = if ($attributeObject) { [bool]$attributeObject.isDefunct } else { $null }
-            DistinguishedName = if ($attributeObject) { $attributeObject.DistinguishedName } else { $null }
-        }
+        $status
         return
     }
 
-    $isEnabled
+    $status.Enabled
+}
+
+<#
+.SYNOPSIS
+Tests whether the Active Directory `drink` attribute is ready for user writes.
+
+.DESCRIPTION
+Queries the schema naming context on the target domain controller and verifies
+that the `drink` attribute exists, is not defunct, and is allowed on the
+Active Directory `user` class.
+
+.PARAMETER Server
+Optional domain controller to query. When omitted, the default AD connection
+behavior is used.
+
+.PARAMETER PassThru
+Returns a richer object describing both schema presence and write readiness.
+
+.OUTPUTS
+System.Boolean
+System.Management.Automation.PSCustomObject
+
+.EXAMPLE
+Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com'
+
+Returns `$true` only when DrunkenAD can safely write `drink` values to user
+objects on the target environment.
+
+.EXAMPLE
+Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com' -PassThru
+
+Returns detailed readiness information, including the blocking reason when user
+writes are not currently supported.
+#>
+function Test-ADDrinkAttributeReadyForUserWrite {
+    [CmdletBinding()]
+    param(
+        [string]$Server,
+
+        [switch]$PassThru
+    )
+
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+
+    if ($PassThru) {
+        $status
+        return
+    }
+
+    $status.ReadyForUserWrite
 }
 
 function Assert-ADDrinkAttributeEnabled {
@@ -277,8 +402,23 @@ function Assert-ADDrinkAttributeEnabled {
         [string]$Server
     )
 
-    if (-not (Test-ADDrinkAttributeEnabled -Server $Server)) {
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+
+    if (-not $status.Enabled) {
         throw "The 'drink' attribute is not enabled in the target Active Directory schema."
+    }
+}
+
+function Assert-ADDrinkAttributeReadyForUserWrite {
+    [CmdletBinding()]
+    param(
+        [string]$Server
+    )
+
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+
+    if (-not $status.ReadyForUserWrite) {
+        throw $status.BlockingMessage
     }
 }
 
@@ -376,7 +516,7 @@ function Merge-DrunkenADAttributeMap {
     $mergedMap
 }
 
-function Get-DrunkenADDefaultDemoAttributeMap {
+function Get-DrunkenADDefaultProjectionAttributeMap {
     [CmdletBinding()]
     param()
 
@@ -389,7 +529,7 @@ function Get-DrunkenADDefaultDemoAttributeMap {
     }
 }
 
-function ConvertTo-DrunkenADDemoDataMap {
+function ConvertTo-DrunkenADProjectionDataMap {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
@@ -423,6 +563,232 @@ function ConvertTo-DrunkenADDemoDataMap {
 
         if ($records.Count -gt 0) {
             $dataMap[$prefix] = $records
+        }
+    }
+
+    $dataMap
+}
+
+function Add-DrunkenADCsvRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$DataMap,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Prefix,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return
+    }
+
+    $trimmedValue = $Value.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmedValue)) {
+        return
+    }
+
+    if (-not $DataMap.Contains($Prefix)) {
+        $DataMap[$Prefix] = @()
+    }
+
+    if ($DataMap[$Prefix] -notcontains $trimmedValue) {
+        $DataMap[$Prefix] += $trimmedValue
+    }
+}
+
+function Split-DrunkenADCsvField {
+    [CmdletBinding()]
+    param(
+        [string]$Value,
+
+        [string]$Delimiter = ';'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return @()
+    }
+
+    @(
+        $Value -split [regex]::Escape($Delimiter) |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
+function ConvertTo-DrunkenADHashtable {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        $InputObject
+    )
+
+    if ($null -eq $InputObject) {
+        return $null
+    }
+
+    if ($InputObject -is [hashtable]) {
+        $result = @{}
+        foreach ($key in $InputObject.Keys) {
+            $result[[string]$key] = ConvertTo-DrunkenADHashtable -InputObject $InputObject[$key]
+        }
+
+        return $result
+    }
+
+    if ($InputObject -is [System.Collections.IEnumerable] -and -not ($InputObject -is [string])) {
+        $items = @()
+        foreach ($item in $InputObject) {
+            $items += ,(ConvertTo-DrunkenADHashtable -InputObject $item)
+        }
+
+        return $items
+    }
+
+    if ($InputObject -is [psobject] -and @($InputObject.PSObject.Properties).Count -gt 0) {
+        $result = @{}
+        foreach ($property in $InputObject.PSObject.Properties) {
+            $result[$property.Name] = ConvertTo-DrunkenADHashtable -InputObject $property.Value
+        }
+
+        return $result
+    }
+
+    $InputObject
+}
+
+function Resolve-DrunkenADCsvNamespaceMap {
+    [CmdletBinding(DefaultParameterSetName = 'ConfigPath')]
+    param(
+        [Parameter(Mandatory = $true, ParameterSetName = 'NamespaceMap')]
+        [hashtable]$NamespaceMap,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'ConfigPath')]
+        [string]$ConfigPath
+    )
+
+    if ($PSCmdlet.ParameterSetName -eq 'NamespaceMap') {
+        if ($NamespaceMap.Count -eq 0) {
+            throw 'NamespaceMap cannot be empty when supplied.'
+        }
+
+        return $NamespaceMap
+    }
+
+    if (-not (Test-Path -LiteralPath $ConfigPath)) {
+        throw "Config path '$ConfigPath' was not found."
+    }
+
+    $configText = Get-Content -LiteralPath $ConfigPath -Raw -ErrorAction Stop
+    $configObject = ConvertFrom-Json -InputObject $configText -ErrorAction Stop
+    ConvertTo-DrunkenADHashtable -InputObject $configObject
+}
+
+function Get-DrunkenADCsvMappings {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$NamespaceMap
+    )
+
+    $mappings = @()
+
+    foreach ($prefix in $NamespaceMap.Keys) {
+        if ([string]::IsNullOrWhiteSpace([string]$prefix)) {
+            throw 'Namespace map prefixes cannot be null, empty, or whitespace.'
+        }
+
+        foreach ($entry in @($NamespaceMap[$prefix])) {
+            if ($null -eq $entry) {
+                continue
+            }
+
+            $normalizedEntry = if ($entry -is [hashtable]) {
+                $entry
+            }
+            else {
+                ConvertTo-DrunkenADHashtable -InputObject $entry
+            }
+
+            $column = [string]$normalizedEntry['Column']
+            if ([string]::IsNullOrWhiteSpace($column)) {
+                throw "Namespace map entry for prefix '$prefix' must include a non-empty Column value."
+            }
+
+            $mappings += [pscustomobject]@{
+                Prefix  = [string]$prefix
+                Column  = $column
+                Label   = [string]$normalizedEntry['Label']
+                SplitOn = [string]$normalizedEntry['SplitOn']
+            }
+        }
+    }
+
+    if ($mappings.Count -eq 0) {
+        throw 'Namespace map did not contain any usable mappings.'
+    }
+
+    $mappings
+}
+
+function Assert-DrunkenADCsvColumns {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CsvPath,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$Rows,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$Mappings
+    )
+
+    if ($Rows.Count -eq 0) {
+        return
+    }
+
+    $columns = @($Rows[0].PSObject.Properties.Name)
+    foreach ($mapping in $Mappings) {
+        if ($columns -notcontains $mapping.Column) {
+            throw "CSV file '$CsvPath' is missing required column '$($mapping.Column)' for prefix '$($mapping.Prefix)'."
+        }
+    }
+}
+
+function ConvertTo-DrunkenADCsvDataMap {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Row,
+
+        [Parameter(Mandatory = $true)]
+        [object[]]$Mappings
+    )
+
+    $dataMap = @{}
+
+    foreach ($mapping in $Mappings) {
+        $columnValue = [string]$Row.($mapping.Column)
+        $fieldValues = if ([string]::IsNullOrWhiteSpace($mapping.SplitOn)) {
+            @($columnValue)
+        }
+        else {
+            @(Split-DrunkenADCsvField -Value $columnValue -Delimiter $mapping.SplitOn)
+        }
+
+        foreach ($fieldValue in $fieldValues) {
+            $recordValue = if ([string]::IsNullOrWhiteSpace($mapping.Label)) {
+                $fieldValue
+            }
+            else {
+                '{0}={1}' -f $mapping.Label, $fieldValue
+            }
+
+            Add-DrunkenADCsvRecord -DataMap $dataMap -Prefix $mapping.Prefix -Value $recordValue
         }
     }
 
@@ -512,7 +878,7 @@ function Get-ADUserDrinkData {
         'Pager'             { $resolveUserParams['Pager'] = $Pager }
     }
 
-    $values = @((Resolve-DrunkenADUser @resolveUserParams).drink | Where-Object { $null -ne $_ })
+    $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
 
     if ($PSBoundParameters.ContainsKey('Prefix')) {
         $escapedPrefix = [regex]::Escape($Prefix)
@@ -556,9 +922,9 @@ Optional domain controller to use for both schema validation and user lookup.
 System.String[]
 
 .EXAMPLE
-Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'Demo-' -DomainController 'dc01.contoso.com'
+Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'Profile-' -DomainController 'dc01.contoso.com'
 
-Returns all `drink` values on the user that start with `Demo-`.
+Returns all `drink` values on the user that start with `Profile-`.
 
 .EXAMPLE
 Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValuePrefix 'Profile-'
@@ -686,6 +1052,8 @@ function Set-ADUserDrinkData {
         [switch]$PassThru
     )
 
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
+
     $setParams = @{
         PrefixMap        = $DataMap
         DomainController = $DomainController
@@ -795,6 +1163,8 @@ function Remove-ADUserDrinkData {
         [switch]$PassThru
     )
 
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
+
     $dataMap = [ordered]@{}
     foreach ($prefix in $Prefixes) {
         $dataMap[$prefix] = @()
@@ -841,14 +1211,14 @@ function Remove-ADUserDrinkData {
 
 <#
 .SYNOPSIS
-Runs a demo workload that stores generic namespaced data in the `drink` attribute.
+Projects selected user attributes into the Active Directory `drink` attribute.
 
 .DESCRIPTION
 Builds a `DataMap` from selected user attributes and writes that data into the
 multivalued `drink` attribute using the generic data-store API. By default, the
-demo uses the same core identity-related attributes that the example script
-already exercises. You can replace that default set with your own `AttributeMap`,
-or merge your custom map into the default demo set.
+projection uses a built-in identity-oriented attribute map. You can replace that
+default set with your own `AttributeMap`, or merge your custom map into the
+default projection set.
 
 .PARAMETER SamAccountName
 Finds the user by exact `sAMAccountName`.
@@ -870,7 +1240,7 @@ Hashtable whose keys are literal namespace prefixes and whose values are one or
 more user attribute names to read and store beneath that prefix.
 
 .PARAMETER IncludeDefaultAttributeMap
-Merges the supplied `AttributeMap` into the built-in default demo map instead of
+Merges the supplied `AttributeMap` into the built-in default projection map instead of
 replacing it.
 
 .PARAMETER DomainController
@@ -881,15 +1251,15 @@ Optional log file path for appended activity records.
 
 .PARAMETER PassThru
 Returns a summary object containing the effective attribute map, the generated
-data map, and the final `drink` values after the demo write.
+data map, and the final `drink` values after the projection write.
 
 .EXAMPLE
-Invoke-ADUserDrinkDataDemo -SamAccountName 'TesterAccount' -DomainController 'dc01.contoso.com' -Confirm:$false
+Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -DomainController 'dc01.contoso.com' -Confirm:$false
 
-Runs the built-in demo against the target user.
+Projects the built-in attribute map into the target user's `drink` values.
 
 .EXAMPLE
-$demoParams = @{
+$projectionParams = @{
     SamAccountName = 'TesterAccount'
     DomainController = 'dc01.contoso.com'
     AttributeMap = @{
@@ -897,16 +1267,16 @@ $demoParams = @{
         'Flags-'   = @('company')
     }
 }
-Invoke-ADUserDrinkDataDemo @demoParams -Confirm:$false
+Set-ADUserDrinkProjection @projectionParams -Confirm:$false
 
-Runs the demo with a custom attribute map provided via splatting.
+Runs the projection with a custom attribute map provided via splatting.
 
 .EXAMPLE
-Invoke-ADUserDrinkDataDemo -SamAccountName 'TesterAccount' -AttributeMap @{ 'Custom-' = @('description') } -IncludeDefaultAttributeMap -Confirm:$false
+Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -AttributeMap @{ 'Custom-' = @('description') } -IncludeDefaultAttributeMap -Confirm:$false
 
-Adds a custom namespace on top of the built-in demo map.
+Adds a custom namespace on top of the built-in projection map.
 #>
-function Invoke-ADUserDrinkDataDemo {
+function Set-ADUserDrinkProjection {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low', DefaultParameterSetName = 'SamAccountName')]
     param(
         [Parameter(Mandatory = $true, ParameterSetName = 'SamAccountName')]
@@ -936,7 +1306,9 @@ function Invoke-ADUserDrinkDataDemo {
         [switch]$PassThru
     )
 
-    $defaultAttributeMap = Get-DrunkenADDefaultDemoAttributeMap
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
+
+    $defaultAttributeMap = Get-DrunkenADDefaultProjectionAttributeMap
     $effectiveAttributeMap = if ($PSBoundParameters.ContainsKey('AttributeMap')) {
         if ($IncludeDefaultAttributeMap) {
             Merge-DrunkenADAttributeMap -BaseMap $defaultAttributeMap -OverlayMap $AttributeMap
@@ -987,10 +1359,10 @@ function Invoke-ADUserDrinkDataDemo {
     }
 
     $user = Resolve-DrunkenADUser @resolveUserParams
-    $dataMap = ConvertTo-DrunkenADDemoDataMap -User $user -AttributeMap $effectiveAttributeMap
+    $dataMap = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap $effectiveAttributeMap
 
     if ($dataMap.Count -eq 0) {
-        Write-Verbose "No populated demo data was found for $($user.SamAccountName)."
+        Write-Verbose "No populated projection data was found for $($user.SamAccountName)."
         if ($PassThru) {
             return [pscustomobject]@{
                 SamAccountName      = $user.SamAccountName
@@ -1003,7 +1375,7 @@ function Invoke-ADUserDrinkDataDemo {
         return
     }
 
-    if ($PSCmdlet.ShouldProcess($user.SamAccountName, 'Run drink data demo')) {
+    if ($PSCmdlet.ShouldProcess($user.SamAccountName, 'Project drink data')) {
         $finalDrinkValues = Set-ADUserDrinkData -SamAccountName $user.SamAccountName -DataMap $dataMap -DomainController $DomainController -LogPath $LogPath -Confirm:$false -PassThru
 
         if ($PassThru) {
@@ -1015,6 +1387,167 @@ function Invoke-ADUserDrinkDataDemo {
             }
         }
     }
+}
+
+<#
+.SYNOPSIS
+Imports namespaced `drink` data for one or more users from a CSV source.
+
+.DESCRIPTION
+Reads a CSV file, converts selected columns into namespace records using either
+an in-memory `NamespaceMap` or a JSON config file, validates the required
+columns, and writes the resulting data maps into each user's `drink` attribute.
+Each row must include `SamAccountName`.
+
+.PARAMETER CsvPath
+Path to the source CSV file.
+
+.PARAMETER NamespaceMap
+Hashtable describing how CSV columns map into `drink` namespace records. Keys
+are literal namespace prefixes. Each value is one or more entries with `Column`
+and optional `Label` or `SplitOn` fields.
+
+.PARAMETER ConfigPath
+Path to a JSON file containing the same namespace map structure used by
+`NamespaceMap`.
+
+.PARAMETER DomainController
+Optional domain controller to use consistently for validation and writes.
+
+.PARAMETER LogPath
+Optional log file path for appended activity records.
+
+.OUTPUTS
+System.Management.Automation.PSCustomObject
+
+.EXAMPLE
+Import-ADUserDrinkCsvData -CsvPath '.\users.csv' -ConfigPath '.\drink-config.json' -DomainController 'dc01.contoso.com'
+
+Imports `drink` data using a JSON-backed namespace map.
+
+.EXAMPLE
+$namespaceMap = @{
+    'Profile-' = @(
+        @{ Column = 'ProfileTier'; Label = 'Tier' }
+        @{ Column = 'ProfileRegion'; Label = 'Region' }
+    )
+    'Flags-' = @(
+        @{ Column = 'Flags'; SplitOn = ';' }
+    )
+}
+Import-ADUserDrinkCsvData -CsvPath '.\users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' -WhatIf
+
+Previews a CSV import using an in-memory namespace map.
+#>
+function Import-ADUserDrinkCsvData {
+    [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'ConfigPath')]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$CsvPath,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'NamespaceMap')]
+        [hashtable]$NamespaceMap,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'ConfigPath')]
+        [string]$ConfigPath,
+
+        [Alias('Server')]
+        [string]$DomainController,
+
+        [string]$LogPath
+    )
+
+    if (-not (Test-Path -LiteralPath $CsvPath)) {
+        throw "CSV path '$CsvPath' was not found."
+    }
+
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
+
+    $rows = @(Import-Csv -LiteralPath $CsvPath)
+    $namespaceParams = @{}
+
+    if ($PSCmdlet.ParameterSetName -eq 'NamespaceMap') {
+        $namespaceParams['NamespaceMap'] = $NamespaceMap
+    }
+    else {
+        $namespaceParams['ConfigPath'] = $ConfigPath
+    }
+
+    $effectiveNamespaceMap = Resolve-DrunkenADCsvNamespaceMap @namespaceParams
+    $mappings = @(Get-DrunkenADCsvMappings -NamespaceMap $effectiveNamespaceMap)
+
+    Assert-DrunkenADCsvColumns -CsvPath $CsvPath -Rows $rows -Mappings $mappings
+
+    foreach ($row in $rows) {
+        if ([string]::IsNullOrWhiteSpace($row.SamAccountName)) {
+            Write-Warning "Skipping a row with no SamAccountName in '$CsvPath'."
+            continue
+        }
+
+        $dataMap = ConvertTo-DrunkenADCsvDataMap -Row $row -Mappings $mappings
+
+        if ($dataMap.Count -eq 0) {
+            Write-Warning "Skipping '$($row.SamAccountName)' because the row did not contain any drink data."
+            continue
+        }
+
+        $finalDrinkValues = @()
+        if ($PSCmdlet.ShouldProcess($row.SamAccountName, 'Import drink data from CSV')) {
+            $finalDrinkValues = @(Set-ADUserDrinkData -SamAccountName $row.SamAccountName -DataMap $dataMap -DomainController $DomainController -LogPath $LogPath -Confirm:$false -PassThru)
+        }
+
+        [pscustomobject]@{
+            SamAccountName   = $row.SamAccountName
+            ConfigSource     = if ($PSCmdlet.ParameterSetName -eq 'NamespaceMap') { 'NamespaceMap' } else { $ConfigPath }
+            Namespaces       = @($dataMap.Keys)
+            DataMap          = $dataMap
+            FinalDrinkValues = $finalDrinkValues
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+Compatibility wrapper for the older projection command name.
+
+.DESCRIPTION
+Calls `Set-ADUserDrinkProjection` with the same parameters. Retained for
+backward compatibility with earlier scripts and examples.
+
+.NOTES
+Prefer `Set-ADUserDrinkProjection` for new usage.
+#>
+function Invoke-ADUserDrinkDataDemo {
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low', DefaultParameterSetName = 'SamAccountName')]
+    param(
+        [Parameter(Mandatory = $true, ParameterSetName = 'SamAccountName')]
+        [string]$SamAccountName,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'UserPrincipalName')]
+        [string]$UserPrincipalName,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'EmployeeID')]
+        [string]$EmployeeID,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'Mail')]
+        [string]$Mail,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'Pager')]
+        [string]$Pager,
+
+        [hashtable]$AttributeMap,
+
+        [switch]$IncludeDefaultAttributeMap,
+
+        [Alias('Server')]
+        [string]$DomainController,
+
+        [string]$LogPath,
+
+        [switch]$PassThru
+    )
+
+    Set-ADUserDrinkProjection @PSBoundParameters
 }
 
 <#
@@ -1059,12 +1592,12 @@ Returns the final `drink` value set after the update logic is computed.
 System.String[]
 
 .EXAMPLE
-Set-ADUserDrinkPrefixedData -SamAccountName 'TesterAccount' -PrefixMap @{ 'Demo-' = @('One') } -DomainController 'dc01.contoso.com' -Confirm:$false
+Set-ADUserDrinkPrefixedData -SamAccountName 'TesterAccount' -PrefixMap @{ 'Profile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
 
-Replaces the user's `Demo-` values with `Demo-One`.
+Replaces the user's `Profile-` values with `Profile-Tier=Gold`.
 
 .EXAMPLE
-Set-ADUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -PrefixMap @{ 'Demo[01]-' = @('Second') } -WhatIf
+Set-ADUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -PrefixMap @{ 'App[01]-' = @('Second') } -WhatIf
 
 Shows what would change for a literal prefix containing regex metacharacters.
 
@@ -1101,7 +1634,7 @@ function Set-ADUserDrinkPrefixedData {
         [switch]$PassThru
     )
 
-    Assert-ADDrinkAttributeEnabled -Server $DomainController
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $identityParams = @{}
     switch ($PSCmdlet.ParameterSetName) {
@@ -1131,7 +1664,7 @@ function Set-ADUserDrinkPrefixedData {
     }
 
     $user = Resolve-DrunkenADUser @resolveUserParams
-    $currentDrinks = @($user.drink | Where-Object { $null -ne $_ })
+    $currentDrinks = ConvertTo-DrunkenADStringArray -Values $user.drink -SkipBlank
     $updatedDrinks = @($currentDrinks)
 
     foreach ($prefixKey in $PrefixMap.Keys) {
@@ -1143,16 +1676,11 @@ function Set-ADUserDrinkPrefixedData {
         $escapedPrefix = [regex]::Escape($prefix)
         $updatedDrinks = @($updatedDrinks | Where-Object { $_ -notmatch ('^{0}' -f $escapedPrefix) })
 
-        $rawValues = @($PrefixMap[$prefixKey] | Where-Object { $null -ne $_ })
+        $rawValues = ConvertTo-DrunkenADStringArray -Values $PrefixMap[$prefixKey] -SkipBlank
         $prefixedValues = @()
 
         foreach ($rawValue in $rawValues) {
-            $stringValue = [string]$rawValue
-            if ([string]::IsNullOrWhiteSpace($stringValue)) {
-                continue
-            }
-
-            $prefixedValue = '{0}{1}' -f $prefix, $stringValue
+            $prefixedValue = '{0}{1}' -f $prefix, $rawValue
             if ($prefixedValues -notcontains $prefixedValue) {
                 $prefixedValues += $prefixedValue
             }
@@ -1167,6 +1695,8 @@ function Set-ADUserDrinkPrefixedData {
             }
         }
     }
+
+    $updatedDrinks = ConvertTo-DrunkenADStringArray -Values $updatedDrinks -SkipBlank
 
     $currentFingerprint = @($currentDrinks | Sort-Object) -join "`n"
     $updatedFingerprint = @($updatedDrinks | Sort-Object) -join "`n"
@@ -1203,7 +1733,7 @@ function Set-ADUserDrinkPrefixedData {
             $setUserParams['Clear'] = 'drink'
         }
         else {
-            $setUserParams['Replace'] = @{ drink = @($updatedDrinks) }
+            $setUserParams['Replace'] = @{ drink = [string[]]$updatedDrinks }
         }
 
         Set-ADUser @setUserParams
@@ -1266,9 +1796,9 @@ Returns the final `drink` value set after the update logic is computed.
 System.String[]
 
 .EXAMPLE
-Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'Demo-' -DrinkValues 'One' -AutoConfirm
+Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'Profile-' -DrinkValues 'Tier=Gold' -AutoConfirm
 
-Replaces the `Demo-` slice of the `drink` attribute with a single value.
+Replaces the `Profile-` slice of the `drink` attribute with a single value.
 
 .EXAMPLE
 Update-ADUserDrinkAttribute -EmployeeID '123456' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B' -WhatIf
@@ -1310,6 +1840,8 @@ function Update-ADUserDrinkAttribute {
 
         [switch]$PassThru
     )
+
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $prefixMap = ConvertTo-DrunkenADPrefixMap -Prefixes $Prefixes -DrinkValues $DrinkValues
     $effectiveLogPath = Resolve-DrunkenADLogPath -LogPath $LogPath -EnableLogging:$EnableLogging
@@ -1357,9 +1889,12 @@ Export-ModuleMember -Function @(
     'Get-ADUserDrinkData',
     'Set-ADUserDrinkData',
     'Remove-ADUserDrinkData',
+    'Set-ADUserDrinkProjection',
+    'Import-ADUserDrinkCsvData',
     'Invoke-ADUserDrinkDataDemo',
     'Get-AdUserDrinkPrefixedData',
     'Set-ADUserDrinkPrefixedData',
     'Test-ADDrinkAttributeEnabled',
+    'Test-ADDrinkAttributeReadyForUserWrite',
     'Update-ADUserDrinkAttribute'
 )

@@ -145,21 +145,154 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'returns true when the drink attribute exists and is active' {
-                $global:DrunkenADTest_GetADObjectHandler = { [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' }
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @('drink'); systemMayContain = @('cn') }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
 
                 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' | Should -BeTrue
 
                 $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 1
-                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 1
+                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 2
                 $global:DrunkenADTest_GetADObjectCalls[0]['SearchBase'] | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
                 $global:DrunkenADTest_GetADObjectCalls[0]['LDAPFilter'] | Should -Be '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))'
                 $global:DrunkenADTest_GetADObjectCalls[0]['Server'] | Should -Be 'dc01.contoso.com'
+                $global:DrunkenADTest_GetADObjectCalls[1]['LDAPFilter'] | Should -Be '(&(objectClass=classSchema)(lDAPDisplayName=user))'
             }
 
             It 'returns false when the drink attribute is missing' {
-                $global:DrunkenADTest_GetADObjectHandler = { @() }
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            @()
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @(); systemMayContain = @('cn') }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
 
                 Test-ADDrinkAttributeEnabled | Should -BeFalse
+            }
+
+            It 'returns write-readiness details through PassThru without changing the Boolean meaning' {
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' }
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @(); systemMayContain = @('cn') }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
+
+                $result = Test-ADDrinkAttributeEnabled -PassThru
+
+                $result.Enabled | Should -BeTrue
+                $result.AllowedOnUserClass | Should -BeFalse
+                $result.ReadyForUserWrite | Should -BeFalse
+                $result.BlockingReason | Should -Be 'NotAllowedOnUserClass'
+                $result.SchemaNamingContext | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
+                $result.UserClassDistinguishedName | Should -Be 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'
+            }
+        }
+
+        Context 'Test-ADDrinkAttributeReadyForUserWrite' {
+            BeforeEach {
+                Mock Get-Module { [pscustomobject]@{ Name = 'ActiveDirectory' } }
+                Mock Import-Module {}
+                $global:DrunkenADTest_GetADRootDSECalls = @()
+                $global:DrunkenADTest_GetADObjectCalls = @()
+                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+            }
+
+            It 'returns true when drink is allowed on the user class' {
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' }
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @('drink'); systemMayContain = @() }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
+
+                Test-ADDrinkAttributeReadyForUserWrite | Should -BeTrue
+            }
+
+            It 'returns false with a blocking reason when drink is not allowed on the user class' {
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            [pscustomobject]@{ isDefunct = $false; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' }
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @(); systemMayContain = @('cn') }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
+
+                $result = Test-ADDrinkAttributeReadyForUserWrite -PassThru
+
+                $result.ReadyForUserWrite | Should -BeFalse
+                $result.BlockingReason | Should -Be 'NotAllowedOnUserClass'
+                $result.BlockingMessage | Should -BeLike '*not allowed on the Active Directory user class*'
+            }
+
+            It 'returns false when the drink attribute is defunct' {
+                $global:DrunkenADTest_GetADObjectHandler = {
+                    param($SearchBase, $LDAPFilter)
+
+                    switch ($LDAPFilter) {
+                        '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' {
+                            [pscustomobject]@{ isDefunct = $true; DistinguishedName = 'CN=drink,CN=Schema,CN=Configuration,DC=contoso,DC=com' }
+                        }
+                        '(&(objectClass=classSchema)(lDAPDisplayName=user))' {
+                            [pscustomobject]@{ DistinguishedName = 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'; mayContain = @('drink'); systemMayContain = @() }
+                        }
+                        default {
+                            throw "Unexpected LDAP filter '$LDAPFilter'."
+                        }
+                    }
+                }
+
+                $result = Test-ADDrinkAttributeReadyForUserWrite -PassThru
+
+                $result.ReadyForUserWrite | Should -BeFalse
+                $result.BlockingReason | Should -Be 'AttributeDefunct'
             }
         }
 
@@ -211,7 +344,7 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Set-ADUserDrinkPrefixedData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Write-DrunkenADLog {}
                 $global:DrunkenADTest_SetADUserCalls = @()
             }
@@ -270,6 +403,26 @@ Describe 'DrunkenAD unit tests' {
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
             }
 
+            It 'normalizes preserved values to strings before calling Set-ADUser Replace' {
+                $preservedValue = New-Object psobject
+                $preservedValue | Add-Member -MemberType ScriptMethod -Name ToString -Value { 'Keep-me' } -Force
+
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @('Test[1]-old', $preservedValue)
+                    }
+                }
+
+                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Test[1]-' = @('new') } -Confirm:$false
+
+                $replaceValues = @($global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'])
+
+                $replaceValues | Should -Be @('Keep-me', 'Test[1]-new')
+                ($replaceValues | ForEach-Object { $_.GetType().FullName } | Sort-Object -Unique) | Should -Be @('System.String')
+            }
+
             It 'respects WhatIf and skips the underlying write' {
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
@@ -283,10 +436,21 @@ Describe 'DrunkenAD unit tests' {
 
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
             }
+
+            It 'throws the readiness error when user writes are not supported' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw "The 'drink' attribute exists in the target Active Directory schema but is not allowed on the Active Directory user class."
+                }
+
+                {
+                    Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Test-' = @('new') } -Confirm:$false
+                } | Should -Throw '*not allowed on the Active Directory user class*'
+            }
         }
 
         Context 'Set-ADUserDrinkData' {
             BeforeEach {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Set-ADUserDrinkPrefixedData {}
             }
 
@@ -309,6 +473,7 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Remove-ADUserDrinkData' {
             BeforeEach {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Set-ADUserDrinkData {}
             }
 
@@ -331,8 +496,9 @@ Describe 'DrunkenAD unit tests' {
             }
         }
 
-        Context 'Invoke-ADUserDrinkDataDemo' {
+        Context 'Set-ADUserDrinkProjection' {
             BeforeEach {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
                         SamAccountName    = 'demo'
@@ -353,7 +519,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'uses the built-in default attribute map when none is supplied' {
-                $result = Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -Confirm:$false -PassThru
+                $result = Set-ADUserDrinkProjection -SamAccountName 'demo' -Confirm:$false -PassThru
 
                 Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
@@ -377,8 +543,8 @@ Describe 'DrunkenAD unit tests' {
                 $result.DataMap.Contains('Profile-') | Should -BeTrue
             }
 
-            It 'replaces the default demo map when a custom map is supplied' {
-                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('department', 'title') } -Confirm:$false | Out-Null
+            It 'replaces the default projection map when a custom map is supplied' {
+                Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('department', 'title') } -Confirm:$false | Out-Null
 
                 Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
@@ -394,8 +560,8 @@ Describe 'DrunkenAD unit tests' {
                 }
             }
 
-            It 'merges a custom map with the default demo map when requested' {
-                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('company') } -IncludeDefaultAttributeMap -Confirm:$false | Out-Null
+            It 'merges a custom map with the default projection map when requested' {
+                Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('company') } -IncludeDefaultAttributeMap -Confirm:$false | Out-Null
 
                 Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
@@ -410,15 +576,131 @@ Describe 'DrunkenAD unit tests' {
                 }
             }
 
-            It 'honors WhatIf at the demo layer' {
-                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -WhatIf
+            It 'honors WhatIf at the projection layer' {
+                Set-ADUserDrinkProjection -SamAccountName 'demo' -WhatIf
 
                 Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
         }
 
+        Context 'Import-ADUserDrinkCsvData' {
+            BeforeEach {
+                Mock Test-Path { $true }
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            SamAccountName = 'alice'
+                            ProfileTier    = 'Gold'
+                            Flags          = 'Enabled;Audited'
+                        }
+                    )
+                }
+                Mock Set-ADUserDrinkData {
+                    @('Profile-Tier=Gold', 'Flags-Enabled', 'Flags-Audited')
+                }
+            }
+
+            It 'imports a CSV row using an in-memory namespace map' {
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                    'Flags-' = @(
+                        @{ Column = 'Flags'; SplitOn = ';' }
+                    )
+                }
+
+                $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 1 -Exactly -ParameterFilter {
+                    $Server -eq 'dc01.contoso.com'
+                }
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'alice' -and
+                    $DomainController -eq 'dc01.contoso.com' -and
+                    ((@($DataMap['Profile-']) -join ',') -eq 'Tier=Gold') -and
+                    ((@($DataMap['Flags-']) | Sort-Object) -join ',') -eq 'Audited,Enabled' -and
+                    $PassThru -and
+                    ($Confirm -eq $false)
+                }
+
+                $result.ConfigSource | Should -Be 'NamespaceMap'
+                $result.Namespaces | Should -Contain 'Profile-'
+                $result.Namespaces | Should -Contain 'Flags-'
+            }
+
+            It 'loads mappings from a JSON config file when ConfigPath is supplied' {
+                Mock Get-Content {
+                    @'
+{
+  "Tenant-": [
+    {
+      "Column": "TenantId",
+      "Label": "Id"
+    }
+  ]
+}
+'@
+                }
+
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            SamAccountName = 'alice'
+                            TenantId       = 'TEN-001'
+                        }
+                    )
+                }
+
+                Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -ConfigPath '/tmp/drink-config.json' -DomainController 'dc01.contoso.com' | Out-Null
+
+                Assert-MockCalled Get-Content -Times 1 -Exactly -ParameterFilter {
+                    $LiteralPath -eq '/tmp/drink-config.json' -and
+                    $Raw
+                }
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'alice' -and
+                    ((@($DataMap['Tenant-']) -join ',') -eq 'Id=TEN-001')
+                }
+            }
+
+            It 'honors WhatIf and skips the underlying write during CSV import' {
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                }
+
+                $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' -WhatIf
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                @($result.FinalDrinkValues).Count | Should -Be 0
+            }
+        }
+
+        Context 'Invoke-ADUserDrinkDataDemo' {
+            BeforeEach {
+                Mock Set-ADUserDrinkProjection {}
+            }
+
+            It 'remains as a compatibility wrapper around Set-ADUserDrinkProjection' {
+                Invoke-ADUserDrinkDataDemo -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('company') } -IncludeDefaultAttributeMap -Confirm:$false -PassThru
+
+                Assert-MockCalled Set-ADUserDrinkProjection -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    $AttributeMap.Contains('Org-') -and
+                    $IncludeDefaultAttributeMap -and
+                    $PassThru
+                }
+            }
+        }
+
         Context 'Update-ADUserDrinkAttribute' {
             BeforeEach {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Set-ADUserDrinkPrefixedData {}
             }
 
