@@ -1,0 +1,179 @@
+[CmdletBinding()]
+param(
+    [string]$VmName = 'WindowsServer2025_ADDNS',
+
+    [string]$VmWrapperPath = '/Users/jonathanweinberg/Documents/Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1',
+
+    [string]$RepoShareName = 'DrunkenAD_CODEX',
+
+    [string]$SnapshotName = ('drunkenad-live-seed-baseline-{0}' -f (Get-Date -Format 'yyyy-MM-dd-HHmmss')),
+
+    [string]$ResultsRoot = (Join-Path -Path $PSScriptRoot -ChildPath 'results'),
+
+    [int]$SeedCount = 3000
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Invoke-Prlctl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $output = & prlctl @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw ('prlctl {0} failed: {1}' -f ($Arguments -join ' '), ($output | Out-String).Trim())
+    }
+
+    $output
+}
+
+function Get-VmInfoText {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VmName
+    )
+
+    Invoke-Prlctl -Arguments @('list', '-i', $VmName) | Out-String
+}
+
+function Ensure-RepoSharedFolder {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VmName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRootPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ShareName
+    )
+
+    $vmInfoText = Get-VmInfoText -VmName $VmName
+    if ($vmInfoText -match ('(?m)^\s+{0} \(\+\) path=' -f [regex]::Escape($ShareName))) {
+        Invoke-Prlctl -Arguments @('set', $VmName, '--shf-host', 'on', '--shf-host-automount', 'on', '--shf-host-set', $ShareName, '--path', $RepoRootPath, '--mode', 'rw', '--enable') | Out-Null
+        return 'Updated'
+    }
+
+    Invoke-Prlctl -Arguments @('set', $VmName, '--shf-host', 'on', '--shf-host-automount', 'on', '--shf-host-add', $ShareName, '--path', $RepoRootPath, '--mode', 'rw') | Out-Null
+    'Created'
+}
+
+function New-VmSnapshotRecord {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VmName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SnapshotName
+    )
+
+    Invoke-Prlctl -Arguments @('snapshot', $VmName, '--name', $SnapshotName, '--description', 'DrunkenAD live campaign baseline') | Out-Null
+    $snapshotJson = Invoke-Prlctl -Arguments @('snapshot-list', $VmName, '--json') | Out-String | ConvertFrom-Json -ErrorAction Stop
+    foreach ($property in $snapshotJson.PSObject.Properties) {
+        if ($property.Value.name -eq $SnapshotName) {
+            return [pscustomobject]@{
+                Name = $SnapshotName
+                Id   = $property.Name
+                Date = $property.Value.date
+            }
+        }
+    }
+
+    throw "Snapshot '$SnapshotName' was created but could not be resolved in snapshot metadata."
+}
+
+function New-CrossProjectExcerpt {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$SnapshotRecord
+    )
+
+    (
+        "We're starting a DrunkenAD live-validation campaign on `WindowsServer2025_ADDNS` against `lab.contoso.com`. " +
+        'The work includes a new pre-mutation snapshot named "{0}" ({1}), a repo share named `DrunkenAD_CODEX`, ' +
+        'a persistent synthetic seed population of 3,000 users under `OU=DrunkenAD Seed,DC=lab,DC=contoso,DC=com`, ' +
+        'and live validation of CRUD, projection, and CSV ingestion paths. Please avoid mutating that OU tree or the ' +
+        '`Profile-`, `Flags-`, `Routing-`, `Tenant-`, `Sync-`, `Identity-`, `Meta-`, `Notify-`, `Org-`, `Keep-`, `Scenario-`, ' +
+        'and `Literal[01]-` namespaces while this campaign is in progress.'
+    ) -f $SnapshotRecord.Name, $SnapshotRecord.Id
+}
+
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '..\..'))
+$runName = Get-Date -Format 'yyyyMMdd-HHmmss'
+$runRoot = Join-Path -Path $ResultsRoot -ChildPath $runName
+$hostDataDirectory = Join-Path -Path $PSScriptRoot -ChildPath 'Data'
+$guestRepoRoot = '\\psf\{0}' -f $RepoShareName
+$guestResultsRoot = '\\psf\{0}\tests\Live\results\{1}' -f $RepoShareName, $runName
+$guestScriptPath = '{0}\tests\Live\Invoke-DrunkenADGuestCampaign.ps1' -f $guestRepoRoot
+
+if (-not (Test-Path -LiteralPath $runRoot)) {
+    New-Item -Path $runRoot -ItemType Directory -Force | Out-Null
+}
+
+$seedData = & (Join-Path -Path $PSScriptRoot -ChildPath 'Export-DrunkenADSeedData.ps1') -SeedCount $SeedCount -OutputDirectory $hostDataDirectory
+$snapshotRecord = New-VmSnapshotRecord -VmName $VmName -SnapshotName $SnapshotName
+$shareStatus = Ensure-RepoSharedFolder -VmName $VmName -RepoRootPath $repoRoot -ShareName $RepoShareName
+
+$crossProjectExcerpt = New-CrossProjectExcerpt -SnapshotRecord $snapshotRecord
+$crossProjectExcerptPath = Join-Path -Path $runRoot -ChildPath 'cross-project-excerpt.txt'
+$crossProjectExcerpt | Set-Content -LiteralPath $crossProjectExcerptPath -Encoding utf8
+
+$operatorNotesPath = Join-Path -Path $runRoot -ChildPath 'operator-notes.md'
+@(
+    '# DrunkenAD Live Campaign Operator Notes'
+    ''
+    ('- VM: `{0}`' -f $VmName)
+    ('- Snapshot: `{0}` (`{1}`)' -f $snapshotRecord.Name, $snapshotRecord.Id)
+    ('- Shared Folder: `{0}` (`{1}`)' -f $RepoShareName, $shareStatus)
+    ('- Manifest: `{0}`' -f $seedData.ManifestPath)
+    ('- CSV: `{0}`' -f $seedData.CsvPath)
+    ('- Results Directory: `{0}`' -f $runRoot)
+) -join [Environment]::NewLine | Set-Content -LiteralPath $operatorNotesPath -Encoding utf8
+
+$guestLauncherPath = Join-Path -Path $runRoot -ChildPath 'Invoke-GuestCampaign.ps1'
+(
+    "& '$guestScriptPath' " +
+    "-RepoRootPath '$guestRepoRoot' " +
+    "-ManifestPath '\\psf\$RepoShareName\tests\Live\Data\seed-manifest.json' " +
+    "-CsvPath '\\psf\$RepoShareName\tests\Live\Data\seed-ingestion.csv' " +
+    "-ConfigPath '\\psf\$RepoShareName\examples\data\drink-ingestion-config.json' " +
+    "-ResultsDirectoryPath '$guestResultsRoot' " +
+    "-SnapshotName '$($snapshotRecord.Name)' " +
+    "-SnapshotId '$($snapshotRecord.Id)'"
+) | Set-Content -LiteralPath $guestLauncherPath -Encoding utf8
+
+$guestOutput = & pwsh -NoLogo -NoProfile -File $VmWrapperPath -FilePath $guestLauncherPath 2>&1 | Out-String
+$guestExitCode = $LASTEXITCODE
+$guestOutputPath = Join-Path -Path $runRoot -ChildPath 'guest-output.txt'
+$guestOutput | Set-Content -LiteralPath $guestOutputPath -Encoding utf8
+
+$summaryPath = Join-Path -Path $runRoot -ChildPath 'campaign-summary.json'
+if (Test-Path -LiteralPath $summaryPath) {
+    $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ($guestExitCode -ne 0 -or $summary.Status -ne 'Passed') {
+        throw ('Guest campaign failed with status {0} (exit code {1}). Summary: {2}. Output: {3}.' -f $summary.Status, $guestExitCode, $summaryPath, $guestOutputPath)
+    }
+
+    Write-Host ('Live campaign completed. Snapshot {0} ({1}); seed users {2}; CSV {3}; projection {4}; CRUD {5}.' -f $summary.Snapshot.Name, $summary.Snapshot.Id, $summary.Seed.TotalUsers, $summary.CsvIngestion.Processed, $summary.Projection.Processed, $summary.Crud.Processed)
+}
+else {
+    throw ('Guest campaign finished with exit code {0}, but no summary JSON was found. Check {1}.' -f $guestExitCode, $guestOutputPath)
+}
+
+[pscustomobject]@{
+    SnapshotName            = $snapshotRecord.Name
+    SnapshotId              = $snapshotRecord.Id
+    RepoShareName           = $RepoShareName
+    SeedManifestPath        = $seedData.ManifestPath
+    SeedCsvPath             = $seedData.CsvPath
+    ResultsDirectoryPath    = $runRoot
+    CrossProjectExcerptPath = $crossProjectExcerptPath
+}
