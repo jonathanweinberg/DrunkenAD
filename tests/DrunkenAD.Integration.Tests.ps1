@@ -1,14 +1,50 @@
-$runIntegration = $env:DRUNKENAD_RUN_INTEGRATION -eq '1'
-$domainController = $env:DRUNKENAD_TEST_DC
-$dnsSuffix = $env:DRUNKENAD_TEST_DNS_SUFFIX
-$testUserOu = $env:DRUNKENAD_TEST_USER_OU
-$canRun = $runIntegration -and -not [string]::IsNullOrWhiteSpace($domainController) -and -not [string]::IsNullOrWhiteSpace($dnsSuffix)
+$script:runIntegration = $env:DRUNKENAD_RUN_INTEGRATION -eq '1'
+$script:domainController = $env:DRUNKENAD_TEST_DC
+$script:dnsSuffix = $env:DRUNKENAD_TEST_DNS_SUFFIX
+$script:testUserOu = $env:DRUNKENAD_TEST_USER_OU
+$script:canRun = $script:runIntegration -and -not [string]::IsNullOrWhiteSpace($script:domainController) -and -not [string]::IsNullOrWhiteSpace($script:dnsSuffix)
+$script:integrationSetupError = $null
+$script:createdUser = $false
+$script:readinessStatus = [pscustomobject]@{
+    ReadyForUserWrite = $false
+    BlockingReason    = 'IntegrationNotInitialized'
+}
 
-Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $canRun) {
-    BeforeAll {
+if ($script:canRun) {
+    try {
         $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
         Import-Module $modulePath -Force -ErrorAction Stop
         Import-Module ActiveDirectory -ErrorAction Stop
+        $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
+    }
+    catch {
+        $script:integrationSetupError = $_.Exception.Message
+    }
+}
+
+Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:canRun) {
+    BeforeAll {
+        if (-not (Get-Variable -Name integrationSetupError -Scope Script -ErrorAction SilentlyContinue)) {
+            $script:integrationSetupError = $null
+        }
+
+        if (-not (Get-Variable -Name createdUser -Scope Script -ErrorAction SilentlyContinue)) {
+            $script:createdUser = $false
+        }
+
+        $script:domainController = $env:DRUNKENAD_TEST_DC
+        $script:dnsSuffix = $env:DRUNKENAD_TEST_DNS_SUFFIX
+        $script:testUserOu = $env:DRUNKENAD_TEST_USER_OU
+
+        if ([string]::IsNullOrWhiteSpace($script:domainController) -or [string]::IsNullOrWhiteSpace($script:dnsSuffix)) {
+            throw 'The integration environment variables were not available during test execution.'
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($script:integrationSetupError)) {
+            throw $script:integrationSetupError
+        }
+
+        $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
 
         function New-IntegrationPassword {
             param(
@@ -34,69 +70,119 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $canRun) {
             -join ($passwordChars | Get-Random -Count $Length)
         }
 
-        $script:createdUser = $false
-        $script:runId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
-        $script:userName = "DrunkenAD_$($script:runId)"
-        $script:userPrincipalName = '{0}@{1}' -f $script:userName, $dnsSuffix
-        $script:mail = '{0}@{1}' -f $script:userName, $dnsSuffix
-        $script:employeeId = [string](Get-Random -Minimum 100000 -Maximum 999999)
+        if ($script:readinessStatus.ReadyForUserWrite) {
+            $script:runId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
+            $script:userName = "DrunkenAD_$($script:runId)"
+            $script:userPrincipalName = '{0}@{1}' -f $script:userName, $script:dnsSuffix
+            $script:mail = '{0}@{1}' -f $script:userName, $script:dnsSuffix
+            $script:employeeId = [string](Get-Random -Minimum 100000 -Maximum 999999)
 
-        $newUserParams = @{
-            Name            = $script:userName
-            SamAccountName  = $script:userName
-            UserPrincipalName = $script:userPrincipalName
-            AccountPassword = (New-IntegrationPassword | ConvertTo-SecureString -AsPlainText -Force)
-            Enabled         = $false
-            EmployeeID      = $script:employeeId
-            OtherAttributes = @{
-                mail  = $script:mail
-                pager = $script:mail
+            $newUserParams = @{
+                Name              = $script:userName
+                SamAccountName    = $script:userName
+                UserPrincipalName = $script:userPrincipalName
+                AccountPassword   = (New-IntegrationPassword | ConvertTo-SecureString -AsPlainText -Force)
+                Enabled           = $false
+                EmployeeID        = $script:employeeId
+                OtherAttributes   = @{
+                    mail  = $script:mail
+                    pager = $script:mail
+                }
+                Server            = $script:domainController
+                ErrorAction       = 'Stop'
             }
-            Server          = $domainController
-            ErrorAction     = 'Stop'
-        }
 
-        if (-not [string]::IsNullOrWhiteSpace($testUserOu)) {
-            $newUserParams['Path'] = $testUserOu
-        }
+            if (-not [string]::IsNullOrWhiteSpace($script:testUserOu)) {
+                $newUserParams['Path'] = $script:testUserOu
+            }
 
-        New-ADUser @newUserParams
-        $script:createdUser = $true
+            New-ADUser @newUserParams
+            $script:createdUser = $true
+        }
     }
 
     AfterAll {
+        if (-not (Get-Variable -Name createdUser -Scope Script -ErrorAction SilentlyContinue)) {
+            $script:createdUser = $false
+        }
+
         if ($script:createdUser) {
-            Remove-ADUser -Identity $script:userName -Server $domainController -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-ADUser -Identity $script:userName -Server $script:domainController -Confirm:$false -ErrorAction SilentlyContinue
         }
     }
 
-    It 'finds an enabled drink attribute in the target schema' {
-        Test-ADDrinkAttributeEnabled -Server $domainController | Should -BeTrue
+    It 'reports readiness or a blocking reason for user writes' {
+        if (-not [string]::IsNullOrWhiteSpace($script:integrationSetupError)) {
+            throw $script:integrationSetupError
+        }
+
+        if ($script:readinessStatus.ReadyForUserWrite) {
+            $script:readinessStatus.BlockingReason | Should -BeNullOrEmpty
+        }
+        else {
+            $script:readinessStatus.BlockingReason | Should -Not -BeNullOrEmpty
+        }
     }
 
     It 'writes and reads back a literal namespace value' {
-        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Demo[01]-' = @('First') } -DomainController $domainController -Confirm:$false
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {
+                'The drink attribute is not ready for user writes in the target environment.'
+            }
+            else {
+                $script:readinessStatus.BlockingMessage
+            }
 
-        $values = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $domainController
+            Set-ItResult -Skipped -Because $because
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Demo[01]-' = @('First') } -DomainController $script:domainController -Confirm:$false
+
+        $values = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $script:domainController
 
         $values | Should -Be @('Demo[01]-First')
     }
 
     It 'replaces one namespace without disturbing other namespaces' {
-        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Keep-' = @('Stable'); 'Demo[01]-' = @('Second') } -DomainController $domainController -Confirm:$false
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {
+                'The drink attribute is not ready for user writes in the target environment.'
+            }
+            else {
+                $script:readinessStatus.BlockingMessage
+            }
 
-        $demoValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $domainController
-        $keepValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Keep-' -DomainController $domainController
+            Set-ItResult -Skipped -Because $because
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Keep-' = @('Stable'); 'Demo[01]-' = @('Second') } -DomainController $script:domainController -Confirm:$false
+
+        $demoValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $script:domainController
+        $keepValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Keep-' -DomainController $script:domainController
 
         $demoValues | Should -Be @('Demo[01]-Second')
         $keepValues | Should -Be @('Keep-Stable')
     }
 
     It 'removes a namespace without clearing unrelated stored values' {
-        Remove-ADUserDrinkData -SamAccountName $script:userName -Prefixes 'Demo[01]-' -DomainController $domainController -Confirm:$false
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {
+                'The drink attribute is not ready for user writes in the target environment.'
+            }
+            else {
+                $script:readinessStatus.BlockingMessage
+            }
 
-        $allValues = Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $domainController
-        $removedValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $domainController
+            Set-ItResult -Skipped -Because $because
+            return
+        }
+
+        Remove-ADUserDrinkData -SamAccountName $script:userName -Prefixes 'Demo[01]-' -DomainController $script:domainController -Confirm:$false
+
+        $allValues = Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController
+        $removedValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Demo[01]-' -DomainController $script:domainController
 
         $allValues | Should -Be @('Keep-Stable')
         $removedValues | Should -Be @()

@@ -6,7 +6,10 @@ $paths = @(
     'DrunkenAD/DrunkenAD.psm1'
     'DrunkenAD/DrunkenAD.psd1'
     'examples/Import-DrunkenADCsv.ps1'
+    'scripts/Enable-ADDrinkAttributeOnUserClass.ps1'
     'tests/DrunkenAD.Unit.Tests.ps1'
+    'tests/DrunkenAD.Integration.Tests.ps1'
+    'tests/SchemaEnablement.Unit.Tests.ps1'
     'tests/Invoke-DrunkenADTests.ps1'
 )
 
