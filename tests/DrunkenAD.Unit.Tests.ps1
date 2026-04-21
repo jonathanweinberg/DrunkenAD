@@ -10,56 +10,80 @@ $global:DrunkenADTest_GetADObjectHandler = { throw 'Get-ADObject test stub shoul
 $global:DrunkenADTest_SetADUserCalls = @()
 $global:DrunkenADTest_SetADUserHandler = { return }
 
-function Global:Get-ADUser {
-    param(
-        $Identity,
-        $LDAPFilter,
-        $Properties,
-        $ErrorAction,
-        $Server
-    )
-
-    $global:DrunkenADTest_GetADUserCalls += ,(@{} + $PSBoundParameters)
-    & $global:DrunkenADTest_GetADUserHandler @PSBoundParameters
-}
-
-function Global:Get-ADRootDSE {
-    param(
-        $Server,
-        $ErrorAction
-    )
-
-    $global:DrunkenADTest_GetADRootDSECalls += ,(@{} + $PSBoundParameters)
-    & $global:DrunkenADTest_GetADRootDSEHandler @PSBoundParameters
-}
-
-function Global:Get-ADObject {
-    param(
-        $SearchBase,
-        $LDAPFilter,
-        $Properties,
-        $ErrorAction,
-        $Server
-    )
-
-    $global:DrunkenADTest_GetADObjectCalls += ,(@{} + $PSBoundParameters)
-    & $global:DrunkenADTest_GetADObjectHandler @PSBoundParameters
-}
-
-function Global:Set-ADUser {
-    param(
-        $Identity,
-        $ErrorAction,
-        $Server,
-        $Clear,
-        $Replace
-    )
-
-    $global:DrunkenADTest_SetADUserCalls += ,(@{} + $PSBoundParameters)
-    & $global:DrunkenADTest_SetADUserHandler @PSBoundParameters
-}
-
 Describe 'DrunkenAD unit tests' {
+    BeforeAll {
+        $script:DrunkenADUnitOriginalFunctions = @{}
+        $stubDefinitions = @{
+            'Get-ADUser' = {
+                param(
+                    $Identity,
+                    $LDAPFilter,
+                    $Properties,
+                    $ErrorAction,
+                    $Server
+                )
+
+                $global:DrunkenADTest_GetADUserCalls += ,(@{} + $PSBoundParameters)
+                & $global:DrunkenADTest_GetADUserHandler @PSBoundParameters
+            }
+            'Get-ADRootDSE' = {
+                param(
+                    $Server,
+                    $ErrorAction
+                )
+
+                $global:DrunkenADTest_GetADRootDSECalls += ,(@{} + $PSBoundParameters)
+                & $global:DrunkenADTest_GetADRootDSEHandler @PSBoundParameters
+            }
+            'Get-ADObject' = {
+                param(
+                    $SearchBase,
+                    $LDAPFilter,
+                    $Properties,
+                    $ErrorAction,
+                    $Server
+                )
+
+                $global:DrunkenADTest_GetADObjectCalls += ,(@{} + $PSBoundParameters)
+                & $global:DrunkenADTest_GetADObjectHandler @PSBoundParameters
+            }
+            'Set-ADUser' = {
+                param(
+                    $Identity,
+                    $ErrorAction,
+                    $Server,
+                    $Clear,
+                    $Replace
+                )
+
+                $global:DrunkenADTest_SetADUserCalls += ,(@{} + $PSBoundParameters)
+                & $global:DrunkenADTest_SetADUserHandler @PSBoundParameters
+            }
+        }
+
+        foreach ($functionName in $stubDefinitions.Keys) {
+            $functionPath = 'Function:\global:{0}' -f $functionName
+            $existingFunction = Get-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            if ($existingFunction) {
+                $script:DrunkenADUnitOriginalFunctions[$functionName] = $existingFunction.ScriptBlock
+            }
+
+            Set-Item -LiteralPath $functionPath -Value $stubDefinitions[$functionName]
+        }
+    }
+
+    AfterAll {
+        foreach ($functionName in @('Get-ADUser', 'Get-ADRootDSE', 'Get-ADObject', 'Set-ADUser')) {
+            $functionPath = 'Function:\global:{0}' -f $functionName
+            if ($script:DrunkenADUnitOriginalFunctions.ContainsKey($functionName)) {
+                Set-Item -LiteralPath $functionPath -Value $script:DrunkenADUnitOriginalFunctions[$functionName]
+            }
+            else {
+                Remove-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
     InModuleScope DrunkenAD {
         Context 'ConvertTo-DrunkenADPrefixMap' {
             It 'maps a single prefix to multiple values' {

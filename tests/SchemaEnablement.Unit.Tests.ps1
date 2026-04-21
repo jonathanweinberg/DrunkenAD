@@ -1,39 +1,62 @@
 $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
 Import-Module $modulePath -Force -ErrorAction Stop
 
-function Global:Get-ADForest {
-    param(
-        $Server,
-        $ErrorAction
-    )
-
-    throw 'Get-ADForest test stub should be configured by the current test.'
-}
-
-function Global:Get-ADDomain {
-    param(
-        $Server,
-        $ErrorAction
-    )
-
-    throw 'Get-ADDomain test stub should be configured by the current test.'
-}
-
-function Global:Set-ADObject {
-    param(
-        $Identity,
-        $Server,
-        $Add,
-        $ErrorAction
-    )
-
-    throw 'Set-ADObject test stub should be configured by the current test.'
-}
-
 Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
     BeforeAll {
+        $script:SchemaEnablementUnitOriginalFunctions = @{}
+        $stubDefinitions = @{
+            'Get-ADForest' = {
+                param(
+                    $Server,
+                    $ErrorAction
+                )
+
+                throw 'Get-ADForest test stub should be configured by the current test.'
+            }
+            'Get-ADDomain' = {
+                param(
+                    $Server,
+                    $ErrorAction
+                )
+
+                throw 'Get-ADDomain test stub should be configured by the current test.'
+            }
+            'Set-ADObject' = {
+                param(
+                    $Identity,
+                    $Server,
+                    $Add,
+                    $ErrorAction
+                )
+
+                throw 'Set-ADObject test stub should be configured by the current test.'
+            }
+        }
+
+        foreach ($functionName in $stubDefinitions.Keys) {
+            $functionPath = 'Function:\global:{0}' -f $functionName
+            $existingFunction = Get-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            if ($existingFunction) {
+                $script:SchemaEnablementUnitOriginalFunctions[$functionName] = $existingFunction.ScriptBlock
+            }
+
+            Set-Item -LiteralPath $functionPath -Value $stubDefinitions[$functionName]
+        }
+
         $script:enablementScriptPath = Join-Path -Path $PSScriptRoot -ChildPath '../scripts/Enable-ADDrinkAttributeOnUserClass.ps1'
         . $script:enablementScriptPath
+    }
+
+    AfterAll {
+        foreach ($functionName in @('Get-ADForest', 'Get-ADDomain', 'Set-ADObject')) {
+            $functionPath = 'Function:\global:{0}' -f $functionName
+            if ($script:SchemaEnablementUnitOriginalFunctions.ContainsKey($functionName)) {
+                Set-Item -LiteralPath $functionPath -Value $script:SchemaEnablementUnitOriginalFunctions[$functionName]
+            }
+            else {
+                Remove-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            }
+        }
     }
 
     BeforeEach {
