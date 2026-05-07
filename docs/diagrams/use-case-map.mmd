@@ -1,0 +1,33 @@
+flowchart LR
+    subgraph Sources["Operational sources"]
+        HR["HR export"]
+        IAM["IAM workflow"]
+        APP["Application config"]
+        SYNC["Sync engine"]
+    end
+
+    subgraph Drink["User drink namespace store"]
+        FLAGS["Flags-"]
+        PROFILE["Profile-"]
+        ROUTING["Routing-"]
+        TENANT["Tenant-"]
+        SYNCNS["Sync-"]
+    end
+
+    subgraph Consumers["Directory-aware consumers"]
+        PROV["Provisioning"]
+        MAIL["Mail routing"]
+        AUDIT["Audit review"]
+        APPS["Internal apps"]
+    end
+
+    HR --> PROFILE
+    IAM --> FLAGS
+    APP --> ROUTING
+    APP --> TENANT
+    SYNC --> SYNCNS
+    FLAGS --> AUDIT
+    PROFILE --> APPS
+    ROUTING --> MAIL
+    TENANT --> PROV
+    SYNCNS --> SYNC

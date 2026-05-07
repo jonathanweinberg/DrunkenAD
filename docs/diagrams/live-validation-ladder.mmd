@@ -1,0 +1,10 @@
+flowchart TD
+    SNAP["Snapshot or rollback point"] --> PARSE["Parser gate"]
+    PARSE --> UNIT["Unit tests"]
+    UNIT --> INTEGRATION["Live integration tests"]
+    INTEGRATION --> SMOKE["Campaign smoke validation"]
+    SMOKE --> SEED["Seed reconcile"]
+    SEED --> CSV["CSV ingestion"]
+    CSV --> PROJECTION["Attribute projection"]
+    PROJECTION --> CRUD["CRUD sample validation"]
+    CRUD --> SUMMARY["campaign-summary.json"]

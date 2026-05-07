@@ -1,0 +1,10 @@
+flowchart TD
+    CHECK["Test-ADDrinkAttributeReadyForUserWrite"] --> EXISTS{"drink exists?"}
+    EXISTS -->|No| MISSING["Stop: AttributeMissing"]
+    EXISTS -->|Yes| DEFUNCT{"drink defunct?"}
+    DEFUNCT -->|Yes| BLOCKDEF["Stop: AttributeDefunct"]
+    DEFUNCT -->|No| USERCLASS{"Allowed on user class?"}
+    USERCLASS -->|No| ENABLE["Enable mayContain on schema master"]
+    ENABLE --> REFRESH["Refresh schema cache and verify"]
+    USERCLASS -->|Yes| READY["Ready for user writes"]
+    REFRESH --> READY

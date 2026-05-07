@@ -242,7 +242,7 @@ pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/
 
 That workflow snapshots the VM, verifies the shared folder and schema state, reconciles the synthetic seed population, and writes timestamped reports under `tests/Live/results/`. Those live results are intentionally ignored by Git.
 
-More detail lives in [docs/DATA-STORE.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/DATA-STORE.md), [docs/TESTING.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/TESTING.md), [docs/LIVE-VALIDATION.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/LIVE-VALIDATION.md), [docs/HOW-TO-INGEST-CSV.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/HOW-TO-INGEST-CSV.md), and [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md).
+More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/USE-CASES.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/DATA-STORE.md](docs/DATA-STORE.md), [docs/TESTING.md](docs/TESTING.md), [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md), [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md), and [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md).
 
 ## CI
 

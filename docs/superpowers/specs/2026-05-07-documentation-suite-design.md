@@ -42,17 +42,21 @@ Create editable Mermaid source for these views:
 5. Live validation ladder: parser/unit, integration, smoke, seed, CSV,
    projection, CRUD.
 
-Mermaid remains the source of truth for diagrams. Raster images are companion
-page artwork, not replacements for diagram source.
+Mermaid remains the source of truth for diagrams. Raster images are generated
+infographic plates that make the same ideas easy to scan in rendered docs; they
+do not replace the editable diagram source.
 
 ## Page Images
 
-Each new major page should have one no-nonsense, elegant generated image:
+Each new major page should have one no-nonsense, elegant generated infographic
+plate:
 
 - Clean documentary/product style.
-- No fantasy, mascots, decorative clutter, fake brand marks, or busy text.
-- The visual metaphor should match the page purpose: operator console, directory
-  records, flow boards, schema gate, or validation evidence.
+- No fantasy, mascots, fake brand marks, or decorative filler.
+- Use readable labels, concrete AD object examples, sample `drink` values, and
+  workflow arrows when they clarify the page.
+- The visual structure should match the page purpose: operator console,
+  directory records, flow boards, schema gate, or validation evidence.
 - Images live under `docs/images/documentation-suite-2026-05-07/` with stable
   filenames.
 - Every image should be referenced from a Markdown page and should have a nearby

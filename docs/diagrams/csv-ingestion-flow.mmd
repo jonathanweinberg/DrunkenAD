@@ -1,0 +1,8 @@
+flowchart LR
+    CSV["CSV rows"] --> VALIDATE["Validate required columns"]
+    MAP["JSON or hashtable namespace map"] --> VALIDATE
+    VALIDATE --> ROW["Build per-row DataMap"]
+    ROW --> WRITE["Set-ADUserDrinkData"]
+    WRITE --> AD["Active Directory user drink"]
+    AD --> READBACK["Sample read-back validation"]
+    READBACK --> REPORT["Processed, failures, samples"]
