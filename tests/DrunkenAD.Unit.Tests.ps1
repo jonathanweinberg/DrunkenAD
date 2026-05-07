@@ -703,6 +703,28 @@ Describe 'DrunkenAD unit tests' {
                 Assert-MockCalled Set-ADUserDrinkData -Times 0
                 @($result.FinalDrinkValues).Count | Should -Be 0
             }
+
+            It 'throws a deterministic error when the CSV is missing SamAccountName' {
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            ProfileTier = 'Gold'
+                        }
+                    )
+                }
+
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                }
+
+                {
+                    Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                } | Should -Throw "*missing required column 'SamAccountName'*"
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
         }
 
         Context 'Invoke-ADUserDrinkDataDemo' {
@@ -742,6 +764,22 @@ Describe 'DrunkenAD unit tests' {
                 Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-' -DrinkValues 'A' -WhatIf
 
                 Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+            }
+
+            It 'uses AutoConfirm to suppress wrapper confirmation prompts' {
+                $previousConfirmPreference = $ConfirmPreference
+                try {
+                    $ConfirmPreference = 'Low'
+                    Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-' -DrinkValues 'A' -AutoConfirm
+                }
+                finally {
+                    $ConfirmPreference = $previousConfirmPreference
+                }
+
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    ((@($PrefixMap['One-']) -join ',') -eq 'A')
+                }
             }
         }
     }

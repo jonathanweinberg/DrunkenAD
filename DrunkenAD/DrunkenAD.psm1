@@ -752,6 +752,10 @@ function Assert-DrunkenADCsvColumns {
     }
 
     $columns = @($Rows[0].PSObject.Properties.Name)
+    if ($columns -notcontains 'SamAccountName') {
+        throw "CSV file '$CsvPath' is missing required column 'SamAccountName'."
+    }
+
     foreach ($mapping in $Mappings) {
         if ($columns -notcontains $mapping.Column) {
             throw "CSV file '$CsvPath' is missing required column '$($mapping.Column)' for prefix '$($mapping.Prefix)'."
@@ -1880,7 +1884,14 @@ function Update-ADUserDrinkAttribute {
 
     $identityDescription = Get-DrunkenADIdentityDescription @identityParams
 
-    if ($PSCmdlet.ShouldProcess($identityDescription, 'Update drink attribute')) {
+    $shouldUpdate = if ($AutoConfirm -and -not $WhatIfPreference) {
+        $true
+    }
+    else {
+        $PSCmdlet.ShouldProcess($identityDescription, 'Update drink attribute')
+    }
+
+    if ($shouldUpdate) {
         Set-ADUserDrinkPrefixedData @setParams
     }
 }
