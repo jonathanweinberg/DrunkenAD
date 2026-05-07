@@ -91,6 +91,12 @@ Run it with:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
+Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the Parallels guest
+PowerShell wrapper is not in one of the repo-relative default locations:
+`VM/Invoke-WindowsAddnsGuestPowerShell.ps1`,
+`../VM/Invoke-WindowsAddnsGuestPowerShell.ps1`, or
+`../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
+
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as run output, not source content.
 
 ## Schema Readiness During Testing

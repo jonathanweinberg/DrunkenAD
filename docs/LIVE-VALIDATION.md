@@ -56,6 +56,13 @@ Run it with:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
+The harness resolves `Invoke-WindowsAddnsGuestPowerShell.ps1` in this order:
+the explicit `-VmWrapperPath` argument, the `DRUNKENAD_VM_WRAPPER_PATH`
+environment variable, then repo-relative candidates at
+`VM/Invoke-WindowsAddnsGuestPowerShell.ps1`,
+`../VM/Invoke-WindowsAddnsGuestPowerShell.ps1`, and
+`../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
+
 That workflow:
 
 1. creates a pre-mutation VM snapshot

@@ -12,6 +12,7 @@ $paths = @(
     'tests/Live/Invoke-DrunkenADLiveCampaign.ps1'
     'tests/DrunkenAD.Unit.Tests.ps1'
     'tests/DrunkenAD.Integration.Tests.ps1'
+    'tests/LiveCampaign.Unit.Tests.ps1'
     'tests/SchemaEnablement.Unit.Tests.ps1'
     'tests/Invoke-DrunkenADTests.ps1'
 )

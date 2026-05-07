@@ -2,7 +2,7 @@
 param(
     [string]$VmName = 'WindowsServer2025_ADDNS',
 
-    [string]$VmWrapperPath = '/Users/jonathanweinberg/Documents/Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1',
+    [string]$VmWrapperPath = $null,
 
     [string]$RepoShareName = 'DrunkenAD_CODEX',
 
@@ -106,7 +106,56 @@ function New-CrossProjectExcerpt {
     ) -f $SnapshotRecord.Name, $SnapshotRecord.Id
 }
 
+function Resolve-DrunkenADVmWrapperPath {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [string]$ExplicitPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRootPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        $resolvedExplicitPath = [System.IO.Path]::GetFullPath($ExplicitPath)
+        if (Test-Path -LiteralPath $resolvedExplicitPath -PathType Leaf) {
+            return $resolvedExplicitPath
+        }
+
+        throw "The VM wrapper path supplied with -VmWrapperPath was not found: $resolvedExplicitPath"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:DRUNKENAD_VM_WRAPPER_PATH)) {
+        $resolvedEnvironmentPath = [System.IO.Path]::GetFullPath($env:DRUNKENAD_VM_WRAPPER_PATH)
+        if (Test-Path -LiteralPath $resolvedEnvironmentPath -PathType Leaf) {
+            return $resolvedEnvironmentPath
+        }
+
+        throw "DRUNKENAD_VM_WRAPPER_PATH points to a file that was not found: $resolvedEnvironmentPath"
+    }
+
+    $relativeCandidates = @(
+        'VM/Invoke-WindowsAddnsGuestPowerShell.ps1'
+        '../VM/Invoke-WindowsAddnsGuestPowerShell.ps1'
+        '../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1'
+    )
+
+    foreach ($relativeCandidate in $relativeCandidates) {
+        $candidatePath = [System.IO.Path]::GetFullPath((Join-Path -Path $RepoRootPath -ChildPath $relativeCandidate))
+        if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+            return $candidatePath
+        }
+    }
+
+    $candidateList = ($relativeCandidates | ForEach-Object {
+        [System.IO.Path]::GetFullPath((Join-Path -Path $RepoRootPath -ChildPath $_))
+    }) -join ', '
+
+    throw "Unable to locate Invoke-WindowsAddnsGuestPowerShell.ps1. Pass -VmWrapperPath, set DRUNKENAD_VM_WRAPPER_PATH, or place the wrapper at one of: $candidateList"
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '..\..'))
+$resolvedVmWrapperPath = Resolve-DrunkenADVmWrapperPath -ExplicitPath $VmWrapperPath -RepoRootPath $repoRoot
 $runName = Get-Date -Format 'yyyyMMdd-HHmmss'
 $runRoot = Join-Path -Path $ResultsRoot -ChildPath $runName
 $hostDataDirectory = Join-Path -Path $PSScriptRoot -ChildPath 'Data'
@@ -133,6 +182,7 @@ $operatorNotesPath = Join-Path -Path $runRoot -ChildPath 'operator-notes.md'
     ('- VM: `{0}`' -f $VmName)
     ('- Snapshot: `{0}` (`{1}`)' -f $snapshotRecord.Name, $snapshotRecord.Id)
     ('- Shared Folder: `{0}` (`{1}`)' -f $RepoShareName, $shareStatus)
+    ('- VM Wrapper: `{0}`' -f $resolvedVmWrapperPath)
     ('- Manifest: `{0}`' -f $seedData.ManifestPath)
     ('- CSV: `{0}`' -f $seedData.CsvPath)
     ('- Results Directory: `{0}`' -f $runRoot)
@@ -150,7 +200,7 @@ $guestLauncherPath = Join-Path -Path $runRoot -ChildPath 'Invoke-GuestCampaign.p
     "-SnapshotId '$($snapshotRecord.Id)'"
 ) | Set-Content -LiteralPath $guestLauncherPath -Encoding utf8
 
-$guestOutput = & pwsh -NoLogo -NoProfile -File $VmWrapperPath -FilePath $guestLauncherPath 2>&1 | Out-String
+$guestOutput = & pwsh -NoLogo -NoProfile -File $resolvedVmWrapperPath -FilePath $guestLauncherPath 2>&1 | Out-String
 $guestExitCode = $LASTEXITCODE
 $guestOutputPath = Join-Path -Path $runRoot -ChildPath 'guest-output.txt'
 $guestOutput | Set-Content -LiteralPath $guestOutputPath -Encoding utf8
