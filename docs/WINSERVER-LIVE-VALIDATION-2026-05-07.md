@@ -155,7 +155,7 @@ after CSV ingestion, projection, and CRUD validation completed. Each sample had
 6. Run `Test-ADDrinkAttributeEnabled` and
    `Test-ADDrinkAttributeReadyForUserWrite -PassThru`.
 7. If readiness is blocked by `NotAllowedOnUserClass`, use
-   [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1)
+   [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](../scripts/Enable-ADDrinkAttributeOnUserClass.ps1)
    or an equivalent guarded schema-master update.
 8. Force the schema cache refresh with `schemaUpdateNow` and run a direct
    temporary-user write probe before the larger suite.

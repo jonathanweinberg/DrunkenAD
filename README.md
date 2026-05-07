@@ -68,17 +68,21 @@ Examples:
 
 In practice, the `drink` attribute functions as a tiny multivalued namespace store attached to a user object.
 
+Command examples below assume the repository has been checked out at
+`/temp/DrunkenAD`. Adjust that root for your own workstation or automation
+workspace.
+
 ## Module Layout
 
-- [DrunkenAD/DrunkenAD.psm1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [DrunkenAD/DrunkenAD.psd1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psd1)
-- [examples/Import-DrunkenADCsv.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/Import-DrunkenADCsv.ps1)
-- [examples/data/drink-ingestion-config.json](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json)
-- [examples/data/drink-ingestion-sample.csv](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv)
-- [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1)
-- [tests/DrunkenAD.Unit.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/DrunkenAD.Unit.Tests.ps1)
-- [tests/DrunkenAD.Integration.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/DrunkenAD.Integration.Tests.ps1)
-- [tests/Invoke-DrunkenADTests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1)
+- [DrunkenAD/DrunkenAD.psm1](DrunkenAD/DrunkenAD.psm1)
+- [DrunkenAD/DrunkenAD.psd1](DrunkenAD/DrunkenAD.psd1)
+- [examples/Import-DrunkenADCsv.ps1](examples/Import-DrunkenADCsv.ps1)
+- [examples/data/drink-ingestion-config.json](examples/data/drink-ingestion-config.json)
+- [examples/data/drink-ingestion-sample.csv](examples/data/drink-ingestion-sample.csv)
+- [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](scripts/Enable-ADDrinkAttributeOnUserClass.ps1)
+- [tests/DrunkenAD.Unit.Tests.ps1](tests/DrunkenAD.Unit.Tests.ps1)
+- [tests/DrunkenAD.Integration.Tests.ps1](tests/DrunkenAD.Integration.Tests.ps1)
+- [tests/Invoke-DrunkenADTests.ps1](tests/Invoke-DrunkenADTests.ps1)
 
 ## Exported Commands
 
@@ -109,7 +113,7 @@ Get-Help Set-ADUserDrinkData -Examples
 Import the module:
 
 ```powershell
-Import-Module /Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
+Import-Module /temp/DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
 ```
 
 Check schema presence:
@@ -124,7 +128,7 @@ Check whether user writes are actually supported:
 Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com'
 ```
 
-If the first command is true and the second is false, the attribute exists but is not yet allowed on the Active Directory `user` class. Follow [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md) before attempting writes.
+If the first command is true and the second is false, the attribute exists but is not yet allowed on the Active Directory `user` class. Follow [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before attempting writes.
 
 Write one generic namespace:
 
@@ -225,13 +229,13 @@ Set-ADUserDrinkProjection `
 Run the unit suite:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1
 ```
 
 Run the parser gate by itself:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
 Run integration tests against a live AD environment:
@@ -240,7 +244,7 @@ Run integration tests against a live AD environment:
 $env:DRUNKENAD_RUN_INTEGRATION = '1'
 $env:DRUNKENAD_TEST_DC = 'dc01.contoso.com'
 $env:DRUNKENAD_TEST_DNS_SUFFIX = 'contoso.com'
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
 ```
 
 If the integration suite reports a blocking reason instead of running write-path assertions, inspect the full readiness object:
@@ -251,12 +255,12 @@ Test-ADDrinkAttributeReadyForUserWrite `
     -PassThru | Format-List
 ```
 
-That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
+That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
 
 Run the full live validation harness against the Parallels lab VM:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
 That workflow snapshots the VM, verifies the shared folder and schema state, reconciles the synthetic seed population, and writes timestamped reports under `tests/Live/results/`. Those live results are intentionally ignored by Git.
@@ -265,7 +269,7 @@ More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/
 
 ## CI
 
-A GitHub Actions workflow lives at [.github/workflows/powershell-ci.yml](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/.github/workflows/powershell-ci.yml). It:
+A GitHub Actions workflow lives at [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml). It:
 
 - installs Pester
 - runs the parser gate
@@ -280,7 +284,7 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 - It expects target users to already exist in Active Directory.
 - It expects `Test-ADDrinkAttributeReadyForUserWrite` to succeed before any import is attempted.
 - It turns fixed CSV columns into namespace records such as `Profile-`, `Flags-`, `Routing-`, `Tenant-`, and `Sync-`.
-- It can load those mappings from [drink-ingestion-config.json](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
+- It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
 - It uses the same domain controller for validation, lookup, and write operations.
 - It can be previewed safely with `-WhatIf`.
 
@@ -288,8 +292,8 @@ Run the module command directly with the sample CSV and config:
 
 ```powershell
 Import-ADUserDrinkCsvData `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv `
-    -ConfigPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
     -DomainController 'dc01.contoso.com'
 ```
 
@@ -297,8 +301,8 @@ Preview the sample CSV with `-WhatIf`:
 
 ```powershell
 Import-ADUserDrinkCsvData `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv `
-    -ConfigPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
     -DomainController 'dc01.contoso.com' `
     -WhatIf
 ```
@@ -316,7 +320,7 @@ $namespaceMap = @{
     )
 }
 Import-ADUserDrinkCsvData `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
     -NamespaceMap $namespaceMap `
     -DomainController 'dc01.contoso.com'
 ```
@@ -324,9 +328,9 @@ Import-ADUserDrinkCsvData `
 The example wrapper script remains available when you want a ready-made entry point:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/Import-DrunkenADCsv.ps1 `
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/examples/Import-DrunkenADCsv.ps1 `
     -DomainController 'dc01.contoso.com' `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv
 ```
 
 ## Design Notes

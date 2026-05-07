@@ -8,7 +8,7 @@ DrunkenAD now has three validation layers:
 
 ## Parser And Unit Tests
 
-The parser gate lives at [scripts/Test-DrunkenADSyntax.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Test-DrunkenADSyntax.ps1). The unit suite lives at [tests/DrunkenAD.Unit.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/DrunkenAD.Unit.Tests.ps1), with additional schema-enable coverage in [tests/SchemaEnablement.Unit.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/SchemaEnablement.Unit.Tests.ps1).
+The parser gate lives at [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1). The unit suite lives at [tests/DrunkenAD.Unit.Tests.ps1](../tests/DrunkenAD.Unit.Tests.ps1), with additional schema-enable coverage in [tests/SchemaEnablement.Unit.Tests.ps1](../tests/SchemaEnablement.Unit.Tests.ps1).
 
 Those tests focus on the safety-critical behavior:
 
@@ -24,18 +24,18 @@ Those tests focus on the safety-critical behavior:
 Run both parser and unit tests with:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1
 ```
 
 If you only want the parser gate:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
 ## Integration Tests
 
-The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/DrunkenAD.Integration.Tests.ps1).
+The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1).
 
 It is skipped unless all of the following are present:
 
@@ -54,7 +54,7 @@ $env:DRUNKENAD_RUN_INTEGRATION = '1'
 $env:DRUNKENAD_TEST_DC = 'dc01.contoso.com'
 $env:DRUNKENAD_TEST_DNS_SUFFIX = 'contoso.com'
 $env:DRUNKENAD_TEST_USER_OU = 'OU=Drink Ops,DC=contoso,DC=com'
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
 ```
 
 The integration suite now checks `Test-ADDrinkAttributeReadyForUserWrite`, not just `Test-ADDrinkAttributeEnabled`.
@@ -74,7 +74,7 @@ When the environment is ready, the live integration tests validate:
 
 ## Live Campaign Harness
 
-The higher-fidelity lab workflow lives under [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1) and [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
+The higher-fidelity lab workflow lives under [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1) and [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
 
 That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. It:
 
@@ -88,7 +88,7 @@ That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. It:
 Run it with:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as run output, not source content.
@@ -101,7 +101,7 @@ April 9, 2026 exposed the important edge case this repo now models explicitly:
 - `Test-ADDrinkAttributeReadyForUserWrite` can still be `False`
 - write attempts then fail with: `An attempt was made to modify an object to include an attribute that is not legal for its class`
 
-If that happens, stop trying live writes and follow [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md).
+If that happens, stop trying live writes and follow [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md).
 
 ## Recommended Workflow
 
@@ -116,11 +116,11 @@ For module changes, the clean loop is:
 
 ## CI Notes
 
-The repository includes a GitHub Actions workflow at [.github/workflows/powershell-ci.yml](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/.github/workflows/powershell-ci.yml).
+The repository includes a GitHub Actions workflow at [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml).
 
 It runs:
 
-- syntax parsing through [scripts/Test-DrunkenADSyntax.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Test-DrunkenADSyntax.ps1)
-- the unit test suite through [tests/Invoke-DrunkenADTests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Invoke-DrunkenADTests.ps1)
+- syntax parsing through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
+- the unit test suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
 
 That keeps default CI fast while the environment-dependent integration suite and live campaign remain opt-in operator workflows.

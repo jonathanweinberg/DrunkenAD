@@ -2,7 +2,7 @@
 
 The `drink` attribute is a multivalued string attribute. DrunkenAD treats it as a lightweight prefixed data store attached to an Active Directory user.
 
-That assumes `drink` is actually writable on the `user` class, not just present in schema. Check `Test-ADDrinkAttributeReadyForUserWrite` before using the write paths, and use [docs/SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md) if the attribute exists but is not yet legal on `user`.
+That assumes `drink` is actually writable on the `user` class, not just present in schema. Check `Test-ADDrinkAttributeReadyForUserWrite` before using the write paths, and use [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) if the attribute exists but is not yet legal on `user`.
 
 ## Core Idea
 
@@ -25,11 +25,11 @@ Examples:
 
 The preferred API is:
 
-- [Get-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [Set-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [Remove-ADUserDrinkData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [Set-ADUserDrinkProjection](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
-- [Import-ADUserDrinkCsvData](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psm1)
+- [Get-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
+- [Set-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
+- [Remove-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
+- [Set-ADUserDrinkProjection](../DrunkenAD/DrunkenAD.psm1)
+- [Import-ADUserDrinkCsvData](../DrunkenAD/DrunkenAD.psm1)
 
 That API treats `drink` as a namespace store:
 

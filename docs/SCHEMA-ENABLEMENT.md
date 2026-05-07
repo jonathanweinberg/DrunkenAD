@@ -12,7 +12,7 @@ The first condition is schema presence. The second condition is actual readiness
 Import the module and verify both states explicitly:
 
 ```powershell
-Import-Module /Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
+Import-Module /temp/DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
 
 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com'
 Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com' -PassThru | Format-List
@@ -40,7 +40,7 @@ Example:
 
 ```powershell
 Import-Module ActiveDirectory -ErrorAction Stop
-Import-Module /Users/jonathanweinberg/Documents/Codex_DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
+Import-Module /temp/DrunkenAD/DrunkenAD/DrunkenAD.psd1 -Force
 
 $forest = Get-ADForest -Server 'dc01.contoso.com'
 $domain = Get-ADDomain -Server $forest.SchemaMaster
@@ -68,14 +68,14 @@ Test-ADDrinkAttributeReadyForUserWrite -Server 'dc02.contoso.com'
 
 ## Automated Enablement Path
 
-Use [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1) when you want the repo to handle the guard rails for you.
+Use [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](../scripts/Enable-ADDrinkAttributeOnUserClass.ps1) when you want the repo to handle the guard rails for you.
 
 Default behavior is preview only. No schema change happens unless you pass `-Apply`.
 
 Preview mode:
 
 ```powershell
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1 `
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1 `
     -Server 'dc01.contoso.com' `
     -ReportPath /tmp/drunkenad-schema-preview.json
 ```
@@ -96,7 +96,7 @@ Import-Module ActiveDirectory -ErrorAction Stop
 $forest = Get-ADForest -Server 'dc01.contoso.com'
 $domain = Get-ADDomain -Server $forest.SchemaMaster
 
-pwsh -NoLogo -NoProfile -File /Users/jonathanweinberg/Documents/Codex_DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1 `
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Enable-ADDrinkAttributeOnUserClass.ps1 `
     -Server $forest.SchemaMaster `
     -Apply `
     -ExpectedForestRoot $forest.RootDomain `
@@ -126,7 +126,7 @@ For production-like environments, the safest path is:
 3. Confirm you have a rollback point.
 4. Run apply mode against the schema master only.
 5. Recheck readiness.
-6. Rerun [tests/DrunkenAD.Integration.Tests.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/DrunkenAD.Integration.Tests.ps1) or [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1).
+6. Rerun [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1) or [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1).
 
 ## Canonical Failure Mode
 

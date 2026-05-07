@@ -6,8 +6,8 @@ The preferred entry point is the module command `Import-ADUserDrinkCsvData`. The
 
 ## Input Shape
 
-The sample file lives at [drink-ingestion-sample.csv](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv).
-The default mapping file lives at [drink-ingestion-config.json](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json).
+The sample file lives at [drink-ingestion-sample.csv](../examples/data/drink-ingestion-sample.csv).
+The default mapping file lives at [drink-ingestion-config.json](../examples/data/drink-ingestion-config.json).
 
 It uses these columns:
 
@@ -38,7 +38,7 @@ Before running the import:
 - confirm `drink` is writable on user objects with `Test-ADDrinkAttributeReadyForUserWrite`
 - decide which namespaces this workflow owns so it does not overwrite data managed elsewhere
 
-If `Test-ADDrinkAttributeEnabled` returns true but `Test-ADDrinkAttributeReadyForUserWrite` returns false, the attribute exists in schema but is not yet allowed on the Active Directory `user` class. Follow [SCHEMA-ENABLEMENT.md](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/SCHEMA-ENABLEMENT.md) before importing data.
+If `Test-ADDrinkAttributeEnabled` returns true but `Test-ADDrinkAttributeReadyForUserWrite` returns false, the attribute exists in schema but is not yet allowed on the Active Directory `user` class. Follow [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) before importing data.
 
 ## Preview The Import
 
@@ -46,8 +46,8 @@ Use `-WhatIf` first:
 
 ```powershell
 Import-ADUserDrinkCsvData `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv `
-    -ConfigPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
     -DomainController 'dc01.contoso.com' `
     -WhatIf
 ```
@@ -60,8 +60,8 @@ When the preview looks correct:
 
 ```powershell
 Import-ADUserDrinkCsvData `
-    -CsvPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-sample.csv `
-    -ConfigPath /Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/data/drink-ingestion-config.json `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
     -DomainController 'dc01.contoso.com'
 ```
 
@@ -124,7 +124,7 @@ Get-ADUserDrinkData `
 
 ## Adapting The Workflow
 
-The sample script at [Import-DrunkenADCsv.ps1](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/examples/Import-DrunkenADCsv.ps1) is intentionally straightforward and simply wraps the module command.
+The sample script at [Import-DrunkenADCsv.ps1](../examples/Import-DrunkenADCsv.ps1) is intentionally straightforward and simply wraps the module command.
 
 To adapt it for your environment:
 
