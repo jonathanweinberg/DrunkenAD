@@ -25,7 +25,7 @@ jobs:
           - windows-latest
 
     env:
-      PESTER_RESULT_PATH: ${{ runner.temp }}/pester-results.xml
+      PESTER_RESULT_PATH: pester-results.xml
       PESTER_VERSION: 5.7.1
 
     steps:
