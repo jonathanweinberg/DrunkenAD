@@ -1,0 +1,25 @@
+name: Documentation CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  docs:
+    name: Documentation hygiene
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate documentation
+        shell: pwsh
+        run: ./scripts/Test-DrunkenADDocs.ps1

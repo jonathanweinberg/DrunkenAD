@@ -122,11 +122,24 @@ For module changes, the clean loop is:
 
 ## CI Notes
 
-The repository includes a GitHub Actions workflow at [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml).
+The repository includes two GitHub Actions workflows:
 
-It runs:
+- [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core PowerShell gate.
+- [.github/workflows/documentation-ci.yml](../.github/workflows/documentation-ci.yml) runs documentation hygiene checks.
 
-- syntax parsing through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
-- the unit test suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
+The PowerShell workflow:
+
+- installs the pinned Pester version used by CI
+- validates the module manifest
+- parses tracked PowerShell files through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
+- runs the unit suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
+- executes on Ubuntu, macOS, and Windows
+- uploads per-OS Pester XML results as short-lived artifacts
+
+The documentation workflow:
+
+- rejects machine-specific checkout paths
+- verifies Markdown link and image targets
+- fails if live campaign output under `tests/Live/results/` is tracked
 
 That keeps default CI fast while the environment-dependent integration suite and live campaign remain opt-in operator workflows.

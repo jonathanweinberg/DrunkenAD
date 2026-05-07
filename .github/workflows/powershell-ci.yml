@@ -6,10 +6,27 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: PowerShell (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    env:
+      PESTER_RESULT_PATH: ${{ runner.temp }}/pester-results.xml
+      PESTER_VERSION: 5.7.1
 
     steps:
       - name: Check out repository
@@ -19,7 +36,18 @@ jobs:
         shell: pwsh
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module Pester -RequiredVersion $env:PESTER_VERSION -Scope CurrentUser -Force -SkipPublisherCheck
+          Get-Module Pester -ListAvailable |
+              Sort-Object Version -Descending |
+              Select-Object -First 1 Name, Version, Path |
+              Format-List
+
+      - name: Validate module manifest
+        shell: pwsh
+        run: |
+          Test-ModuleManifest -Path ./DrunkenAD/DrunkenAD.psd1 |
+              Select-Object Name, Version, PowerShellVersion, RootModule |
+              Format-List
 
       - name: Parse PowerShell files
         shell: pwsh
@@ -27,4 +55,13 @@ jobs:
 
       - name: Run unit tests
         shell: pwsh
-        run: ./tests/Invoke-DrunkenADTests.ps1
+        run: ./tests/Invoke-DrunkenADTests.ps1 -Output Detailed -TestResultPath $env:PESTER_RESULT_PATH
+
+      - name: Upload Pester results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-results-${{ matrix.os }}
+          path: ${{ env.PESTER_RESULT_PATH }}
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,5 +1,8 @@
 # DrunkenAD
 
+[![PowerShell CI](https://github.com/jonathanweinberg/DrunkenAD/actions/workflows/powershell-ci.yml/badge.svg)](https://github.com/jonathanweinberg/DrunkenAD/actions/workflows/powershell-ci.yml)
+[![Documentation CI](https://github.com/jonathanweinberg/DrunkenAD/actions/workflows/documentation-ci.yml/badge.svg)](https://github.com/jonathanweinberg/DrunkenAD/actions/workflows/documentation-ci.yml)
+
 DrunkenAD is a PowerShell module for repurposing the multivalued Active Directory `drink` attribute as a compact directory-backed data store.
 
 It provides a structured way to store namespaced records on user objects, making `drink` useful as a lightweight mini-database for flags, routing hints, profile metadata, and other compact application data.
@@ -269,13 +272,12 @@ More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/
 
 ## CI
 
-A GitHub Actions workflow lives at [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml). It:
+GitHub Actions runs two fast default gates:
 
-- installs Pester
-- runs the parser gate
-- runs the unit suite
+- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, and runs the unit suite on Ubuntu, macOS, and Windows.
+- [.github/workflows/documentation-ci.yml](.github/workflows/documentation-ci.yml) checks documentation hygiene, rejects machine-specific checkout paths, verifies Markdown image/link targets, and ensures live result artifacts stay untracked.
 
-That keeps CI fast for core validation while the environment-dependent integration suite remains opt-in.
+The PowerShell workflow uploads per-OS Pester XML results as short-lived artifacts. Integration tests and the full live campaign stay opt-in because they require a prepared Active Directory lab.
 
 ## License And Contributions
 
