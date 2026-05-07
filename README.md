@@ -277,6 +277,18 @@ A GitHub Actions workflow lives at [.github/workflows/powershell-ci.yml](.github
 
 That keeps CI fast for core validation while the environment-dependent integration suite remains opt-in.
 
+## License And Contributions
+
+DrunkenAD is licensed under the [BSD 3-Clause License](LICENSE).
+
+Contributions are accepted under the
+[DrunkenAD Contributor License Agreement](CONTRIBUTOR-LICENSE-AGREEMENT.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+Unless otherwise noted, generated documentation images and other documentation
+assets in this repository are covered by the same BSD 3-Clause License as the
+project source.
+
 ## CSV Ingestion Workflow
 
 The sample CSV workflow is meant to show a realistic ingestion path from a flat file into namespaced `drink` data:

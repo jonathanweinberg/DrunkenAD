@@ -6,6 +6,9 @@ from the Codex generated-image cache into this repo. The Mermaid files in
 are page-facing infographic plates with labels, sample values, and workflow
 context.
 
+Unless otherwise noted, these generated documentation images are project
+documentation assets covered by the repository's BSD 3-Clause License.
+
 ## drunkenad-overview.png
 
 ```text

@@ -4,7 +4,7 @@
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
-    Copyright         = '(c) 2024 Jonathan Weinberg. BSD 3-Clause License.'
+    Copyright         = '(c) 2024-2026 Jonathan Weinberg. BSD 3-Clause License.'
     Description       = 'Treat the Active Directory drink attribute as a lightweight namespaced data store with exact user resolution and guarded updates.'
     PowerShellVersion = '5.1'
     FunctionsToExport = @(
@@ -26,7 +26,7 @@
     PrivateData       = @{
         PSData = @{
             Tags       = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
-            LicenseUri = 'https://opensource.org/license/bsd-3-clause'
+            LicenseUri = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
         }
     }
 }
