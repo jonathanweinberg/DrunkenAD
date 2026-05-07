@@ -102,6 +102,10 @@ The live harness writes operator-oriented output such as:
 
 Use `campaign-summary.json` as the canonical machine-readable report. It captures snapshot metadata, phase durations, success/failure counts, seed counts, sampled validation output, and any blocking reason that stopped the run.
 
+## Recorded Lab Runs
+
+- [WinServer live validation - 2026-05-07](/Users/jonathanweinberg/Documents/Codex_DrunkenAD/docs/WINSERVER-LIVE-VALIDATION-2026-05-07.md) records the Windows Server 2025 AD lab campaign, schema-readiness fix, final 3,000-user validation results, and populated `drink` screenshots.
+
 ## Troubleshooting
 
 The canonical schema-readiness failure from April 9, 2026 looked like this:
