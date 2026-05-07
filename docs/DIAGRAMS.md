@@ -5,6 +5,14 @@ together. The Mermaid files under `docs/diagrams/` are the editable source of
 truth. The PNG images under `docs/images/documentation-suite-2026-05-07/` are
 page-facing explanations with labels, examples, and workflow context.
 
+## Product Overview
+
+![DrunkenAD overview image](images/documentation-suite-2026-05-07/drunkenad-overview.png)
+
+Use this image when introducing the whole project: schema readiness, CSV
+ingestion, projection, namespace updates, live validation, and reporting all
+around the same `drink` attribute model.
+
 ## Use-Case Map
 
 ![Use-case map image](images/documentation-suite-2026-05-07/use-case-map.png)

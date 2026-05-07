@@ -4,6 +4,25 @@ DrunkenAD is a PowerShell module for repurposing the multivalued Active Director
 
 It provides a structured way to store namespaced records on user objects, making `drink` useful as a lightweight mini-database for flags, routing hints, profile metadata, and other compact application data.
 
+<p align="center">
+  <img src="docs/images/documentation-suite-2026-05-07/drunkenad-overview.png" alt="DrunkenAD overview">
+</p>
+
+## At A Glance
+
+DrunkenAD treats each `drink` value as a namespaced record attached to the AD
+user object. Workflows can write their own prefixes, preserve unrelated values,
+validate schema readiness before touching live users, and export the stored data
+for review.
+
+| Area | Infographic | Start Here |
+| --- | --- | --- |
+| Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
+| Write model | <img src="docs/images/documentation-suite-2026-05-07/namespace-write-model.png" alt="Namespace write model" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| CSV ingestion | <img src="docs/images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
+| Schema readiness | <img src="docs/images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
+| Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
+
 ## Design Goals
 
 The module is built around a few practical goals:
