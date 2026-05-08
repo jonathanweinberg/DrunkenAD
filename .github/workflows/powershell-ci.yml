@@ -35,7 +35,13 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: |
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+          if ($psGallery) {
+              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          }
+          else {
+              Register-PSRepository -Default -InstallationPolicy Trusted
+          }
           Install-Module Pester -RequiredVersion $env:PESTER_VERSION -Scope CurrentUser -Force -SkipPublisherCheck
           Get-Module Pester -ListAvailable |
               Sort-Object Version -Descending |
