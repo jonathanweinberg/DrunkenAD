@@ -6,6 +6,7 @@ $paths = @(
     'DrunkenAD/DrunkenAD.psm1'
     'DrunkenAD/DrunkenAD.psd1'
     'examples/Import-DrunkenADCsv.ps1'
+    'examples/Split-DrunkenADCsvField.ps1'
     'scripts/Enable-ADDrinkAttributeOnUserClass.ps1'
     'scripts/Test-DrunkenADDocs.ps1'
     'tests/Live/Export-DrunkenADSeedData.ps1'

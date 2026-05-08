@@ -84,6 +84,12 @@ Describe 'DrunkenAD unit tests' {
         }
     }
 
+    Context 'Public command surface' {
+        It 'exports the CSV multivalue splitter as an explicit helper' {
+            Get-Command -Name Split-DrunkenADCsvField -Module DrunkenAD | Should -Not -BeNullOrEmpty
+        }
+    }
+
     InModuleScope DrunkenAD {
         Context 'ConvertTo-DrunkenADPrefixMap' {
             It 'maps a single prefix to multiple values' {
@@ -118,6 +124,26 @@ Describe 'DrunkenAD unit tests' {
                 {
                     ConvertTo-DrunkenADPrefixMap -Prefixes 'One-', '' -DrinkValues 'A', 'B'
                 } | Should -Throw
+            }
+        }
+
+        Context 'Split-DrunkenADCsvField' {
+            It 'splits CSV multivalue fields with trimming and empty item removal' {
+                $result = Split-DrunkenADCsvField -Value 'Enabled; Audited ; ; Keep-Stable ' -Delimiter ';'
+
+                $result | Should -Be @('Enabled', 'Audited', 'Keep-Stable')
+            }
+
+            It 'treats the delimiter literally instead of as a regex' {
+                $result = Split-DrunkenADCsvField -Value 'One|Two||Three' -Delimiter '||'
+
+                $result | Should -Be @('One|Two', 'Three')
+            }
+
+            It 'rejects blank delimiters to avoid character-level CSV splitting' {
+                {
+                    Split-DrunkenADCsvField -Value 'Enabled;Audited' -Delimiter ''
+                } | Should -Throw '*Delimiter cannot be empty*'
             }
         }
 

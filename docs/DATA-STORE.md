@@ -38,6 +38,29 @@ That API treats `drink` as a namespace store:
 - `Remove-ADUserDrinkData` deletes one or more namespaces
 - `Set-ADUserDrinkProjection` builds namespace records from actual user attributes
 - `Import-ADUserDrinkCsvData` turns CSV rows into namespace maps and writes them through the same API
+- `Split-DrunkenADCsvField` previews how a delimited CSV field becomes multiple values for a `SplitOn` mapping
+
+## Multivalue CSV Fields
+
+`drink` is already multivalued, so one CSV cell can intentionally produce more
+than one stored value. DrunkenAD keeps that explicit: only mappings with
+`SplitOn` are split.
+
+For example, a CSV field of `"Enabled;Audited"` with this mapping:
+
+```json
+{
+  "Flags-": [
+    {
+      "Column": "Flags",
+      "SplitOn": ";"
+    }
+  ]
+}
+```
+
+produces `Flags-Enabled` and `Flags-Audited`. Other mapped columns remain
+single-value fields unless they also opt into `SplitOn`.
 
 ## Namespace Rules
 

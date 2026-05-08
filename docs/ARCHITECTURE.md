@@ -24,6 +24,7 @@ The main public commands are:
 | `Remove-ADUserDrinkData` | Remove one or more owned prefixes. |
 | `Set-ADUserDrinkProjection` | Project AD attributes into namespaced records. |
 | `Import-ADUserDrinkCsvData` | Convert CSV rows into namespace maps and write them. |
+| `Split-DrunkenADCsvField` | Preview the same literal delimiter splitting used by CSV `SplitOn` mappings. |
 | `Test-ADDrinkAttributeReadyForUserWrite` | Confirm the schema is ready for user-object writes. |
 
 Compatibility commands remain available for older call sites, but new code
@@ -54,9 +55,10 @@ path.
 The source diagram for this flow lives at
 [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd).
 
-CSV ingestion starts from rows and a namespace map. Projection starts from AD
-attributes and an attribute map. After that, both paths share the same safety
-behavior.
+CSV ingestion starts from rows and a namespace map. A mapping may opt into
+multivalue expansion with `SplitOn`; only that column is split, and the
+delimiter is treated literally. Projection starts from AD attributes and an
+attribute map. After that, both paths share the same safety behavior.
 
 ## Failure Boundaries
 

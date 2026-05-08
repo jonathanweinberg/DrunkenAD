@@ -80,6 +80,7 @@ workspace.
 - [DrunkenAD/DrunkenAD.psm1](DrunkenAD/DrunkenAD.psm1)
 - [DrunkenAD/DrunkenAD.psd1](DrunkenAD/DrunkenAD.psd1)
 - [examples/Import-DrunkenADCsv.ps1](examples/Import-DrunkenADCsv.ps1)
+- [examples/Split-DrunkenADCsvField.ps1](examples/Split-DrunkenADCsvField.ps1)
 - [examples/data/drink-ingestion-config.json](examples/data/drink-ingestion-config.json)
 - [examples/data/drink-ingestion-sample.csv](examples/data/drink-ingestion-sample.csv)
 - [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](scripts/Enable-ADDrinkAttributeOnUserClass.ps1)
@@ -96,6 +97,7 @@ workspace.
 | `Remove-ADUserDrinkData` | Removes one or more namespaces while preserving unrelated stored values. |
 | `Set-ADUserDrinkProjection` | Projects selected user attributes into namespaced `drink` records. |
 | `Import-ADUserDrinkCsvData` | Imports namespaced `drink` records from a CSV source using a JSON config or hashtable map. |
+| `Split-DrunkenADCsvField` | Splits a delimited CSV field into clean multivalue items for `SplitOn` mappings. |
 | `Get-AdUserDrinkPrefixedData` | Compatibility getter for the older prefixed-data naming. |
 | `Set-ADUserDrinkPrefixedData` | Compatibility writer for the older prefixed-data naming. |
 | `Update-ADUserDrinkAttribute` | Backward-compatible wrapper around the safer set function. |
@@ -108,6 +110,7 @@ The exported commands include comment-based help, so the module is self-document
 ```powershell
 Get-Help Set-ADUserDrinkProjection -Detailed
 Get-Help Import-ADUserDrinkCsvData -Examples
+Get-Help Split-DrunkenADCsvField -Examples
 Get-Help Set-ADUserDrinkData -Examples
 ```
 
@@ -298,6 +301,7 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 - It expects target users to already exist in Active Directory.
 - It expects `Test-ADDrinkAttributeReadyForUserWrite` to succeed before any import is attempted.
 - It turns fixed CSV columns into namespace records such as `Profile-`, `Flags-`, `Routing-`, `Tenant-`, and `Sync-`.
+- It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
 - It uses the same domain controller for validation, lookup, and write operations.
 - It can be previewed safely with `-WhatIf`.
@@ -338,6 +342,16 @@ Import-ADUserDrinkCsvData `
     -NamespaceMap $namespaceMap `
     -DomainController 'dc01.contoso.com'
 ```
+
+Preview a multivalue CSV field before adding it to an import mapping:
+
+```powershell
+Split-DrunkenADCsvField -Value 'Enabled; Audited ; Keep-Stable' -Delimiter ';'
+```
+
+That returns three values: `Enabled`, `Audited`, and `Keep-Stable`. In the
+sample config, `Flags` uses `"SplitOn": ";"`, so a CSV value such as
+`"Enabled;Audited"` becomes `Flags-Enabled` and `Flags-Audited` during import.
 
 The example wrapper script remains available when you want a ready-made entry point:
 

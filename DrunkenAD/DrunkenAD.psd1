@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DrunkenAD.psm1'
-    ModuleVersion     = '0.10.0'
+    ModuleVersion     = '0.10.1'
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
@@ -13,6 +13,7 @@
         'Remove-ADUserDrinkData',
         'Set-ADUserDrinkProjection',
         'Import-ADUserDrinkCsvData',
+        'Split-DrunkenADCsvField',
         'Invoke-ADUserDrinkDataDemo',
         'Get-AdUserDrinkPrefixedData',
         'Set-ADUserDrinkPrefixedData',

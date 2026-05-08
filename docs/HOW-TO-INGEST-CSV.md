@@ -30,6 +30,41 @@ The sample import script maps those columns into namespaces like this:
 
 The JSON mapping format uses namespace prefixes as top-level keys. Each entry points at a CSV column and can optionally add a `Label` or split multivalue fields with `SplitOn`.
 
+## Multivalue Fields
+
+Use `SplitOn` only on columns that intentionally contain multiple values. The
+sample `Flags` column is quoted CSV text such as `"Enabled;Audited"` and the
+mapping splits it with a semicolon:
+
+```json
+{
+  "Flags-": [
+    {
+      "Column": "Flags",
+      "SplitOn": ";"
+    }
+  ]
+}
+```
+
+That produces one `drink` value per non-empty item:
+
+- `Flags-Enabled`
+- `Flags-Audited`
+
+The splitter is literal, not regex-based. A delimiter such as `||` is treated as
+two pipe characters. Empty delimiters are rejected so the import cannot
+accidentally split a field into individual characters.
+
+Preview a field locally before running an import:
+
+```powershell
+Split-DrunkenADCsvField -Value 'Enabled; Audited ; Keep-Stable' -Delimiter ';'
+```
+
+The helper trims each item and drops empty entries, which keeps accidental extra
+semicolons from becoming empty `drink` records.
+
 ## Prerequisites
 
 Before running the import:
@@ -131,5 +166,6 @@ To adapt it for your environment:
 - add or remove CSV columns
 - create a new JSON config file for each ingestion profile
 - change the namespace prefixes the script emits
-- alter how multivalue fields are split
+- add `SplitOn` only to columns that deliberately contain multiple values
+- use `Split-DrunkenADCsvField` to preview delimiter behavior before live import
 - pass `-LogPath` if you want append-only write logging
