@@ -24,8 +24,12 @@ function ConvertTo-SeedToken {
     (($Value -replace '[^A-Za-z0-9]', '')).ToLowerInvariant()
 }
 
-if ($SeedCount -ne 3000) {
-    throw 'This live harness standardizes on exactly 3,000 seed users.'
+if ($SeedCount -le 0) {
+    throw 'SeedCount must be greater than zero.'
+}
+
+if (($SeedCount % 3) -ne 0) {
+    throw 'SeedCount must divide evenly across the three live-validation regions.'
 }
 
 $regionProfiles = @(

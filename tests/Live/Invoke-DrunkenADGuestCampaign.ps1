@@ -17,7 +17,10 @@ param(
 
     [string]$RootOuName = 'DrunkenAD Seed',
 
-    [int]$CrudSamplePerRegion = 100,
+    [ValidateSet('Quick', 'Standard', 'Full')]
+    [string]$CampaignProfile = 'Full',
+
+    [int]$CrudSamplePerRegion = 0,
 
     [int]$ValidationSamplePerRegion = 30,
 
@@ -45,6 +48,42 @@ function Stop-PhaseStopwatch {
 
     $Stopwatch.Stop()
     [math]::Round($Stopwatch.Elapsed.TotalSeconds, 3)
+}
+
+function Get-DrunkenADGuestCampaignProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Quick', 'Standard', 'Full')]
+        [string]$Name
+    )
+
+    switch ($Name) {
+        'Quick' {
+            [pscustomobject]@{
+                Name                = 'Quick'
+                SeedCount           = 30
+                UsersPerRegion      = 10
+                CrudSamplePerRegion = 3
+            }
+        }
+        'Standard' {
+            [pscustomobject]@{
+                Name                = 'Standard'
+                SeedCount           = 300
+                UsersPerRegion      = 100
+                CrudSamplePerRegion = 10
+            }
+        }
+        'Full' {
+            [pscustomobject]@{
+                Name                = 'Full'
+                SeedCount           = 3000
+                UsersPerRegion      = 1000
+                CrudSamplePerRegion = 100
+            }
+        }
+    }
 }
 
 function Get-OwnedPrefixList {
@@ -567,6 +606,7 @@ function ConvertTo-MarkdownSummary {
         '# DrunkenAD Live Campaign Summary'
         ''
         ('- Status: `{0}`' -f $Summary['Status'])
+        ('- Campaign Profile: `{0}`' -f $Summary['CampaignProfile'])
         ('- Snapshot: `{0}` (`{1}`)' -f $snapshot['Name'], $snapshot['Id'])
         ('- Domain: `{0}`' -f $domain['DistinguishedName'])
         ('- Results Directory: `{0}`' -f $Summary['ResultsDirectoryPath'])
@@ -617,10 +657,18 @@ if (-not (Test-Path -LiteralPath $ResultsDirectoryPath)) {
 
 $summaryJsonPath = Join-Path -Path $ResultsDirectoryPath -ChildPath 'campaign-summary.json'
 $summaryMarkdownPath = Join-Path -Path $ResultsDirectoryPath -ChildPath 'campaign-summary.md'
+$profile = Get-DrunkenADGuestCampaignProfile -Name $CampaignProfile
+$effectiveCrudSamplePerRegion = if ($PSBoundParameters.ContainsKey('CrudSamplePerRegion') -and $CrudSamplePerRegion -gt 0) {
+    $CrudSamplePerRegion
+}
+else {
+    $profile.CrudSamplePerRegion
+}
 $summary = [ordered]@{
     GeneratedAt          = (Get-Date).ToString('s')
     CompletedAt          = $null
     Status               = 'Running'
+    CampaignProfile      = $profile.Name
     ResultsDirectoryPath = $ResultsDirectoryPath
     Snapshot             = @{
         Name = $SnapshotName
@@ -690,8 +738,8 @@ try {
         throw $readinessStatus.BlockingMessage
     }
 
-    if ($seedManifest.Count -ne 3000) {
-        throw "Expected the seed manifest to contain 3000 users but found $($seedManifest.Count)."
+    if ($seedManifest.Count -ne $profile.SeedCount) {
+        throw "Expected the seed manifest to contain $($profile.SeedCount) users for the $($profile.Name) campaign profile but found $($seedManifest.Count)."
     }
 
     if ($csvRows.Count -ne $seedManifest.Count) {
@@ -855,8 +903,8 @@ try {
     }
 
     foreach ($region in @('NA', 'EMEA', 'APAC')) {
-        if ($countsByOu[$region] -ne 1000) {
-            throw "Seed reconcile expected 1000 users in region '$region' but found $($countsByOu[$region])."
+        if ($countsByOu[$region] -ne $profile.UsersPerRegion) {
+            throw "Seed reconcile expected $($profile.UsersPerRegion) users in region '$region' for the $($profile.Name) campaign profile but found $($countsByOu[$region])."
         }
     }
 
@@ -1018,7 +1066,7 @@ try {
 
     $crudUsers = @()
     foreach ($region in @('NA', 'EMEA', 'APAC')) {
-        $crudUsers += @($seedManifest | Where-Object Region -eq $region | Select-Object -First $CrudSamplePerRegion)
+        $crudUsers += @($seedManifest | Where-Object Region -eq $region | Select-Object -First $effectiveCrudSamplePerRegion)
     }
 
     foreach ($seedUser in $crudUsers) {
