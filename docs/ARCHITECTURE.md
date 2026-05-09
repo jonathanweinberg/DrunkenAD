@@ -15,6 +15,11 @@ The module does not create a new backend. Active Directory remains the storage
 system, and `drink` remains a normal AD attribute. DrunkenAD provides guardrails
 around lookup, prefix matching, replacement semantics, and live readiness.
 
+The root module dot-sources focused files from `DrunkenAD/Private` and
+`DrunkenAD/Public`. Private files hold shared helpers for schema checks, lookup,
+prefix maps, projection maps, logging, and CSV mapping. Public files hold the
+exported commands and compatibility wrappers listed in the manifest.
+
 The main public commands are:
 
 | Command | Responsibility |
