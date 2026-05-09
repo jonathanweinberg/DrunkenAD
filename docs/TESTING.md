@@ -71,6 +71,8 @@ When the environment is ready, the live integration tests validate:
 - literal prefixes with regex metacharacters
 - replacement of one namespace without disturbing another
 - cleanup of the temporary test user
+- CSV ingestion against a temporary CSV source
+- projection of AD attributes into default namespaces
 
 ## Live Campaign Harness
 
@@ -81,15 +83,30 @@ That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. It:
 - creates a distinct pre-mutation snapshot
 - ensures the `DrunkenAD_CODEX` shared folder is available in the guest
 - verifies domain and schema readiness before any write
-- reconciles the deterministic 3,000-user seed population
+- reconciles a deterministic seed population based on the selected profile
 - runs CSV ingestion, projection, and CRUD validation phases
 - writes timestamped reports under `tests/Live/results/<timestamp>/`
 
-Run it with:
+Run the quick profile first:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Run the default full profile with:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
+
+Profiles are:
+
+| Profile | Seed users | CRUD samples |
+| --- | ---: | ---: |
+| `Quick` | 30 | 9 |
+| `Standard` | 300 | 30 |
+| `Full` | 3,000 | 300 |
 
 Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the Parallels guest
 PowerShell wrapper is not in one of the repo-relative default locations:
@@ -133,6 +150,7 @@ The PowerShell workflow:
 - validates the module manifest
 - parses tracked PowerShell files through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
 - runs the unit suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
+- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1)
 - executes on Ubuntu, macOS, and Windows
 - uploads per-OS Pester XML results as short-lived artifacts
 

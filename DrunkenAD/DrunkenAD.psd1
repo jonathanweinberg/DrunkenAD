@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DrunkenAD.psm1'
-    ModuleVersion     = '0.10.1'
+    ModuleVersion     = '0.11.0'
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
@@ -26,8 +26,10 @@
     AliasesToExport   = @()
     PrivateData       = @{
         PSData = @{
-            Tags       = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
-            LicenseUri = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
+            Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
+            ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
+            LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
+            ReleaseNotes = '0.11.0 release-readiness update: split module sources, add live campaign profiles, add release checks, and expand integration coverage.'
         }
     }
 }

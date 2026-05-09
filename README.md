@@ -79,6 +79,8 @@ workspace.
 
 - [DrunkenAD/DrunkenAD.psm1](DrunkenAD/DrunkenAD.psm1)
 - [DrunkenAD/DrunkenAD.psd1](DrunkenAD/DrunkenAD.psd1)
+- [DrunkenAD/Private](DrunkenAD/Private)
+- [DrunkenAD/Public](DrunkenAD/Public)
 - [examples/Import-DrunkenADCsv.ps1](examples/Import-DrunkenADCsv.ps1)
 - [examples/Split-DrunkenADCsvField.ps1](examples/Split-DrunkenADCsvField.ps1)
 - [examples/data/drink-ingestion-config.json](examples/data/drink-ingestion-config.json)
@@ -263,7 +265,15 @@ Test-ADDrinkAttributeReadyForUserWrite `
 
 That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
 
-Run the full live validation harness against the Parallels lab VM:
+Run a quick live validation harness against the Parallels lab VM:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Use `-CampaignProfile Standard` for a 300-user pass and the default `Full`
+profile for the 3,000-user campaign:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
@@ -277,7 +287,7 @@ More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/
 
 GitHub Actions runs two fast default gates:
 
-- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, and runs the unit suite on Ubuntu, macOS, and Windows.
+- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, runs the unit suite, and runs release-readiness checks on Ubuntu, macOS, and Windows.
 - [.github/workflows/documentation-ci.yml](.github/workflows/documentation-ci.yml) checks documentation hygiene, rejects machine-specific checkout paths, verifies Markdown image/link targets, and ensures live result artifacts stay untracked.
 
 The PowerShell workflow uploads per-OS Pester XML results as short-lived artifacts. Integration tests and the full live campaign stay opt-in because they require a prepared Active Directory lab.
