@@ -85,7 +85,7 @@ Use this sequence for a first-pass live validation:
 5. Run one `-WhatIf` write with `Set-ADUserDrinkData` or `Set-ADUserDrinkProjection`.
 6. Run the local parser and unit suite.
 7. Run the integration suite.
-8. Run the sample CSV ingestion flow in `-WhatIf` mode or the full live harness if you need seeded-scale validation.
+8. Run the sample CSV ingestion flow in `-WhatIf` mode or choose a live harness profile if you need seeded-scale validation.
 
 ## Validation Narrative
 
@@ -108,6 +108,31 @@ The live harness writes operator-oriented output such as:
 - `campaign-summary.json`
 
 Use `campaign-summary.json` as the canonical machine-readable report. It captures snapshot metadata, phase durations, success/failure counts, seed counts, sampled validation output, and any blocking reason that stopped the run.
+
+## Campaign Profiles
+
+![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+
+The source diagram for campaign profile selection lives at
+[diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profiles.mmd).
+
+The live harness supports three profiles:
+
+| Profile | Seed users | CRUD samples | Use when |
+| --- | ---: | ---: | --- |
+| `Quick` | 30 | 9 | You need a fast post-change sanity pass. |
+| `Standard` | 300 | 30 | You want broader coverage without the full runtime. |
+| `Full` | 3,000 | 300 | You need parity with the recorded seeded-scale campaign. |
+
+Run the quick profile first after code changes:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Omit `-CampaignProfile` for the default `Full` campaign after confirming the
+snapshot or rollback point.
 
 ## Recorded Lab Runs
 

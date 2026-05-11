@@ -4,16 +4,21 @@ DrunkenAD is a PowerShell module with a narrow job: resolve one AD user, treat
 that user's multivalued `drink` attribute as a literal-prefix store, and write
 only the namespaces the caller owns.
 
-![Namespace write model](images/documentation-suite-2026-05-07/namespace-write-model.png)
+![Module layout](images/documentation-suite-2026-05-11/module-layout.png)
 
 The source diagram for this page lives at
-[diagrams/namespace-write-model.mmd](diagrams/namespace-write-model.mmd).
+[diagrams/module-layout.mmd](diagrams/module-layout.mmd).
 
 ## Core Boundary
 
 The module does not create a new backend. Active Directory remains the storage
 system, and `drink` remains a normal AD attribute. DrunkenAD provides guardrails
 around lookup, prefix matching, replacement semantics, and live readiness.
+
+The root module dot-sources focused files from `DrunkenAD/Private` and
+`DrunkenAD/Public`. Private files hold shared helpers for schema checks, lookup,
+prefix maps, projection maps, logging, and CSV mapping. Public files hold the
+exported commands and compatibility wrappers listed in the manifest.
 
 The main public commands are:
 
@@ -31,6 +36,11 @@ Compatibility commands remain available for older call sites, but new code
 should use the `DrinkData` and projection names.
 
 ## Write Semantics
+
+![Namespace write model](images/documentation-suite-2026-05-07/namespace-write-model.png)
+
+The source diagram for this write model lives at
+[diagrams/namespace-write-model.mmd](diagrams/namespace-write-model.mmd).
 
 Every write follows the same conceptual sequence:
 

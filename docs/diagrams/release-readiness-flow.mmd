@@ -1,0 +1,9 @@
+flowchart LR
+    INPUTS["Inputs<br/>DrunkenAD.psd1<br/>DrunkenAD.psm1<br/>Public commands<br/>Private helpers<br/>docs<br/>tests"]
+    SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
+    CHECKS["Release gate<br/>manifest metadata<br/>clean import<br/>export parity<br/>syntax<br/>docs hygiene<br/>unit tests"]
+    CI["CI acceptance<br/>Ubuntu<br/>macOS<br/>Windows<br/>no PSGallery publish"]
+
+    INPUTS --> SCRIPT
+    SCRIPT --> CHECKS
+    CHECKS --> CI

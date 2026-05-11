@@ -1,0 +1,11 @@
+flowchart LR
+    QUICK["Quick<br/>30 seed users<br/>3 CRUD samples per region"]
+    STANDARD["Standard<br/>300 seed users<br/>10 CRUD samples per region"]
+    FULL["Full<br/>3,000 seed users<br/>100 CRUD samples per region<br/>default"]
+    HARNESS["Live campaign harness<br/>snapshot<br/>seed reconcile<br/>CSV ingestion<br/>projection<br/>CRUD validation"]
+    SUMMARY["campaign-summary.json<br/>profile-derived totals"]
+
+    QUICK --> HARNESS
+    STANDARD --> HARNESS
+    FULL --> HARNESS
+    HARNESS --> SUMMARY

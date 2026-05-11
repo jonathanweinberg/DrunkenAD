@@ -21,10 +21,12 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
+| Module layout | <img src="docs/images/documentation-suite-2026-05-11/module-layout.png" alt="DrunkenAD module layout" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Write model | <img src="docs/images/documentation-suite-2026-05-07/namespace-write-model.png" alt="Namespace write model" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | CSV ingestion | <img src="docs/images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
 | Schema readiness | <img src="docs/images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
 | Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
+| Release readiness | <img src="docs/images/documentation-suite-2026-05-11/release-readiness.png" alt="0.11.0 release readiness" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
 
 ## Design Goals
 
@@ -77,8 +79,14 @@ workspace.
 
 ## Module Layout
 
+The root module is now a small deterministic loader. It dot-sources the focused
+files under `DrunkenAD/Private` and `DrunkenAD/Public`, then exports one command
+list that must stay aligned with the module manifest.
+
 - [DrunkenAD/DrunkenAD.psm1](DrunkenAD/DrunkenAD.psm1)
 - [DrunkenAD/DrunkenAD.psd1](DrunkenAD/DrunkenAD.psd1)
+- [DrunkenAD/Private](DrunkenAD/Private)
+- [DrunkenAD/Public](DrunkenAD/Public)
 - [examples/Import-DrunkenADCsv.ps1](examples/Import-DrunkenADCsv.ps1)
 - [examples/Split-DrunkenADCsvField.ps1](examples/Split-DrunkenADCsvField.ps1)
 - [examples/data/drink-ingestion-config.json](examples/data/drink-ingestion-config.json)
@@ -244,6 +252,12 @@ Run the parser gate by itself:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
+Run the release-readiness gate:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
+```
+
 Run integration tests against a live AD environment:
 
 ```powershell
@@ -263,7 +277,15 @@ Test-ADDrinkAttributeReadyForUserWrite `
 
 That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
 
-Run the full live validation harness against the Parallels lab VM:
+Run a quick live validation harness against the Parallels lab VM:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Use `-CampaignProfile Standard` for a 300-user pass and the default `Full`
+profile for the 3,000-user campaign:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
@@ -277,7 +299,7 @@ More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/
 
 GitHub Actions runs two fast default gates:
 
-- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, and runs the unit suite on Ubuntu, macOS, and Windows.
+- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, runs the unit suite, and runs release-readiness checks on Ubuntu, macOS, and Windows.
 - [.github/workflows/documentation-ci.yml](.github/workflows/documentation-ci.yml) checks documentation hygiene, rejects machine-specific checkout paths, verifies Markdown image/link targets, and ensures live result artifacts stay untracked.
 
 The PowerShell workflow uploads per-OS Pester XML results as short-lived artifacts. Integration tests and the full live campaign stay opt-in because they require a prepared Active Directory lab.

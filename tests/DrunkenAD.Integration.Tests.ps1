@@ -187,4 +187,67 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         $allValues | Should -Be @('Keep-Stable')
         $removedValues | Should -Be @()
     }
+
+    It 'imports CSV drink data and reads back mapped namespaces' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {
+                'The drink attribute is not ready for user writes in the target environment.'
+            }
+            else {
+                $script:readinessStatus.BlockingMessage
+            }
+
+            Set-ItResult -Skipped -Because $because
+            return
+        }
+
+        $csvPath = Join-Path -Path TestDrive: -ChildPath 'integration-ingestion.csv'
+        @(
+            'SamAccountName,ProfileTier,Flags'
+            ('{0},Gold,Enabled;Audited' -f $script:userName)
+        ) | Set-Content -LiteralPath $csvPath -Encoding utf8
+
+        Import-ADUserDrinkCsvData `
+            -CsvPath $csvPath `
+            -NamespaceMap @{
+                'Profile-' = @(@{ Column = 'ProfileTier'; Label = 'Tier' })
+                'Flags-'   = @(@{ Column = 'Flags'; SplitOn = ';' })
+            } `
+            -DomainController $script:domainController
+
+        $profileValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Profile-' -DomainController $script:domainController
+        $flagValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Flags-' -DomainController $script:domainController
+
+        $profileValues | Should -Be @('Profile-Tier=Gold')
+        $flagValues | Should -Be @('Flags-Enabled', 'Flags-Audited')
+    }
+
+    It 'projects AD attributes into drink namespaces' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {
+                'The drink attribute is not ready for user writes in the target environment.'
+            }
+            else {
+                $script:readinessStatus.BlockingMessage
+            }
+
+            Set-ItResult -Skipped -Because $because
+            return
+        }
+
+        Set-ADUserDrinkProjection -SamAccountName $script:userName -DomainController $script:domainController -Confirm:$false
+
+        $expectedValues = @(
+            'Profile-samAccountName={0}' -f $script:userName
+            'Identity-userPrincipalName={0}' -f $script:userPrincipalName
+            'Meta-employeeID={0}' -f $script:employeeId
+            'Routing-mail={0}' -f $script:mail
+            'Notify-pager={0}' -f $script:mail
+        )
+        $actualValues = Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController |
+            Where-Object { $_ -match '^(Profile|Identity|Meta|Routing|Notify)-' } |
+            Sort-Object
+
+        $actualValues | Should -Be ($expectedValues | Sort-Object)
+    }
 }

@@ -94,8 +94,12 @@ temporary smoke writes, seeded users, CSV ingestion, projection, and CRUD.
 
 ![Live validation ladder](images/documentation-suite-2026-05-07/live-validation-ladder.png)
 
+![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+
 The source diagram for this validation path lives at
 [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladder.mmd).
+The profile source diagram lives at
+[diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profiles.mmd).
 
 Before running a live campaign:
 
@@ -103,6 +107,16 @@ Before running a live campaign:
 - keep credentials under `tests/Live/results/`
 - confirm that `tests/Live/results/` is ignored by Git
 - use a timeout long enough for thousands of AD reads and writes
+
+Start with the quick profile when you only need a live sanity pass:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Use `Standard` for 300 seeded users and `Full` for the full 3,000-user
+campaign. `Full` is the default profile for compatibility with earlier runs.
 
 The May 7, 2026 WinServer campaign took about 31 minutes for 3,000 seed users,
 3,000 CSV writes, 3,000 projection writes, and 300 CRUD samples.

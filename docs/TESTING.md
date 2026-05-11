@@ -1,10 +1,12 @@
 # Testing DrunkenAD
 
-DrunkenAD now has three validation layers:
+DrunkenAD now has four validation layers:
 
 - local parser and unit tests
 - an opt-in integration suite against a live AD environment
 - a larger live campaign harness for the Parallels lab VM
+- a release-readiness gate that composes syntax, docs, manifest, export, and
+  unit-test checks
 
 ## Parser And Unit Tests
 
@@ -71,6 +73,8 @@ When the environment is ready, the live integration tests validate:
 - literal prefixes with regex metacharacters
 - replacement of one namespace without disturbing another
 - cleanup of the temporary test user
+- CSV ingestion against a temporary CSV source
+- projection of AD attributes into default namespaces
 
 ## Live Campaign Harness
 
@@ -81,15 +85,30 @@ That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. It:
 - creates a distinct pre-mutation snapshot
 - ensures the `DrunkenAD_CODEX` shared folder is available in the guest
 - verifies domain and schema readiness before any write
-- reconciles the deterministic 3,000-user seed population
+- reconciles a deterministic seed population based on the selected profile
 - runs CSV ingestion, projection, and CRUD validation phases
 - writes timestamped reports under `tests/Live/results/<timestamp>/`
 
-Run it with:
+Run the quick profile first:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
+    -CampaignProfile Quick
+```
+
+Run the default full profile with:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
+
+Profiles are:
+
+| Profile | Seed users | CRUD samples |
+| --- | ---: | ---: |
+| `Quick` | 30 | 9 |
+| `Standard` | 300 | 30 |
+| `Full` | 3,000 | 300 |
 
 Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the Parallels guest
 PowerShell wrapper is not in one of the repo-relative default locations:
@@ -98,6 +117,23 @@ PowerShell wrapper is not in one of the repo-relative default locations:
 `../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
 
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as run output, not source content.
+
+## Release Readiness Gate
+
+![Release readiness](images/documentation-suite-2026-05-11/release-readiness.png)
+
+The source diagram for the release gate lives at
+[diagrams/release-readiness-flow.mmd](diagrams/release-readiness-flow.mmd).
+
+Run the release-readiness gate before tagging or asking CI to prove the branch:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
+```
+
+That script validates manifest metadata, clean module import, exported command
+parity, PowerShell syntax, documentation hygiene, and the default unit suite.
+It does not publish to PSGallery or require publish credentials.
 
 ## Schema Readiness During Testing
 
@@ -133,6 +169,7 @@ The PowerShell workflow:
 - validates the module manifest
 - parses tracked PowerShell files through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
 - runs the unit suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
+- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1)
 - executes on Ubuntu, macOS, and Windows
 - uploads per-OS Pester XML results as short-lived artifacts
 

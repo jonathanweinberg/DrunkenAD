@@ -12,6 +12,7 @@ $global:DrunkenADTest_SetADUserHandler = { return }
 
 Describe 'DrunkenAD unit tests' {
     BeforeAll {
+        $script:DrunkenADUnitModulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
         $script:DrunkenADUnitOriginalFunctions = @{}
         $stubDefinitions = @{
             'Get-ADUser' = {
@@ -87,6 +88,27 @@ Describe 'DrunkenAD unit tests' {
     Context 'Public command surface' {
         It 'exports the CSV multivalue splitter as an explicit helper' {
             Get-Command -Name Split-DrunkenADCsvField -Module DrunkenAD | Should -Not -BeNullOrEmpty
+        }
+
+        It 'keeps manifest exports and module exports in lockstep from a clean import' {
+            $manifest = Test-ModuleManifest -Path $script:DrunkenADUnitModulePath
+            $module = Import-Module $script:DrunkenADUnitModulePath -Force -PassThru -ErrorAction Stop
+
+            $manifestExports = @($manifest.ExportedFunctions.Keys | Sort-Object)
+            $moduleExports = @(Get-Command -Module $module.Name -CommandType Function | Select-Object -ExpandProperty Name | Sort-Object)
+
+            $moduleExports | Should -Be $manifestExports
+        }
+
+        It 'loads source from focused Public and Private module directories' {
+            $moduleRoot = Split-Path -Path $script:DrunkenADUnitModulePath -Parent
+            $rootModulePath = Join-Path -Path $moduleRoot -ChildPath 'DrunkenAD.psm1'
+            $rootModuleContent = Get-Content -LiteralPath $rootModulePath -Raw
+
+            Test-Path -LiteralPath (Join-Path -Path $moduleRoot -ChildPath 'Private') -PathType Container | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path -Path $moduleRoot -ChildPath 'Public') -PathType Container | Should -BeTrue
+            $rootModuleContent | Should -Match 'Private'
+            $rootModuleContent | Should -Match 'Public'
         }
     }
 

@@ -10,7 +10,10 @@ param(
 
     [string]$ResultsRoot = (Join-Path -Path $PSScriptRoot -ChildPath 'results'),
 
-    [int]$SeedCount = 3000
+    [ValidateSet('Quick', 'Standard', 'Full')]
+    [string]$CampaignProfile = 'Full',
+
+    [int]$SeedCount = 0
 )
 
 Set-StrictMode -Version Latest
@@ -93,17 +96,23 @@ function New-CrossProjectExcerpt {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [pscustomobject]$SnapshotRecord
+        [pscustomobject]$SnapshotRecord,
+
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Profile,
+
+        [Parameter(Mandatory = $true)]
+        [int]$SeedCount
     )
 
     (
         "We're starting a DrunkenAD live-validation campaign on `WindowsServer2025_ADDNS` against `lab.contoso.com`. " +
-        'The work includes a new pre-mutation snapshot named "{0}" ({1}), a repo share named `DrunkenAD_CODEX`, ' +
-        'a persistent synthetic seed population of 3,000 users under `OU=DrunkenAD Seed,DC=lab,DC=contoso,DC=com`, ' +
+        'The work includes the `{0}` campaign profile, a new pre-mutation snapshot named "{1}" ({2}), a repo share named `DrunkenAD_CODEX`, ' +
+        'a persistent synthetic seed population of {3} users under `OU=DrunkenAD Seed,DC=lab,DC=contoso,DC=com`, ' +
         'and live validation of CRUD, projection, and CSV ingestion paths. Please avoid mutating that OU tree or the ' +
         '`Profile-`, `Flags-`, `Routing-`, `Tenant-`, `Sync-`, `Identity-`, `Meta-`, `Notify-`, `Org-`, `Keep-`, `Scenario-`, ' +
         'and `Literal[01]-` namespaces while this campaign is in progress.'
-    ) -f $SnapshotRecord.Name, $SnapshotRecord.Id
+    ) -f $Profile.Name, $SnapshotRecord.Name, $SnapshotRecord.Id, $SeedCount
 }
 
 function Resolve-DrunkenADVmWrapperPath {
@@ -154,6 +163,39 @@ function Resolve-DrunkenADVmWrapperPath {
     throw "Unable to locate Invoke-WindowsAddnsGuestPowerShell.ps1. Pass -VmWrapperPath, set DRUNKENAD_VM_WRAPPER_PATH, or place the wrapper at one of: $candidateList"
 }
 
+function Get-DrunkenADLiveCampaignProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Quick', 'Standard', 'Full')]
+        [string]$Name
+    )
+
+    switch ($Name) {
+        'Quick' {
+            [pscustomobject]@{
+                Name                = 'Quick'
+                SeedCount           = 30
+                CrudSamplePerRegion = 3
+            }
+        }
+        'Standard' {
+            [pscustomobject]@{
+                Name                = 'Standard'
+                SeedCount           = 300
+                CrudSamplePerRegion = 10
+            }
+        }
+        'Full' {
+            [pscustomobject]@{
+                Name                = 'Full'
+                SeedCount           = 3000
+                CrudSamplePerRegion = 100
+            }
+        }
+    }
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '..\..'))
 $resolvedVmWrapperPath = Resolve-DrunkenADVmWrapperPath -ExplicitPath $VmWrapperPath -RepoRootPath $repoRoot
 $runName = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -162,16 +204,23 @@ $hostDataDirectory = Join-Path -Path $PSScriptRoot -ChildPath 'Data'
 $guestRepoRoot = '\\psf\{0}' -f $RepoShareName
 $guestResultsRoot = '\\psf\{0}\tests\Live\results\{1}' -f $RepoShareName, $runName
 $guestScriptPath = '{0}\tests\Live\Invoke-DrunkenADGuestCampaign.ps1' -f $guestRepoRoot
+$profile = Get-DrunkenADLiveCampaignProfile -Name $CampaignProfile
+$effectiveSeedCount = if ($PSBoundParameters.ContainsKey('SeedCount') -and $SeedCount -gt 0) {
+    $SeedCount
+}
+else {
+    $profile.SeedCount
+}
 
 if (-not (Test-Path -LiteralPath $runRoot)) {
     New-Item -Path $runRoot -ItemType Directory -Force | Out-Null
 }
 
-$seedData = & (Join-Path -Path $PSScriptRoot -ChildPath 'Export-DrunkenADSeedData.ps1') -SeedCount $SeedCount -OutputDirectory $hostDataDirectory
+$seedData = & (Join-Path -Path $PSScriptRoot -ChildPath 'Export-DrunkenADSeedData.ps1') -SeedCount $effectiveSeedCount -OutputDirectory $hostDataDirectory
 $snapshotRecord = New-VmSnapshotRecord -VmName $VmName -SnapshotName $SnapshotName
 $shareStatus = Ensure-RepoSharedFolder -VmName $VmName -RepoRootPath $repoRoot -ShareName $RepoShareName
 
-$crossProjectExcerpt = New-CrossProjectExcerpt -SnapshotRecord $snapshotRecord
+$crossProjectExcerpt = New-CrossProjectExcerpt -SnapshotRecord $snapshotRecord -Profile $profile -SeedCount $effectiveSeedCount
 $crossProjectExcerptPath = Join-Path -Path $runRoot -ChildPath 'cross-project-excerpt.txt'
 $crossProjectExcerpt | Set-Content -LiteralPath $crossProjectExcerptPath -Encoding utf8
 
@@ -181,6 +230,7 @@ $operatorNotesPath = Join-Path -Path $runRoot -ChildPath 'operator-notes.md'
     ''
     ('- VM: `{0}`' -f $VmName)
     ('- Snapshot: `{0}` (`{1}`)' -f $snapshotRecord.Name, $snapshotRecord.Id)
+    ('- Campaign Profile: `{0}`' -f $CampaignProfile)
     ('- Shared Folder: `{0}` (`{1}`)' -f $RepoShareName, $shareStatus)
     ('- VM Wrapper: `{0}`' -f $resolvedVmWrapperPath)
     ('- Manifest: `{0}`' -f $seedData.ManifestPath)
@@ -197,7 +247,9 @@ $guestLauncherPath = Join-Path -Path $runRoot -ChildPath 'Invoke-GuestCampaign.p
     "-ConfigPath '\\psf\$RepoShareName\examples\data\drink-ingestion-config.json' " +
     "-ResultsDirectoryPath '$guestResultsRoot' " +
     "-SnapshotName '$($snapshotRecord.Name)' " +
-    "-SnapshotId '$($snapshotRecord.Id)'"
+    "-SnapshotId '$($snapshotRecord.Id)' " +
+    "-CampaignProfile '$CampaignProfile' " +
+    "-CrudSamplePerRegion $($profile.CrudSamplePerRegion)"
 ) | Set-Content -LiteralPath $guestLauncherPath -Encoding utf8
 
 $guestOutput = & pwsh -NoLogo -NoProfile -File $resolvedVmWrapperPath -FilePath $guestLauncherPath 2>&1 | Out-String

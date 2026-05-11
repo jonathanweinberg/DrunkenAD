@@ -3,21 +3,17 @@ param()
 
 $projectRoot = Split-Path -Path $PSScriptRoot -Parent
 $paths = @(
-    'DrunkenAD/DrunkenAD.psm1'
-    'DrunkenAD/DrunkenAD.psd1'
-    'examples/Import-DrunkenADCsv.ps1'
-    'examples/Split-DrunkenADCsvField.ps1'
-    'scripts/Enable-ADDrinkAttributeOnUserClass.ps1'
-    'scripts/Test-DrunkenADDocs.ps1'
-    'tests/Live/Export-DrunkenADSeedData.ps1'
-    'tests/Live/Invoke-DrunkenADGuestCampaign.ps1'
-    'tests/Live/Invoke-DrunkenADLiveCampaign.ps1'
-    'tests/DrunkenAD.Unit.Tests.ps1'
-    'tests/DrunkenAD.Integration.Tests.ps1'
-    'tests/LiveCampaign.Unit.Tests.ps1'
-    'tests/SchemaEnablement.Unit.Tests.ps1'
-    'tests/Invoke-DrunkenADTests.ps1'
+    & git -C $projectRoot ls-files --cached --others --exclude-standard |
+        Where-Object {
+            $_ -match '\.ps(m1|d1|1)$' -and
+            $_ -notlike 'tests/Live/results/*'
+        } |
+        Sort-Object
 )
+
+if ($paths.Count -eq 0) {
+    throw 'No tracked or untracked PowerShell source files were found.'
+}
 
 $parseFailures = @()
 

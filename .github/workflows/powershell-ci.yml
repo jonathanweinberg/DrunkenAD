@@ -63,6 +63,10 @@ jobs:
         shell: pwsh
         run: ./tests/Invoke-DrunkenADTests.ps1 -Output Detailed -TestResultPath $env:PESTER_RESULT_PATH
 
+      - name: Run release-readiness checks
+        shell: pwsh
+        run: ./scripts/Test-DrunkenADRelease.ps1
+
       - name: Upload Pester results
         if: always()
         uses: actions/upload-artifact@v4
