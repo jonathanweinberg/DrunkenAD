@@ -1,6 +1,6 @@
 # Issue 002: Release-Readiness Visuals Need 0.11.0 Context
 
-Status: Open
+Status: Open - Ready to close
 
 ## Summary
 
@@ -28,11 +28,32 @@ milestone.
 
 ## Fix Notes
 
-- Pending.
+- Added `docs/images/documentation-suite-2026-05-11/live-campaign-profiles.png`
+  to show Quick, Standard, and Full campaign scale in the documentation visual
+  path while preserving Full as the default.
+- Added `docs/images/documentation-suite-2026-05-11/release-readiness.png` to
+  make `scripts/Test-DrunkenADRelease.ps1`, manifest metadata, importability,
+  exported command parity, docs, syntax, and unit tests visible to release
+  reviewers.
+- Added editable Mermaid sources:
+  - `docs/diagrams/live-campaign-profiles.mmd`
+  - `docs/diagrams/release-readiness-flow.mmd`
+- Updated `README.md`, `docs/README.md`, `docs/LIVE-VALIDATION.md`,
+  `docs/OPERATIONS.md`, `docs/TESTING.md`, and `docs/DIAGRAMS.md` to link the
+  new image-gen2 plates from the main reading paths.
+- Added the image-gen2 prompt record under
+  `docs/images/documentation-suite-2026-05-11/image-prompts.md`.
+- Updated `CHANGELOG.md` so the 0.11.0 notes mention the refreshed
+  documentation plates.
+- Validation passed:
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADDocs.ps1`
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADSyntax.ps1`
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADRelease.ps1`
 
 ## Commits
 
-- Pending.
+- Opened issue record: `f375dfa`
+- Fix commit: `d10e097`
 
 ## Close Criteria
 
@@ -43,3 +64,6 @@ milestone.
 
 Leave this issue open after the fix is committed unless the user explicitly
 requests closure. It should be marked ready to close once validation passes.
+
+Ready to close when the maintainer is satisfied with the refreshed campaign and
+release-readiness reading path.

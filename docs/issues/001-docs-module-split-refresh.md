@@ -1,6 +1,6 @@
 # Issue 001: Documentation Drift After Module Split
 
-Status: Open
+Status: Open - Ready to close
 
 ## Summary
 
@@ -29,11 +29,30 @@ present the project as a single module surface plus feature workflows.
 
 ## Fix Notes
 
-- Pending.
+- Added `docs/images/documentation-suite-2026-05-11/module-layout.png`, a
+  generated image-gen2 plate that shows the split `Private` and `Public`
+  source folders, the root `DrunkenAD.psm1` loader, `DrunkenAD.psd1` export
+  parity, and the release-readiness gate.
+- Tightened the dashed connector from `Private helpers` so the arrowhead lands
+  directly on the `DrunkenAD.psd1` card instead of pointing into whitespace.
+- Added `docs/diagrams/module-layout.mmd` as the editable Mermaid source for
+  the module-layout concept.
+- Updated `README.md`, `docs/README.md`, `docs/ARCHITECTURE.md`, and
+  `docs/DIAGRAMS.md` so the module split is part of the main documentation
+  path.
+- Updated `docs/DATA-STORE.md` command links to point at the new public source
+  files under `DrunkenAD/Public`.
+- Captured the image-gen2 prompt and edit note in
+  `docs/images/documentation-suite-2026-05-11/image-prompts.md`.
+- Validation passed:
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADDocs.ps1`
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADSyntax.ps1`
+  - `pwsh -NoLogo -NoProfile -File scripts/Test-DrunkenADRelease.ps1`
 
 ## Commits
 
-- Pending.
+- Opened issue record: `f375dfa`
+- Fix commit: `d10e097`
 
 ## Close Criteria
 
@@ -44,3 +63,6 @@ present the project as a single module surface plus feature workflows.
 
 Leave this issue open after the fix is committed unless the user explicitly
 requests closure. It should be marked ready to close once validation passes.
+
+Ready to close when the maintainer is satisfied with the refreshed visual and
+documentation placement.
