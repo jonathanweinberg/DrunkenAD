@@ -12,9 +12,10 @@ They are not replacements for the Mermaid sources; they are fast, visual
 introductions to the same flows that the docs describe in detail.
 The 2026-05-11 image suite adds the 0.11.0 module split, campaign profiles, and
 release-readiness gate to the same visual style.
-The 0.12.0 docs clarify that the seeded live campaign harness is a
-Parallels-specific operator workflow; generic live AD validation should use the
-integration suite unless another host wrapper is added.
+The 0.12.1 docs keep the seeded live campaign flow host-method neutral. Use the
+integration suite for generic live AD validation, and use
+[LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) when adding or replacing a host
+wrapper for seeded campaigns.
 
 Start with the path that matches your job:
 
@@ -25,7 +26,7 @@ Start with the path that matches your job:
 - Operating the module: read [OPERATIONS.md](OPERATIONS.md), then
   [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md).
 - Validating a lab: read [TESTING.md](TESTING.md),
-  [LIVE-VALIDATION.md](LIVE-VALIDATION.md), and the recorded
+  [LIVE-VALIDATION.md](LIVE-VALIDATION.md), [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md), and the recorded
   [WinServer live validation run](WINSERVER-LIVE-VALIDATION-2026-05-07.md).
 - Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md).
 
@@ -41,6 +42,7 @@ Start with the path that matches your job:
 | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) | Safe schema-readiness enablement path. |
 | [TESTING.md](TESTING.md) | Parser, unit, integration, and live campaign test layers. |
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
+| [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |
 | [DIAGRAMS.md](DIAGRAMS.md) | Mermaid source plus information-dense infographic plates. |
 
 ## Visual Reading Path

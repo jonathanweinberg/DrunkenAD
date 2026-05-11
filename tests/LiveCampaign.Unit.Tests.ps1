@@ -1,8 +1,10 @@
 Describe 'Invoke-DrunkenADLiveCampaign portability' {
     BeforeAll {
+        $projectRoot = Split-Path -Path $PSScriptRoot -Parent
         $liveCampaignScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'Live/Invoke-DrunkenADLiveCampaign.ps1'
         $guestCampaignScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'Live/Invoke-DrunkenADGuestCampaign.ps1'
-        $liveValidationDocPath = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'docs/LIVE-VALIDATION.md'
+        $liveValidationDocPath = Join-Path -Path $projectRoot -ChildPath 'docs/LIVE-VALIDATION.md'
+        $hostMethodsDocPath = Join-Path -Path $projectRoot -ChildPath 'docs/LIVE-CAMPAIGN-HOSTS.md'
         $script:liveCampaignTokens = $null
         $script:liveCampaignParseErrors = $null
         $script:liveCampaignAst = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -18,6 +20,20 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             [ref]$script:guestCampaignParseErrors
         )
         $script:liveValidationDocContent = Get-Content -LiteralPath $liveValidationDocPath -Raw
+        $script:hostMethodsDocPath = $hostMethodsDocPath
+        $publicDocPaths = @(
+            'README.md'
+            'CHANGELOG.md'
+            'docs/README.md'
+            'docs/TESTING.md'
+            'docs/LIVE-VALIDATION.md'
+            'docs/OPERATIONS.md'
+        )
+        $publicDocPaths += @(Get-ChildItem -LiteralPath (Join-Path -Path $projectRoot -ChildPath 'docs/issues') -Filter '*.md' |
+            ForEach-Object { [System.IO.Path]::GetRelativePath($projectRoot, $_.FullName) })
+        $script:publicLiveCampaignDocContent = ($publicDocPaths | ForEach-Object {
+            Get-Content -LiteralPath (Join-Path -Path $projectRoot -ChildPath $_) -Raw
+        }) -join [Environment]::NewLine
     }
 
     It 'does not default VmWrapperPath to a user-specific absolute path' {
@@ -59,11 +75,30 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
         }
     }
 
-    It 'documents the Parallels-specific host dependency and ignored local output boundary' {
-        $script:liveValidationDocContent | Should -Match 'Parallels'
-        $script:liveValidationDocContent | Should -Match 'prlctl'
-        $script:liveValidationDocContent | Should -Match 'WindowsServer2025_ADDNS'
-        $script:liveValidationDocContent | Should -Match 'tests/Live/results/'
+    It 'keeps public live campaign docs host-method neutral' {
+        $forbiddenPatterns = @(
+            '(?i)\bparallels\b'
+            '\bprlctl\b'
+            'WindowsServer2025_ADDNS'
+            '\\\\psf'
+            'DrunkenAD_CODEX'
+            'Invoke-WindowsAddnsGuestPowerShell'
+        )
+
+        foreach ($pattern in $forbiddenPatterns) {
+            $script:publicLiveCampaignDocContent | Should -Not -Match $pattern
+        }
+    }
+
+    It 'documents the generic host-method contract for future live campaign implementations' {
+        Test-Path -LiteralPath $script:hostMethodsDocPath -PathType Leaf | Should -BeTrue
+        $hostMethodsDocContent = Get-Content -LiteralPath $script:hostMethodsDocPath -Raw
+
+        $hostMethodsDocContent | Should -Match 'Host Wrapper Responsibilities'
+        $hostMethodsDocContent | Should -Match 'Snapshot Or Rollback Point'
+        $hostMethodsDocContent | Should -Match 'Guest Or Remote Workspace'
+        $hostMethodsDocContent | Should -Match 'Result Collection'
+        $hostMethodsDocContent | Should -Match 'Credential Handling'
     }
 
     It 'generates deterministic quick-profile seed data' {

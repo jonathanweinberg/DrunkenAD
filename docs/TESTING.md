@@ -4,7 +4,7 @@ DrunkenAD now has four validation layers:
 
 - local parser and unit tests
 - an opt-in integration suite against a live AD environment
-- a larger Parallels-specific live campaign harness for the seeded lab VM
+- a larger host-wrapper live campaign harness for the seeded lab
 - a release-readiness gate that composes syntax, docs, manifest, export, and
   unit-test checks
 
@@ -80,12 +80,12 @@ When the environment is ready, the live integration tests validate:
 
 The higher-fidelity lab workflow lives under [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1) and [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
 
-That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. The
-host-side script uses `prlctl` and mounts the repo into the guest as
-`\\psf\DrunkenAD_CODEX`. It:
+That harness is designed for a prepared live lab with a host wrapper. The host
+method is responsible for rollback, workspace access, guest execution, and
+result collection as described in [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md). It:
 
-- creates a distinct pre-mutation snapshot
-- ensures the `DrunkenAD_CODEX` shared folder is available in the guest
+- creates or verifies a distinct pre-mutation rollback point
+- ensures the repository workspace is available in the live lab
 - verifies domain and schema readiness before any write
 - reconciles a deterministic seed population based on the selected profile
 - runs CSV ingestion, projection, and CRUD validation phases
@@ -112,15 +112,12 @@ Profiles are:
 | `Standard` | 300 | 30 |
 | `Full` | 3,000 | 300 |
 
-Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the Parallels guest
-PowerShell wrapper is not in one of the repo-relative default locations:
-`VM/Invoke-WindowsAddnsGuestPowerShell.ps1`,
-`../VM/Invoke-WindowsAddnsGuestPowerShell.ps1`, or
-`../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
+Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the host wrapper is not in
+one of the repo-relative default locations.
 
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as
 run output, not source content, even when it contains generated guest launchers,
-copied PowerShell modules, or wrapper logs from the Parallels run.
+copied PowerShell modules, or wrapper logs from a live run.
 
 ## Release Readiness Gate
 

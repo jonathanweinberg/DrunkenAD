@@ -50,11 +50,11 @@ That suite now fails fast on schema-readiness issues by surfacing the blocking r
 
 The larger seeded validation workflow lives at [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1). It drives the guest-side orchestration script at [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
 
-This seeded campaign harness is intentionally Parallels-specific. The host-side
-script uses `prlctl`, defaults to the `WindowsServer2025_ADDNS` VM, and mounts
-the repo into the guest as `\\psf\DrunkenAD_CODEX`. Use the smaller integration
-suite for a generic live AD environment, or adapt the host wrapper before using
-the seeded campaign with another virtualization platform.
+The seeded campaign is host-wrapper driven. Keep the public validation flow
+generic: a host method should prepare a rollback point, make the repository
+available to the live lab, run the guest-side script, collect results, and leave
+operator notes under ignored local output. The contract for adding or replacing
+host methods lives in [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md).
 
 Run it with:
 
@@ -62,17 +62,14 @@ Run it with:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
-The harness resolves `Invoke-WindowsAddnsGuestPowerShell.ps1` in this order:
-the explicit `-VmWrapperPath` argument, the `DRUNKENAD_VM_WRAPPER_PATH`
-environment variable, then repo-relative candidates at
-`VM/Invoke-WindowsAddnsGuestPowerShell.ps1`,
-`../VM/Invoke-WindowsAddnsGuestPowerShell.ps1`, and
-`../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
+Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` when the host wrapper is not
+in one of the repo-relative default locations. Keep wrapper-specific setup in
+the wrapper or in host-method documentation, not in the generic validation guide.
 
 That workflow:
 
-1. creates a pre-mutation Parallels VM snapshot
-2. ensures the `DrunkenAD_CODEX` Parallels shared folder is mounted into the guest
+1. creates or verifies a pre-mutation rollback point
+2. ensures the repository workspace is available to the live lab
 3. verifies the domain DN, module import path, and `drink` readiness
 4. reconciles the deterministic 3,000-user seed population
 5. runs CSV ingestion, projection, and CRUD validation phases

@@ -277,7 +277,7 @@ Test-ADDrinkAttributeReadyForUserWrite `
 
 That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
 
-Run a quick seeded live validation harness against the Parallels lab VM:
+Run a quick seeded live validation harness when your host wrapper is configured:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
@@ -291,13 +291,14 @@ profile for the 3,000-user campaign:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
-That optional workflow is Parallels-specific: it uses `prlctl`, the
-`WindowsServer2025_ADDNS` VM, and the `\\psf\DrunkenAD_CODEX` guest share. It
-snapshots the VM, verifies the shared folder and schema state, reconciles the
-synthetic seed population, and writes timestamped reports under
-`tests/Live/results/`. Those live results are intentionally ignored by Git.
+That optional workflow is host-wrapper driven. It creates or verifies a rollback
+point, makes the repository available to the live lab, verifies schema state,
+reconciles the synthetic seed population, and writes timestamped reports under
+`tests/Live/results/`. Those live results are intentionally ignored by Git. The
+host-method contract is documented in
+[docs/LIVE-CAMPAIGN-HOSTS.md](docs/LIVE-CAMPAIGN-HOSTS.md).
 
-More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/USE-CASES.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/DATA-STORE.md](docs/DATA-STORE.md), [docs/TESTING.md](docs/TESTING.md), [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md), [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md), and [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md).
+More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/USE-CASES.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/DATA-STORE.md](docs/DATA-STORE.md), [docs/TESTING.md](docs/TESTING.md), [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md), [docs/LIVE-CAMPAIGN-HOSTS.md](docs/LIVE-CAMPAIGN-HOSTS.md), [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md), and [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md).
 
 ## CI
 
