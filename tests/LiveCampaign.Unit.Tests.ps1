@@ -58,7 +58,7 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
     }
 
     It 'generates deterministic quick-profile seed data' {
-        $outputDirectory = Join-Path -Path TestDrive: -ChildPath 'quick-seed'
+        $outputDirectory = Join-Path -Path $TestDrive -ChildPath 'quick-seed'
         $seedScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'Live/Export-DrunkenADSeedData.ps1'
 
         $result = & $seedScriptPath -SeedCount 30 -OutputDirectory $outputDirectory
