@@ -94,8 +94,12 @@ temporary smoke writes, seeded users, CSV ingestion, projection, and CRUD.
 
 ![Live validation ladder](images/documentation-suite-2026-05-07/live-validation-ladder.png)
 
+![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+
 The source diagram for this validation path lives at
 [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladder.mmd).
+The profile source diagram lives at
+[diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profiles.mmd).
 
 Before running a live campaign:
 

@@ -1,10 +1,12 @@
 # Testing DrunkenAD
 
-DrunkenAD now has three validation layers:
+DrunkenAD now has four validation layers:
 
 - local parser and unit tests
 - an opt-in integration suite against a live AD environment
 - a larger live campaign harness for the Parallels lab VM
+- a release-readiness gate that composes syntax, docs, manifest, export, and
+  unit-test checks
 
 ## Parser And Unit Tests
 
@@ -115,6 +117,23 @@ PowerShell wrapper is not in one of the repo-relative default locations:
 `../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
 
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as run output, not source content.
+
+## Release Readiness Gate
+
+![Release readiness](images/documentation-suite-2026-05-11/release-readiness.png)
+
+The source diagram for the release gate lives at
+[diagrams/release-readiness-flow.mmd](diagrams/release-readiness-flow.mmd).
+
+Run the release-readiness gate before tagging or asking CI to prove the branch:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
+```
+
+That script validates manifest metadata, clean module import, exported command
+parity, PowerShell syntax, documentation hygiene, and the default unit suite.
+It does not publish to PSGallery or require publish credentials.
 
 ## Schema Readiness During Testing
 

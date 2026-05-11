@@ -25,11 +25,12 @@ Examples:
 
 The preferred API is:
 
-- [Get-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
-- [Set-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
-- [Remove-ADUserDrinkData](../DrunkenAD/DrunkenAD.psm1)
-- [Set-ADUserDrinkProjection](../DrunkenAD/DrunkenAD.psm1)
-- [Import-ADUserDrinkCsvData](../DrunkenAD/DrunkenAD.psm1)
+- [Get-ADUserDrinkData](../DrunkenAD/Public/Get-ADUserDrinkData.ps1)
+- [Set-ADUserDrinkData](../DrunkenAD/Public/Set-ADUserDrinkData.ps1)
+- [Remove-ADUserDrinkData](../DrunkenAD/Public/Remove-ADUserDrinkData.ps1)
+- [Set-ADUserDrinkProjection](../DrunkenAD/Public/Set-ADUserDrinkProjection.ps1)
+- [Import-ADUserDrinkCsvData](../DrunkenAD/Public/Import-ADUserDrinkCsvData.ps1)
+- [Split-DrunkenADCsvField](../DrunkenAD/Public/Split-DrunkenADCsvField.ps1)
 
 That API treats `drink` as a namespace store:
 

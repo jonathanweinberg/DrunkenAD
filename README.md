@@ -21,10 +21,12 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
+| Module layout | <img src="docs/images/documentation-suite-2026-05-11/module-layout.png" alt="DrunkenAD module layout" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Write model | <img src="docs/images/documentation-suite-2026-05-07/namespace-write-model.png" alt="Namespace write model" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | CSV ingestion | <img src="docs/images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
 | Schema readiness | <img src="docs/images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
 | Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
+| Release readiness | <img src="docs/images/documentation-suite-2026-05-11/release-readiness.png" alt="0.11.0 release readiness" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
 
 ## Design Goals
 
@@ -76,6 +78,10 @@ Command examples below assume the repository has been checked out at
 workspace.
 
 ## Module Layout
+
+The root module is now a small deterministic loader. It dot-sources the focused
+files under `DrunkenAD/Private` and `DrunkenAD/Public`, then exports one command
+list that must stay aligned with the module manifest.
 
 - [DrunkenAD/DrunkenAD.psm1](DrunkenAD/DrunkenAD.psm1)
 - [DrunkenAD/DrunkenAD.psd1](DrunkenAD/DrunkenAD.psd1)
@@ -244,6 +250,12 @@ Run the parser gate by itself:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
+```
+
+Run the release-readiness gate:
+
+```powershell
+pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
 ```
 
 Run integration tests against a live AD environment:

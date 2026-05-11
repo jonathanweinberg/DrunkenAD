@@ -6,6 +6,7 @@
 - Added `Quick`, `Standard`, and `Full` live validation campaign profiles.
 - Added release-readiness validation for manifest metadata, importability, exports, syntax, docs, and tests.
 - Expanded opt-in integration coverage for CSV ingestion and projection workflows.
+- Added image-gen2 documentation plates for the module layout, campaign profiles, and release-readiness gate.
 
 ## 0.10.1
 

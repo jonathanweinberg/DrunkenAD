@@ -111,6 +111,11 @@ Use `campaign-summary.json` as the canonical machine-readable report. It capture
 
 ## Campaign Profiles
 
+![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+
+The source diagram for campaign profile selection lives at
+[diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profiles.mmd).
+
 The live harness supports three profiles:
 
 | Profile | Seed users | CRUD samples | Use when |
