@@ -55,6 +55,8 @@ define a release contract for help quality, did not ship a module-level
 
 - `54830e9` - `docs: make Get-Help a first-class interface`
 - `0770553` - `docs: document Get-Help as a user entrypoint`
+- `75bbcbb` - `docs: record issue 5 help closeout`
+- `06f6ea6` - `chore: prepare v0.13.0 release`
 
 ## Release
 
