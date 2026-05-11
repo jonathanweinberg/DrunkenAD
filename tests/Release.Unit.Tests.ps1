@@ -15,10 +15,11 @@ Describe 'DrunkenAD release readiness' {
         $releaseScriptContent | Should -Not -Match 'Publish-Module'
     }
 
-    It 'marks the module as the 0.12.1 release with publish-ready metadata' {
-        $script:manifest.Version.ToString() | Should -Be '0.12.1'
+    It 'marks the module as the 0.13.0 release with publish-ready metadata' {
+        $script:manifest.Version.ToString() | Should -Be '0.13.0'
         $script:manifest.PrivateData.PSData.ProjectUri | Should -Be 'https://github.com/jonathanweinberg/DrunkenAD'
-        $script:manifest.PrivateData.PSData.ReleaseNotes | Should -Match '0.12.1'
+        $script:manifest.PrivateData.PSData.ReleaseNotes | Should -Match '0.13.0'
+        @($script:manifest.FileList | Where-Object { $_ -like '*/en-US/about_DrunkenAD.help.txt' }) | Should -Not -BeNullOrEmpty
     }
 
     It 'records release notes in the changelog' {
@@ -26,6 +27,7 @@ Describe 'DrunkenAD release readiness' {
 
         Test-Path -LiteralPath $changelogPath -PathType Leaf | Should -BeTrue
         $content = Get-Content -LiteralPath $changelogPath -Raw
+        $content | Should -Match '## 0.13.0'
         $content | Should -Match '## 0.12.1'
         $content | Should -Match '## 0.12.0'
         $content | Should -Match '## 0.11.0'
