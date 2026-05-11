@@ -36,8 +36,11 @@ Optional log file path for appended activity records.
 .PARAMETER PassThru
 Returns the final `drink` value set after the update logic is computed.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.String[]
+System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
 Set-ADUserDrinkPrefixedData -SamAccountName 'TesterAccount' -PrefixMap @{ 'Profile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
@@ -52,6 +55,27 @@ Shows what would change for a literal prefix containing regex metacharacters.
 .NOTES
 Lower-level prefixed API retained for compatibility. `Set-ADUserDrinkData` is the
 preferred higher-level name when treating the attribute as a generic data store.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Set-ADUserDrinkData
+
+.LINK
+Get-AdUserDrinkPrefixedData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Write legacy prefixed Active Directory drink data
 #>
 function Set-ADUserDrinkPrefixedData {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'SamAccountName')]

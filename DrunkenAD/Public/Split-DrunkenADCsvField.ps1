@@ -17,6 +17,12 @@ The source CSV field value to split.
 The literal delimiter between values. Defaults to `;`. The delimiter cannot be
 empty or whitespace.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
+.OUTPUTS
+System.String[]. Returns trimmed non-empty values split from the source field.
+
 .EXAMPLE
 Split-DrunkenADCsvField -Value 'Enabled; Audited ; Keep-Stable'
 
@@ -26,6 +32,24 @@ Returns `Enabled`, `Audited`, and `Keep-Stable`.
 Split-DrunkenADCsvField -Value 'One|Two||Three' -Delimiter '||'
 
 Splits on the literal `||` delimiter.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Import-ADUserDrinkCsvData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Split CSV fields for Active Directory drink ingestion
 #>
 function Split-DrunkenADCsvField {
     [CmdletBinding()]

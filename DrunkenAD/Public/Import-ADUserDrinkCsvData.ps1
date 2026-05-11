@@ -26,8 +26,12 @@ Optional domain controller to use consistently for validation and writes.
 .PARAMETER LogPath
 Optional log file path for appended activity records.
 
+.INPUTS
+None. CSV rows are read from `CsvPath`.
+
 .OUTPUTS
-System.Management.Automation.PSCustomObject
+System.Management.Automation.PSCustomObject. Returns one object per imported
+row with the resolved namespaces, data map, and final values when a write occurs.
 
 .EXAMPLE
 Import-ADUserDrinkCsvData -CsvPath '.\users.csv' -ConfigPath '.\drink-config.json' -DomainController 'dc01.contoso.com'
@@ -47,6 +51,24 @@ $namespaceMap = @{
 Import-ADUserDrinkCsvData -CsvPath '.\users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' -WhatIf
 
 Previews a CSV import using an in-memory namespace map.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Split-DrunkenADCsvField
+
+.LINK
+Set-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Import CSV rows into Active Directory drink namespaces
 #>
 function Import-ADUserDrinkCsvData {
     [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'ConfigPath')]

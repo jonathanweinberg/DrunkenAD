@@ -34,10 +34,39 @@ Optional log file path for appended activity records.
 .PARAMETER PassThru
 Returns the final stored `drink` values after the removal logic is computed.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
+.OUTPUTS
+System.String[]. Returned when `PassThru` is specified.
+
 .EXAMPLE
 Remove-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefixes 'Profile-', 'Flags-' -DomainController 'dc01.contoso.com' -Confirm:$false
 
 Removes all `Profile-` and `Flags-` records from the user's `drink` attribute.
+
+.EXAMPLE
+Remove-ADUserDrinkData -Mail 'tester@contoso.com' -Prefixes 'Temp-' -WhatIf
+
+Previews removal of the `Temp-` namespace for a user resolved by exact mail.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Set-ADUserDrinkData
+
+.LINK
+Get-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Remove namespaced Active Directory drink data
 #>
 function Remove-ADUserDrinkData {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'SamAccountName')]

@@ -42,6 +42,12 @@ Optional log file path for appended activity records.
 Returns a summary object containing the effective attribute map, the generated
 data map, and the final `drink` values after the projection write.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
+.OUTPUTS
+System.Management.Automation.PSCustomObject. Returned when `PassThru` is specified.
+
 .EXAMPLE
 Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -DomainController 'dc01.contoso.com' -Confirm:$false
 
@@ -64,6 +70,27 @@ Runs the projection with a custom attribute map provided via splatting.
 Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -AttributeMap @{ 'Custom-' = @('description') } -IncludeDefaultAttributeMap -Confirm:$false
 
 Adds a custom namespace on top of the built-in projection map.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Set-ADUserDrinkData
+
+.LINK
+Invoke-ADUserDrinkDataDemo
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Project Active Directory user attributes into drink namespaces
 #>
 function Set-ADUserDrinkProjection {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low', DefaultParameterSetName = 'SamAccountName')]

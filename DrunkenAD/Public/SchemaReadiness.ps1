@@ -16,9 +16,12 @@ behavior is used.
 .PARAMETER PassThru
 Returns a richer object describing the lookup instead of a simple Boolean.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.Boolean
-System.Management.Automation.PSCustomObject
+System.Boolean. Returns `$true` when the schema attribute exists and is active.
+System.Management.Automation.PSCustomObject. Returned when `PassThru` is specified.
 
 .EXAMPLE
 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com'
@@ -30,6 +33,21 @@ Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' -PassThru
 
 Returns detailed schema lookup information, including whether `drink` is allowed
 on the Active Directory `user` class.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Test-ADDrinkAttributeReadyForUserWrite
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Check Active Directory drink schema presence
 #>
 function Test-ADDrinkAttributeEnabled {
     [CmdletBinding()]
@@ -65,9 +83,12 @@ behavior is used.
 .PARAMETER PassThru
 Returns a richer object describing both schema presence and write readiness.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.Boolean
-System.Management.Automation.PSCustomObject
+System.Boolean. Returns `$true` when user write readiness is confirmed.
+System.Management.Automation.PSCustomObject. Returned when `PassThru` is specified.
 
 .EXAMPLE
 Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com'
@@ -80,6 +101,21 @@ Test-ADDrinkAttributeReadyForUserWrite -Server 'dc01.contoso.com' -PassThru
 
 Returns detailed readiness information, including the blocking reason when user
 writes are not currently supported.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Test-ADDrinkAttributeEnabled
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Check Active Directory drink user-write readiness
 #>
 function Test-ADDrinkAttributeReadyForUserWrite {
     [CmdletBinding()]

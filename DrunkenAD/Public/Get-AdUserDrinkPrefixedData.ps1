@@ -28,8 +28,11 @@ The literal prefix to match at the beginning of each `drink` value.
 .PARAMETER DomainController
 Optional domain controller to use for both schema validation and user lookup.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.String[]
+System.String[]. Returns `drink` values that begin with the requested prefix.
 
 .EXAMPLE
 Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'Profile-' -DomainController 'dc01.contoso.com'
@@ -42,7 +45,26 @@ Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValueP
 Returns all `drink` values for that exact UPN whose prefix is `Profile-`.
 
 .NOTES
-Compatibility wrapper around `Get-ADUserDrinkData`.
+Compatibility wrapper around `Get-ADUserDrinkData`. It remains fully documented
+so older scripts can use `Get-Help Get-AdUserDrinkPrefixedData -Full` directly.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Get-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Read legacy prefixed Active Directory drink data
 #>
 function Get-AdUserDrinkPrefixedData {
     [CmdletBinding(DefaultParameterSetName = 'SamAccountName')]

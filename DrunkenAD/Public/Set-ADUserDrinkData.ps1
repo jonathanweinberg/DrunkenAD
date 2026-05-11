@@ -36,6 +36,12 @@ Optional log file path for appended activity records.
 .PARAMETER PassThru
 Returns the final stored `drink` values after the write logic is computed.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
+.OUTPUTS
+System.String[]. Returned when `PassThru` is specified.
+
 .EXAMPLE
 Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Profile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
 
@@ -45,6 +51,27 @@ Stores a generic `Profile-` record in the user's `drink` attribute.
 Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Flags-' = @('Enabled', 'Audited') } -WhatIf
 
 Previews a namespace replacement without writing changes.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Get-ADUserDrinkData
+
+.LINK
+Remove-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Write namespaced Active Directory drink data
 #>
 function Set-ADUserDrinkData {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'SamAccountName')]

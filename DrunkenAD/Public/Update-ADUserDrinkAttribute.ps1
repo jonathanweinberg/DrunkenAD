@@ -44,8 +44,11 @@ Optional explicit log file path.
 .PARAMETER PassThru
 Returns the final `drink` value set after the update logic is computed.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.String[]
+System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
 Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'Profile-' -DrinkValues 'Tier=Gold' -AutoConfirm
@@ -56,6 +59,27 @@ Replaces the `Profile-` slice of the `drink` attribute with a single value.
 Update-ADUserDrinkAttribute -EmployeeID '123456' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B' -WhatIf
 
 Previews an aligned multi-prefix update without writing any changes.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Set-ADUserDrinkPrefixedData
+
+.LINK
+Set-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Update legacy Active Directory drink values
 #>
 function Update-ADUserDrinkAttribute {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium', DefaultParameterSetName = 'SamAccountName')]

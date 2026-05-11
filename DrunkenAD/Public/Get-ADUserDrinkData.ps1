@@ -29,8 +29,11 @@ Optional literal prefix used to filter the returned `drink` values.
 .PARAMETER DomainController
 Optional domain controller to use for both schema validation and user lookup.
 
+.INPUTS
+None. This command does not accept pipeline input.
+
 .OUTPUTS
-System.String[]
+System.String[]. Returns the matching `drink` values for the resolved user.
 
 .EXAMPLE
 Get-ADUserDrinkData -SamAccountName 'TesterAccount' -DomainController 'dc01.contoso.com'
@@ -41,6 +44,24 @@ Returns all values currently stored in the user's `drink` attribute.
 Get-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefix 'Profile-' -DomainController 'dc01.contoso.com'
 
 Returns only the `drink` values that start with the literal prefix `Profile-`.
+
+.LINK
+about_DrunkenAD
+
+.LINK
+Set-ADUserDrinkData
+
+.COMPONENT
+DrunkenAD
+
+.ROLE
+User
+
+.ROLE
+Operator
+
+.FUNCTIONALITY
+Read namespaced Active Directory drink data
 #>
 function Get-ADUserDrinkData {
     [CmdletBinding(DefaultParameterSetName = 'SamAccountName')]

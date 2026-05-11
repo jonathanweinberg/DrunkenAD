@@ -1,0 +1,68 @@
+TOPIC
+    about_DrunkenAD
+
+SYNOPSIS
+    Explains how to use DrunkenAD and its command help.
+
+LONG DESCRIPTION
+    DrunkenAD is a PowerShell module that treats the Active Directory drink
+    attribute as a compact namespaced data store on user objects.
+
+    Use Get-Command to discover the command surface:
+
+        Get-Command -Module DrunkenAD
+
+    Use Get-Help as the primary user guide for each command:
+
+        Get-Help Set-ADUserDrinkData -Full
+        Get-Help Import-ADUserDrinkCsvData -Examples
+        Get-Help Remove-ADUserDrinkData -Parameter Prefixes
+
+CORE WORKFLOWS
+    Read values:
+
+        Get-ADUserDrinkData -SamAccountName TesterAccount
+
+    Write one or more namespaces:
+
+        Set-ADUserDrinkData -SamAccountName TesterAccount `
+            -DataMap @{ 'Profile-' = @('Tier=Gold') } -Confirm:$false
+
+    Remove a namespace:
+
+        Remove-ADUserDrinkData -SamAccountName TesterAccount `
+            -Prefixes 'Profile-' -Confirm:$false
+
+SCHEMA READINESS
+    Before writing to live users, confirm that the drink attribute exists and
+    is allowed on the Active Directory user class:
+
+        Test-ADDrinkAttributeEnabled -Server dc01.contoso.com
+        Test-ADDrinkAttributeReadyForUserWrite -Server dc01.contoso.com
+
+    Use the PassThru switch when an operator needs blocking reasons and schema
+    details instead of a simple Boolean result.
+
+CSV INGESTION
+    Import-ADUserDrinkCsvData reads CSV rows with SamAccountName and converts
+    selected columns into namespaced drink values. Mapping can come from a JSON
+    config file or an in-memory NamespaceMap. Split-DrunkenADCsvField documents
+    the literal delimiter behavior used by SplitOn mappings.
+
+LIVE VALIDATION
+    The repository includes optional integration tests and seeded live campaign
+    scripts for lab validation. Start with the command help and repository docs
+    before running live operations:
+
+        Get-Help Import-ADUserDrinkCsvData -Full
+        Get-Help Test-ADDrinkAttributeReadyForUserWrite -Full
+
+SEE ALSO
+    Get-Command
+    Get-Help
+    Get-ADUserDrinkData
+    Set-ADUserDrinkData
+    Remove-ADUserDrinkData
+    Import-ADUserDrinkCsvData
+    Set-ADUserDrinkProjection
+    Test-ADDrinkAttributeReadyForUserWrite
