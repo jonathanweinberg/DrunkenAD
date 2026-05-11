@@ -1,6 +1,6 @@
 # Issue 001: Documentation Drift After Module Split
 
-Status: Open - Ready to close
+Status: Closed - Fixed in v0.11.0
 
 ## Summary
 
@@ -61,8 +61,5 @@ present the project as a single module surface plus feature workflows.
 - The new visual asset is checked into the repo and linked from relevant docs.
 - Local documentation and release checks pass.
 
-Leave this issue open after the fix is committed unless the user explicitly
-requests closure. It should be marked ready to close once validation passes.
-
-Ready to close when the maintainer is satisfied with the refreshed visual and
-documentation placement.
+Closed after the `v0.11.0` GitHub Release was created:
+https://github.com/jonathanweinberg/DrunkenAD/releases/tag/v0.11.0

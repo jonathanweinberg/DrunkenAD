@@ -1,6 +1,6 @@
 # Issue 002: Release-Readiness Visuals Need 0.11.0 Context
 
-Status: Open - Ready to close
+Status: Closed - Fixed in v0.11.0
 
 ## Summary
 
@@ -62,8 +62,5 @@ milestone.
 - Updated image prompts are stored beside the generated assets.
 - Local documentation and release checks pass.
 
-Leave this issue open after the fix is committed unless the user explicitly
-requests closure. It should be marked ready to close once validation passes.
-
-Ready to close when the maintainer is satisfied with the refreshed campaign and
-release-readiness reading path.
+Closed after the `v0.11.0` GitHub Release was created:
+https://github.com/jonathanweinberg/DrunkenAD/releases/tag/v0.11.0
