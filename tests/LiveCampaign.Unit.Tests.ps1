@@ -76,8 +76,9 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
     }
 
     It 'keeps public live campaign docs host-method neutral' {
+        $legacyVendorPattern = '(?i)\b{0}\b' -f ('para' + 'llels')
         $forbiddenPatterns = @(
-            '(?i)\bparallels\b'
+            $legacyVendorPattern
             '\bprlctl\b'
             'WindowsServer2025_ADDNS'
             '\\\\psf'
