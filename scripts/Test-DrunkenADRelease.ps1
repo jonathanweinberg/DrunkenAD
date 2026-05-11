@@ -37,16 +37,16 @@ function Add-DrunkenADLocalPesterCache {
 & (Join-Path -Path $PSScriptRoot -ChildPath 'Test-DrunkenADDocs.ps1')
 
 $manifest = Test-ModuleManifest -Path $manifestPath
-if ($manifest.Version.ToString() -ne '0.11.0') {
-    throw "Expected module version 0.11.0 but found $($manifest.Version)."
+if ($manifest.Version.ToString() -ne '0.12.0') {
+    throw "Expected module version 0.12.0 but found $($manifest.Version)."
 }
 
 if ($manifest.PrivateData.PSData.ProjectUri -ne 'https://github.com/jonathanweinberg/DrunkenAD') {
     throw 'Manifest ProjectUri must point to the DrunkenAD repository.'
 }
 
-if ([string]::IsNullOrWhiteSpace($manifest.PrivateData.PSData.ReleaseNotes) -or $manifest.PrivateData.PSData.ReleaseNotes -notmatch '0\.11\.0') {
-    throw 'Manifest ReleaseNotes must describe the 0.11.0 release.'
+if ([string]::IsNullOrWhiteSpace($manifest.PrivateData.PSData.ReleaseNotes) -or $manifest.PrivateData.PSData.ReleaseNotes -notmatch '0\.12\.0') {
+    throw 'Manifest ReleaseNotes must describe the 0.12.0 release.'
 }
 
 if (-not (Test-Path -LiteralPath $changelogPath -PathType Leaf)) {
@@ -54,7 +54,7 @@ if (-not (Test-Path -LiteralPath $changelogPath -PathType Leaf)) {
 }
 
 $changelogContent = Get-Content -LiteralPath $changelogPath -Raw
-foreach ($requiredHeading in @('## 0.11.0', '## 0.10.1')) {
+foreach ($requiredHeading in @('## 0.12.0', '## 0.11.0')) {
     if ($changelogContent -notmatch [regex]::Escape($requiredHeading)) {
         throw "CHANGELOG.md is missing '$requiredHeading'."
     }

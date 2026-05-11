@@ -106,6 +106,8 @@ Before running a live campaign:
 - confirm a VM snapshot or equivalent rollback point
 - keep credentials under `tests/Live/results/`
 - confirm that `tests/Live/results/` is ignored by Git
+- confirm the host can run `prlctl` against the Parallels
+  `WindowsServer2025_ADDNS` VM when using the seeded campaign harness
 - use a timeout long enough for thousands of AD reads and writes
 
 Start with the quick profile when you only need a live sanity pass:

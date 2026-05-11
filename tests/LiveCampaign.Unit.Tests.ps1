@@ -2,6 +2,7 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
     BeforeAll {
         $liveCampaignScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'Live/Invoke-DrunkenADLiveCampaign.ps1'
         $guestCampaignScriptPath = Join-Path -Path $PSScriptRoot -ChildPath 'Live/Invoke-DrunkenADGuestCampaign.ps1'
+        $liveValidationDocPath = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'docs/LIVE-VALIDATION.md'
         $script:liveCampaignTokens = $null
         $script:liveCampaignParseErrors = $null
         $script:liveCampaignAst = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -16,6 +17,7 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             [ref]$script:guestCampaignTokens,
             [ref]$script:guestCampaignParseErrors
         )
+        $script:liveValidationDocContent = Get-Content -LiteralPath $liveValidationDocPath -Raw
     }
 
     It 'does not default VmWrapperPath to a user-specific absolute path' {
@@ -55,6 +57,13 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             $parameter.Extent.Text | Should -Match "'Full'"
             $parameter.DefaultValue.Extent.Text | Should -Be "'Full'"
         }
+    }
+
+    It 'documents the Parallels-specific host dependency and ignored local output boundary' {
+        $script:liveValidationDocContent | Should -Match 'Parallels'
+        $script:liveValidationDocContent | Should -Match 'prlctl'
+        $script:liveValidationDocContent | Should -Match 'WindowsServer2025_ADDNS'
+        $script:liveValidationDocContent | Should -Match 'tests/Live/results/'
     }
 
     It 'generates deterministic quick-profile seed data' {

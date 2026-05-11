@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0
+
+- Clarified that the seeded live campaign harness is a Parallels Desktop
+  operator workflow built around `prlctl`, `WindowsServer2025_ADDNS`, and the
+  `\\psf\DrunkenAD_CODEX` guest share.
+- Added a tracked issue note for the Parallels live-harness documentation
+  cleanup.
+- Kept the release-readiness gate current with the `0.12.0` manifest metadata.
+
 ## 0.11.0
 
 - Split the module into focused `Private` and `Public` source files while preserving the exported command surface.

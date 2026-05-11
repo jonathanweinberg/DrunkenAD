@@ -50,6 +50,12 @@ That suite now fails fast on schema-readiness issues by surfacing the blocking r
 
 The larger seeded validation workflow lives at [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1). It drives the guest-side orchestration script at [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
 
+This seeded campaign harness is intentionally Parallels-specific. The host-side
+script uses `prlctl`, defaults to the `WindowsServer2025_ADDNS` VM, and mounts
+the repo into the guest as `\\psf\DrunkenAD_CODEX`. Use the smaller integration
+suite for a generic live AD environment, or adapt the host wrapper before using
+the seeded campaign with another virtualization platform.
+
 Run it with:
 
 ```powershell
@@ -65,14 +71,16 @@ environment variable, then repo-relative candidates at
 
 That workflow:
 
-1. creates a pre-mutation VM snapshot
-2. ensures the `DrunkenAD_CODEX` share is mounted into the guest
+1. creates a pre-mutation Parallels VM snapshot
+2. ensures the `DrunkenAD_CODEX` Parallels shared folder is mounted into the guest
 3. verifies the domain DN, module import path, and `drink` readiness
 4. reconciles the deterministic 3,000-user seed population
 5. runs CSV ingestion, projection, and CRUD validation phases
 6. writes timestamped reports under `tests/Live/results/<timestamp>/`
 
-The results directory is intentionally ignored by Git.
+The results directory is intentionally ignored by Git. Treat anything under
+`tests/Live/results/` as local run output, including wrapper launchers,
+guest-output logs, copied modules, and any credential-adjacent operator notes.
 
 ## Smoke Sequence
 

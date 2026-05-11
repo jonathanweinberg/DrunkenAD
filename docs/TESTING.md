@@ -4,7 +4,7 @@ DrunkenAD now has four validation layers:
 
 - local parser and unit tests
 - an opt-in integration suite against a live AD environment
-- a larger live campaign harness for the Parallels lab VM
+- a larger Parallels-specific live campaign harness for the seeded lab VM
 - a release-readiness gate that composes syntax, docs, manifest, export, and
   unit-test checks
 
@@ -80,7 +80,9 @@ When the environment is ready, the live integration tests validate:
 
 The higher-fidelity lab workflow lives under [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1) and [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
 
-That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. It:
+That harness is designed for the `WindowsServer2025_ADDNS` Parallels VM. The
+host-side script uses `prlctl` and mounts the repo into the guest as
+`\\psf\DrunkenAD_CODEX`. It:
 
 - creates a distinct pre-mutation snapshot
 - ensures the `DrunkenAD_CODEX` shared folder is available in the guest
@@ -116,7 +118,9 @@ PowerShell wrapper is not in one of the repo-relative default locations:
 `../VM/Invoke-WindowsAddnsGuestPowerShell.ps1`, or
 `../Codex/VM/Invoke-WindowsAddnsGuestPowerShell.ps1`.
 
-The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as run output, not source content.
+The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as
+run output, not source content, even when it contains generated guest launchers,
+copied PowerShell modules, or wrapper logs from the Parallels run.
 
 ## Release Readiness Gate
 

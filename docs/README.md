@@ -12,6 +12,9 @@ They are not replacements for the Mermaid sources; they are fast, visual
 introductions to the same flows that the docs describe in detail.
 The 2026-05-11 image suite adds the 0.11.0 module split, campaign profiles, and
 release-readiness gate to the same visual style.
+The 0.12.0 docs clarify that the seeded live campaign harness is a
+Parallels-specific operator workflow; generic live AD validation should use the
+integration suite unless another host wrapper is added.
 
 Start with the path that matches your job:
 

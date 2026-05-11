@@ -26,7 +26,7 @@ for review.
 | CSV ingestion | <img src="docs/images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
 | Schema readiness | <img src="docs/images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
 | Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
-| Release readiness | <img src="docs/images/documentation-suite-2026-05-11/release-readiness.png" alt="0.11.0 release readiness" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
+| Release readiness | <img src="docs/images/documentation-suite-2026-05-11/release-readiness.png" alt="Release readiness" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
 
 ## Design Goals
 
@@ -277,7 +277,7 @@ Test-ADDrinkAttributeReadyForUserWrite `
 
 That usually means `drink` exists but is not yet writable on the Active Directory `user` class. Use [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) before retrying live writes.
 
-Run a quick live validation harness against the Parallels lab VM:
+Run a quick seeded live validation harness against the Parallels lab VM:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1 `
@@ -291,7 +291,11 @@ profile for the 3,000-user campaign:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Live/Invoke-DrunkenADLiveCampaign.ps1
 ```
 
-That workflow snapshots the VM, verifies the shared folder and schema state, reconciles the synthetic seed population, and writes timestamped reports under `tests/Live/results/`. Those live results are intentionally ignored by Git.
+That optional workflow is Parallels-specific: it uses `prlctl`, the
+`WindowsServer2025_ADDNS` VM, and the `\\psf\DrunkenAD_CODEX` guest share. It
+snapshots the VM, verifies the shared folder and schema state, reconciles the
+synthetic seed population, and writes timestamped reports under
+`tests/Live/results/`. Those live results are intentionally ignored by Git.
 
 More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/USE-CASES.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/DATA-STORE.md](docs/DATA-STORE.md), [docs/TESTING.md](docs/TESTING.md), [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md), [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md), and [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md).
 

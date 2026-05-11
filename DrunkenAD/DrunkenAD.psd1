@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DrunkenAD.psm1'
-    ModuleVersion     = '0.11.0'
+    ModuleVersion     = '0.12.0'
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
@@ -29,7 +29,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.11.0 release-readiness update: split module sources, add live campaign profiles, add release checks, and expand integration coverage.'
+            ReleaseNotes = '0.12.0 live-validation cleanup: clarify the Parallels-specific campaign harness boundary, document ignored run output, and keep release-readiness checks current.'
         }
     }
 }
