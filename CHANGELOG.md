@@ -1,13 +1,20 @@
 # Changelog
 
+## 0.12.1
+
+- Replaced host-specific live campaign wording with generic host-method
+  guidance for future seeded campaign implementations.
+- Added a host-method contract page that describes rollback, workspace,
+  result-collection, credential, and operator-note responsibilities without
+  naming a specific virtualization or remote-execution method.
+- Updated issue records, release metadata, and release-readiness checks for the
+  corrective documentation release.
+
 ## 0.12.0
 
-- Clarified that the seeded live campaign harness is a Parallels Desktop
-  operator workflow built around `prlctl`, `WindowsServer2025_ADDNS`, and the
-  `\\psf\DrunkenAD_CODEX` guest share.
-- Added a tracked issue note for the Parallels live-harness documentation
-  cleanup.
-- Kept the release-readiness gate current with the `0.12.0` manifest metadata.
+- Superseded by `0.12.1`. The first live-campaign documentation cleanup made one
+  host method too prominent; the corrective release keeps the public docs generic
+  while preserving the checked-in live campaign scripts.
 
 ## 0.11.0
 

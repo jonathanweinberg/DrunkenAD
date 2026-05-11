@@ -23,7 +23,7 @@ flowchart LR
     PRIVATE["Private helpers<br/>Core.ps1<br/>PrefixMap.ps1<br/>ProjectionMap.ps1<br/>CsvMapping.ps1<br/>SchemaStatus.ps1"]
     ROOT["DrunkenAD.psm1<br/>deterministic dot-source loader"]
     PUBLIC["Public commands<br/>Get / Set / Remove<br/>Import CSV<br/>Projection<br/>Schema readiness"]
-    MANIFEST["DrunkenAD.psd1<br/>FunctionsToExport parity<br/>ModuleVersion 0.12.0"]
+    MANIFEST["DrunkenAD.psd1<br/>FunctionsToExport parity<br/>ModuleVersion 0.12.1"]
     RELEASE["Release readiness<br/>syntax<br/>docs<br/>unit tests<br/>exported commands<br/>manifest metadata"]
 
     PRIVATE --> ROOT
