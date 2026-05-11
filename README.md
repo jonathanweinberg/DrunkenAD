@@ -113,13 +113,16 @@ list that must stay aligned with the module manifest.
 | `Test-ADDrinkAttributeEnabled` | Checks whether the schema attribute exists and is not defunct. |
 | `Test-ADDrinkAttributeReadyForUserWrite` | Checks whether `drink` is actually writable on Active Directory user objects. |
 
-The exported commands include comment-based help, so the module is self-documenting in PowerShell:
+The exported commands include first-class comment-based help, so the module is
+self-documenting in PowerShell. Start with the module topic, then drill into
+commands, examples, and individual parameters:
 
 ```powershell
-Get-Help Set-ADUserDrinkProjection -Detailed
+Get-Help about_DrunkenAD
+Get-Help Set-ADUserDrinkData -Full
 Get-Help Import-ADUserDrinkCsvData -Examples
-Get-Help Split-DrunkenADCsvField -Examples
-Get-Help Set-ADUserDrinkData -Examples
+Get-Help Remove-ADUserDrinkData -Parameter Prefixes
+Get-Help Set-ADUserDrinkProjection -Detailed
 ```
 
 ## Quick Start
@@ -257,6 +260,10 @@ Run the release-readiness gate:
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
 ```
+
+The default unit suite includes a `Get-Help` contract check. It verifies that
+every exported command has comment-based help with descriptions, parameter
+guidance, examples, related links, and discoverability metadata.
 
 Run integration tests against a live AD environment:
 

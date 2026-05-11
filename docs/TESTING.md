@@ -22,6 +22,8 @@ Those tests focus on the safety-critical behavior:
 - `-WhatIf` handling
 - the difference between schema presence and actual user-write readiness
 - the admin-only schema enablement script guards
+- first-class `Get-Help` coverage for every exported command and the
+  `about_DrunkenAD` topic
 
 Run both parser and unit tests with:
 
@@ -133,8 +135,9 @@ pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADRelease.ps1
 ```
 
 That script validates manifest metadata, clean module import, exported command
-parity, PowerShell syntax, documentation hygiene, and the default unit suite.
-It does not publish to PSGallery or require publish credentials.
+parity, PowerShell syntax, documentation hygiene, first-class command help, and
+the default unit suite. It does not publish to PSGallery or require publish
+credentials.
 
 ## Schema Readiness During Testing
 

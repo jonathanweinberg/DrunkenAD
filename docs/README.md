@@ -19,6 +19,8 @@ wrapper for seeded campaigns.
 
 Start with the path that matches your job:
 
+- Learning from PowerShell: run `Get-Help about_DrunkenAD`, then
+  `Get-Help <command> -Full` or `Get-Help <command> -Examples`.
 - Evaluating the idea: read [USE-CASES.md](USE-CASES.md), then
   [DATA-STORE.md](DATA-STORE.md).
 - Implementing an integration: read [ARCHITECTURE.md](ARCHITECTURE.md), then
@@ -56,6 +58,22 @@ Start with the path that matches your job:
 | What must be true before writes? | <img src="images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) |
 | How do we pick live validation scale? | <img src="images/documentation-suite-2026-05-11/live-campaign-profiles.png" alt="Live campaign profiles" width="260"> | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) |
 | How do we prove release readiness? | <img src="images/documentation-suite-2026-05-11/release-readiness.png" alt="Release readiness" width="260"> | [TESTING.md](TESTING.md) |
+
+## PowerShell Help
+
+The module ships a conceptual help topic plus comment-based help on each
+exported function:
+
+```powershell
+Get-Help about_DrunkenAD
+Get-Help Set-ADUserDrinkData -Full
+Get-Help Import-ADUserDrinkCsvData -Examples
+Get-Help Remove-ADUserDrinkData -Parameter Prefixes
+```
+
+Use repository docs for longer operational context, and use `Get-Help` when you
+are at a PowerShell prompt and need command syntax, parameters, examples, or
+related commands.
 
 ## Safety Themes
 
