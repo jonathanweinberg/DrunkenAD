@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DrunkenAD.psm1'
-    ModuleVersion     = '0.13.0'
+    ModuleVersion     = '0.13.1'
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
@@ -33,7 +33,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.13.0 Get-Help release: make comment-based command help and about_DrunkenAD first-class tested user resources.'
+            ReleaseNotes = '0.13.1 docs release: add the interactive architecture atlas and keep local agent operating notes ignored.'
         }
     }
 }

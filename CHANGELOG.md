@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.1
+
+- Added an interactive architecture atlas with a self-contained HTML version,
+  an external-data HTML version, and reusable JSON map data.
+- Linked the atlas from the documentation index so readers can browse the
+  module, Active Directory data model, validation gates, and release surfaces
+  from one rollover view.
+- Added an ignored `.codex-local/` workspace area so local agent operating notes
+  stay out of public docs and release commits.
+
 ## 0.13.0
 
 - Made comment-based help a first-class public interface for every exported
