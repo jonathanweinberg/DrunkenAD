@@ -30,7 +30,8 @@ Start with the path that matches your job:
 - Validating a lab: read [TESTING.md](TESTING.md),
   [LIVE-VALIDATION.md](LIVE-VALIDATION.md), [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md), and the recorded
   [WinServer live validation run](WINSERVER-LIVE-VALIDATION-2026-05-07.md).
-- Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md).
+- Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md), then open the
+  [interactive architecture atlas](drunkenad-architecture-map.html).
 
 ## Document Map
 
@@ -46,6 +47,9 @@ Start with the path that matches your job:
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
 | [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |
 | [DIAGRAMS.md](DIAGRAMS.md) | Mermaid source plus information-dense infographic plates. |
+| [drunkenad-architecture-map.html](drunkenad-architecture-map.html) | Self-contained interactive rollover atlas for the whole repo, with map data embedded for local file use. |
+| [drunkenad-architecture-map-external.html](drunkenad-architecture-map-external.html) | External-data version of the atlas that loads [drunkenad-architecture-map.json](drunkenad-architecture-map.json) at runtime. |
+| [drunkenad-architecture-map.json](drunkenad-architecture-map.json) | Reusable architecture-map data for the atlas variants and other tooling. |
 
 ## Visual Reading Path
 

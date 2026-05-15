@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DrunkenAD - Architecture & Flows</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f14;
+      --panel: #141820;
+      --panel-2: #10141b;
+      --line: #272e3a;
+      --muted: #8a94a6;
+      --text: #eef2ff;
+      --soft: #cbd5e1;
+      --accent: #facc15;
+      --accent-2: #38bdf8;
+      --hot: #f87171;
+      --green: #34d399;
+      --purple: #a78bfa;
+      --orange: #fb923c;
+      --shadow: 0 24px 70px rgba(0, 0, 0, .44);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(56, 189, 248, .12), transparent 30%),
+        linear-gradient(180deg, #11141b 0%, var(--bg) 42%);
+      color: var(--text);
+    }
+
+    .app {
+      width: min(1460px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 20px 0 28px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 3.2vw, 42px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      max-width: 920px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      color: var(--soft);
+      background: rgba(255, 255, 255, .04);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 18px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 14px currentColor;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .mapShell,
+    aside {
+      border: 1px solid rgba(148, 163, 184, .14);
+      background: rgba(14, 18, 25, .82);
+      box-shadow: var(--shadow);
+      border-radius: 8px;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, .12);
+      background: rgba(18, 23, 32, .92);
+    }
+
+    .flowButtons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    button {
+      border: 1px solid rgba(148, 163, 184, .22);
+      background: #161c26;
+      color: var(--soft);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
+    }
+
+    button:hover,
+    button:focus-visible {
+      border-color: rgba(250, 204, 21, .7);
+      color: white;
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    button.active {
+      background: rgba(250, 204, 21, .13);
+      border-color: rgba(250, 204, 21, .72);
+      color: #fde68a;
+      box-shadow: inset 0 0 0 1px rgba(250, 204, 21, .1), 0 0 24px rgba(250, 204, 21, .08);
+    }
+
+    button.related {
+      border-color: rgba(56, 189, 248, .62);
+      color: #bae6fd;
+      box-shadow: 0 0 18px rgba(56, 189, 248, .12);
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .map {
+      position: relative;
+      min-height: 620px;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .lanes {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(142px, 1fr));
+      gap: 12px;
+      min-width: 1020px;
+      min-height: 584px;
+      z-index: 2;
+    }
+
+    .lane {
+      position: relative;
+      padding: 12px 10px 14px;
+      border: 1px solid rgba(148, 163, 184, .08);
+      border-radius: 7px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .025), rgba(255, 255, 255, .006));
+    }
+
+    .lane::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(148, 163, 184, .05), transparent 36%);
+      opacity: .65;
+    }
+
+    .laneTitle {
+      color: #dbeafe;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+      min-height: 28px;
+      opacity: .75;
+    }
+
+    .node {
+      position: relative;
+      min-height: 54px;
+      border: 1px solid rgba(148, 163, 184, .18);
+      background: rgba(17, 24, 39, .74);
+      border-radius: 7px;
+      padding: 9px 9px 8px 12px;
+      margin: 0 0 10px;
+      cursor: pointer;
+      transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, opacity .16s ease, transform .16s ease;
+      overflow: hidden;
+    }
+
+    .node::before {
+      content: "";
+      position: absolute;
+      inset: 8px auto 8px 0;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: var(--node-color, var(--accent));
+      opacity: .75;
+    }
+
+    .node strong {
+      display: block;
+      color: #e5e7eb;
+      font-size: 12px;
+      line-height: 1.3;
+      margin-bottom: 4px;
+      overflow-wrap: anywhere;
+    }
+
+    .node small {
+      display: block;
+      color: var(--muted);
+      font-size: 10.5px;
+      line-height: 1.35;
+    }
+
+    .node:hover,
+    .node.focused {
+      border-color: var(--node-color, var(--accent));
+      background: rgba(22, 29, 42, .98);
+      box-shadow: 0 0 0 1px rgba(250, 204, 21, .08), 0 10px 30px rgba(0, 0, 0, .28);
+      transform: translateY(-1px);
+    }
+
+    .node.inPath {
+      border-color: color-mix(in srgb, var(--node-color, var(--accent)), white 18%);
+      box-shadow: 0 0 0 1px rgba(250, 204, 21, .12), 0 0 22px rgba(250, 204, 21, .08);
+    }
+
+    .node.outPath {
+      opacity: .26;
+    }
+
+    svg.paths {
+      position: absolute;
+      inset: 18px;
+      width: calc(100% - 36px);
+      height: calc(100% - 36px);
+      min-width: 1020px;
+      min-height: 584px;
+      pointer-events: none;
+      z-index: 1;
+      overflow: visible;
+    }
+
+    .pathLine {
+      fill: none;
+      stroke: rgba(250, 204, 21, .76);
+      stroke-width: 2.4;
+      filter: drop-shadow(0 0 8px rgba(250, 204, 21, .32));
+    }
+
+    .pathDot {
+      fill: #facc15;
+      stroke: #0d0f14;
+      stroke-width: 2;
+    }
+
+    aside {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      max-height: 760px;
+    }
+
+    .sideBlock {
+      padding: 14px;
+      border-bottom: 1px solid rgba(148, 163, 184, .12);
+      min-width: 0;
+    }
+
+    .sideBlock:last-child {
+      border-bottom: 0;
+    }
+
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    h3 {
+      color: #c7d2fe;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 10px;
+    }
+
+    .sideText {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      margin: 8px 0 0;
+    }
+
+    .scrollArea {
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .steps {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      padding: 9px;
+      background: rgba(15, 23, 42, .74);
+      border: 1px solid rgba(148, 163, 184, .12);
+      border-radius: 7px;
+      color: var(--soft);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .steps b {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(250, 204, 21, .14);
+      color: #fde047;
+      font-size: 11px;
+    }
+
+    .fileList {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .fileList a {
+      border: 1px solid rgba(148, 163, 184, .13);
+      color: #bae6fd;
+      background: rgba(14, 165, 233, .08);
+      padding: 5px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      text-decoration: none;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .fileList a:hover,
+    .fileList a:focus-visible {
+      border-color: rgba(56, 189, 248, .7);
+      outline: none;
+    }
+
+    .relatedFlowButtons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .relatedFlowButtons button {
+      background: rgba(56, 189, 248, .08);
+      border-color: rgba(56, 189, 248, .24);
+      color: #bae6fd;
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+
+    .relatedFlowButtons button.active {
+      background: rgba(250, 204, 21, .13);
+      border-color: rgba(250, 204, 21, .72);
+      color: #fde68a;
+    }
+
+    .boundaryList {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .boundaryList li {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+      padding-left: 12px;
+      position: relative;
+    }
+
+    .boundaryList li::before {
+      content: "";
+      position: absolute;
+      top: .55em;
+      left: 0;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--hot);
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1040px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { max-height: none; }
+      .toolbar { grid-template-columns: 1fr; }
+      .hint { white-space: normal; }
+    }
+
+    @media (max-width: 720px) {
+      .app { width: min(100vw - 18px, 1460px); padding-top: 12px; }
+      header { grid-template-columns: 1fr; }
+      .meta { justify-content: flex-start; }
+      .map { padding: 12px; }
+      svg.paths { inset: 12px; width: calc(100% - 24px); height: calc(100% - 24px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1 id="title">DrunkenAD - Architecture & Flows</h1>
+        <p class="subtitle" id="subtitle"></p>
+      </div>
+      <div class="meta">
+        <span class="pill" id="version"></span>
+        <span class="pill" id="updated"></span>
+        <span class="pill">Standalone HTML + JSON source</span>
+      </div>
+    </header>
+
+    <div class="legend" id="legend"></div>
+
+    <main class="layout">
+      <section class="mapShell" aria-label="Interactive architecture map">
+        <div class="toolbar">
+          <div class="flowButtons" id="flowButtons"></div>
+          <div class="hint">Hover nodes for detail. Pick a flow to trace the path.</div>
+        </div>
+        <div class="map" id="map">
+          <svg class="paths" id="paths" aria-hidden="true"></svg>
+          <div class="lanes" id="lanes"></div>
+        </div>
+      </section>
+
+      <aside aria-live="polite">
+        <div class="sideBlock">
+          <h3>Selected</h3>
+          <h2 id="selectedTitle"></h2>
+          <p class="sideText" id="selectedText"></p>
+          <div class="fileList" id="selectedFiles"></div>
+          <div class="relatedFlowButtons" id="relatedFlowButtons"></div>
+        </div>
+        <div class="scrollArea">
+          <div class="sideBlock">
+            <h3>Flow Steps</h3>
+            <ol class="steps" id="steps"></ol>
+          </div>
+          <div class="sideBlock">
+            <h3>Failure Boundaries</h3>
+            <ul class="boundaryList" id="boundaries"></ul>
+          </div>
+        </div>
+        <div class="sideBlock">
+          <h3>Entrypoints</h3>
+          <div class="fileList" id="entrypoints"></div>
+        </div>
+      </aside>
+    </main>
+
+    <footer>
+      Data is duplicated in <code>docs/drunkenad-architecture-map.json</code> and embedded in this file so the atlas works from a local file URL.
+    </footer>
+  </div>
+
+  <script type="application/json" id="map-data">
+{
+  "title": "DrunkenAD - Architecture & Flows",
+  "subtitle": "An interactive map of the PowerShell module, its Active Directory data-store model, operator workflows, validation gates, and release surfaces.",
+  "version": "0.13.1",
+  "updated": "2026-05-15",
+  "legend": [
+    { "kind": "source", "label": "Inputs & operators", "color": "#f87171" },
+    { "kind": "public", "label": "Public command surface", "color": "#facc15" },
+    { "kind": "private", "label": "Private helpers", "color": "#38bdf8" },
+    { "kind": "ad", "label": "Active Directory / schema", "color": "#a78bfa" },
+    { "kind": "validation", "label": "Tests, docs & release gates", "color": "#34d399" },
+    { "kind": "artifact", "label": "Docs, examples & reports", "color": "#fb923c" }
+  ],
+  "lanes": [
+    {
+      "id": "inputs",
+      "title": "Operator Inputs",
+      "description": "Human operators, CSV files, namespace maps, and live-lab wrappers feed the module.",
+      "nodes": [
+        { "id": "operator", "label": "PowerShell operator", "kind": "source", "summary": "Imports the module, runs Get-Help, previews with -WhatIf, and invokes public commands.", "files": ["README.md", "DrunkenAD/en-US/about_DrunkenAD.help.txt"] },
+        { "id": "csvSource", "label": "CSV + namespace map", "kind": "source", "summary": "Rows keyed by SamAccountName plus JSON or hashtable mappings that emit namespaced drink records.", "files": ["examples/data/drink-ingestion-sample.csv", "examples/data/drink-ingestion-config.json", "docs/HOW-TO-INGEST-CSV.md"] },
+        { "id": "schemaAdmin", "label": "Schema administrator", "kind": "source", "summary": "Confirms rollback, schema master, forest/domain expectations, then optionally enables drink on the user class.", "files": ["docs/SCHEMA-ENABLEMENT.md", "scripts/Enable-ADDrinkAttributeOnUserClass.ps1"] },
+        { "id": "liveHarness", "label": "Live campaign host", "kind": "source", "summary": "Host-method-neutral wrapper boundary for rollback, workspace access, guest execution, and result collection.", "files": ["docs/LIVE-CAMPAIGN-HOSTS.md", "tests/Live/Invoke-DrunkenADLiveCampaign.ps1"] }
+      ]
+    },
+    {
+      "id": "moduleShell",
+      "title": "Module Shell",
+      "description": "The manifest and deterministic root loader define the public contract.",
+      "nodes": [
+        { "id": "manifest", "label": "DrunkenAD.psd1", "kind": "public", "summary": "Declares version 0.13.1, PowerShell 5.1 support, metadata, and FunctionsToExport parity.", "files": ["DrunkenAD/DrunkenAD.psd1"] },
+        { "id": "rootModule", "label": "DrunkenAD.psm1", "kind": "public", "summary": "Small deterministic loader: dot-sources Private then Public scripts and exports the command list.", "files": ["DrunkenAD/DrunkenAD.psm1"] },
+        { "id": "helpSurface", "label": "Get-Help surface", "kind": "public", "summary": "Comment-based help for every exported command plus about_DrunkenAD as a first-class operator entrypoint.", "files": ["DrunkenAD/en-US/about_DrunkenAD.help.txt", "tests/Help.Unit.Tests.ps1"] }
+      ]
+    },
+    {
+      "id": "publicApi",
+      "title": "Public Commands",
+      "description": "The supported module API for reading, writing, importing, projecting, and checking readiness.",
+      "nodes": [
+        { "id": "getData", "label": "Get-ADUserDrinkData", "kind": "public", "summary": "Validates schema presence, resolves exactly one user, and returns all drink values or one literal-prefix namespace.", "files": ["DrunkenAD/Public/Get-ADUserDrinkData.ps1", "docs/DATA-STORE.md"] },
+        { "id": "setData", "label": "Set-ADUserDrinkData", "kind": "public", "summary": "Preferred generic write API. Checks user-write readiness and delegates namespace replacement to the prefixed writer.", "files": ["DrunkenAD/Public/Set-ADUserDrinkData.ps1", "docs/ARCHITECTURE.md"] },
+        { "id": "removeData", "label": "Remove-ADUserDrinkData", "kind": "public", "summary": "Builds an empty DataMap for one or more prefixes, preserving unrelated values while deleting owned namespaces.", "files": ["DrunkenAD/Public/Remove-ADUserDrinkData.ps1"] },
+        { "id": "projection", "label": "Set-ADUserDrinkProjection", "kind": "public", "summary": "Reads selected AD user attributes, turns populated values into namespace records, and writes through Set-ADUserDrinkData.", "files": ["DrunkenAD/Public/Set-ADUserDrinkProjection.ps1", "DrunkenAD/Private/ProjectionMap.ps1"] },
+        { "id": "csvImport", "label": "Import-ADUserDrinkCsvData", "kind": "public", "summary": "Loads rows and mappings, validates required columns, builds per-row DataMaps, and writes each user through the generic API.", "files": ["DrunkenAD/Public/Import-ADUserDrinkCsvData.ps1", "DrunkenAD/Private/CsvMapping.ps1", "docs/HOW-TO-INGEST-CSV.md"] },
+        { "id": "splitCsv", "label": "Split-DrunkenADCsvField", "kind": "public", "summary": "Public preview helper for the literal delimiter splitting used by CSV SplitOn mappings.", "files": ["DrunkenAD/Public/Split-DrunkenADCsvField.ps1", "examples/Split-DrunkenADCsvField.ps1"] },
+        { "id": "schemaCommands", "label": "Schema readiness commands", "kind": "public", "summary": "Test-ADDrinkAttributeEnabled checks schema presence. Test-ADDrinkAttributeReadyForUserWrite checks whether drink is allowed on user.", "files": ["DrunkenAD/Public/SchemaReadiness.ps1", "docs/SCHEMA-ENABLEMENT.md"] },
+        { "id": "compatApi", "label": "Compatibility wrappers", "kind": "public", "summary": "Older prefixed-data and demo command names remain exported, but new workflows should use the DrinkData and projection APIs.", "files": ["DrunkenAD/Public/Get-AdUserDrinkPrefixedData.ps1", "DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1", "DrunkenAD/Public/Update-ADUserDrinkAttribute.ps1", "DrunkenAD/Public/Invoke-ADUserDrinkDataDemo.ps1"] }
+      ]
+    },
+    {
+      "id": "privateCore",
+      "title": "Private Helpers",
+      "description": "Shared internals keep AD lookup, schema checks, prefix maps, projection maps, and CSV mapping consistent.",
+      "nodes": [
+        { "id": "coreHelpers", "label": "Core.ps1", "kind": "private", "summary": "Imports ActiveDirectory, escapes LDAP filter values, resolves exactly one user, normalizes string arrays, and writes optional logs.", "files": ["DrunkenAD/Private/Core.ps1"] },
+        { "id": "prefixedWriter", "label": "Prefixed writer", "kind": "private", "summary": "Removes matching literal prefixes, appends replacement values, detects no-ops, and chooses Set-ADUser -Replace or -Clear.", "files": ["DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1", "DrunkenAD/Private/PrefixMap.ps1"] },
+        { "id": "schemaStatus", "label": "SchemaStatus.ps1", "kind": "private", "summary": "Reads RootDSE and schema objects, distinguishes missing/defunct/not-allowed states, and returns a blocking reason.", "files": ["DrunkenAD/Private/SchemaStatus.ps1"] },
+        { "id": "csvMapping", "label": "CsvMapping.ps1", "kind": "private", "summary": "Normalizes JSON/hashtable maps, validates columns, handles SplitOn, dedupes records, and emits DataMap objects.", "files": ["DrunkenAD/Private/CsvMapping.ps1"] },
+        { "id": "projectionMap", "label": "ProjectionMap.ps1", "kind": "private", "summary": "Defines default projection namespaces and converts populated AD attributes into prefix/value maps.", "files": ["DrunkenAD/Private/ProjectionMap.ps1"] }
+      ]
+    },
+    {
+      "id": "activeDirectory",
+      "title": "Active Directory",
+      "description": "The actual backend stays AD: DrunkenAD only constrains how the multivalued drink attribute is used.",
+      "nodes": [
+        { "id": "schema", "label": "Schema: drink + user", "kind": "ad", "summary": "The drink attribute must exist, not be defunct, and appear in user mayContain or systemMayContain before write paths proceed.", "files": ["docs/SCHEMA-ENABLEMENT.md", "DrunkenAD/Private/SchemaStatus.ps1"] },
+        { "id": "userObject", "label": "Resolved AD user", "kind": "ad", "summary": "Every operation uses exact LDAP lookup by one identifier and fails if zero or multiple users match.", "files": ["DrunkenAD/Private/Core.ps1"] },
+        { "id": "drinkStore", "label": "drink namespace store", "kind": "ad", "summary": "Each multivalue string is one record: a literal namespace prefix plus a compact payload.", "files": ["docs/DATA-STORE.md", "docs/USE-CASES.md"] },
+        { "id": "adWrite", "label": "Set-ADUser write", "kind": "ad", "summary": "The module writes only after ShouldProcess approval; empty final sets clear drink, non-empty sets replace drink.", "files": ["DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1"] }
+      ]
+    },
+    {
+      "id": "validation",
+      "title": "Validation & Release",
+      "description": "Local checks, CI, docs gates, integration tests, and live campaigns prove different risk levels.",
+      "nodes": [
+        { "id": "syntaxGate", "label": "Syntax gate", "kind": "validation", "summary": "Parses tracked PowerShell files before running deeper validation.", "files": ["scripts/Test-DrunkenADSyntax.ps1"] },
+        { "id": "unitTests", "label": "Unit + help tests", "kind": "validation", "summary": "Covers safety-critical behavior, schema readiness edges, docs contracts, and first-class Get-Help.", "files": ["tests/DrunkenAD.Unit.Tests.ps1", "tests/SchemaEnablement.Unit.Tests.ps1", "tests/Help.Unit.Tests.ps1"] },
+        { "id": "integrationTests", "label": "Opt-in AD integration", "kind": "validation", "summary": "Runs only with DRUNKENAD_RUN_INTEGRATION and live DC details, then validates real write/remove/import/projection behavior.", "files": ["tests/DrunkenAD.Integration.Tests.ps1", "tests/Invoke-DrunkenADTests.ps1"] },
+        { "id": "releaseGate", "label": "Release readiness gate", "kind": "validation", "summary": "Composes manifest metadata, clean import, export parity, syntax, docs hygiene, help coverage, and unit tests.", "files": ["scripts/Test-DrunkenADRelease.ps1", "docs/TESTING.md"] },
+        { "id": "ciWorkflows", "label": "GitHub Actions", "kind": "validation", "summary": "PowerShell CI runs on Ubuntu, macOS, and Windows with pinned Pester; Documentation CI enforces doc hygiene.", "files": [".github/workflows/powershell-ci.yml", ".github/workflows/documentation-ci.yml"] }
+      ]
+    },
+    {
+      "id": "artifacts",
+      "title": "Docs & Artifacts",
+      "description": "User-facing pages, diagrams, examples, issue records, and live-result reports explain and prove the module.",
+      "nodes": [
+        { "id": "docsHub", "label": "Documentation hub", "kind": "artifact", "summary": "README and docs index point operators to architecture, data model, ingestion, schema enablement, testing, and live validation.", "files": ["README.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/DATA-STORE.md"] },
+        { "id": "diagramSources", "label": "Mermaid + PNG diagrams", "kind": "artifact", "summary": "Editable Mermaid sources live under docs/diagrams, while generated PNG plates sit under docs/images.", "files": ["docs/DIAGRAMS.md", "docs/diagrams/module-layout.mmd", "docs/diagrams/namespace-write-model.mmd", "docs/diagrams/csv-ingestion-flow.mmd"] },
+        { "id": "examples", "label": "Examples", "kind": "artifact", "summary": "Small scripts and sample data show how to import CSV data and preview SplitOn delimiter behavior.", "files": ["examples/Import-DrunkenADCsv.ps1", "examples/Split-DrunkenADCsvField.ps1", "examples/data/drink-ingestion-config.json"] },
+        { "id": "issueTrail", "label": "Issue notes", "kind": "artifact", "summary": "Repo-local issue records capture docs split, visual refresh, live harness boundaries, host-method neutrality, and Get-Help work.", "files": ["docs/issues/001-docs-module-split-refresh.md", "docs/issues/005-get-help-first-class-resource.md"] },
+        { "id": "liveReports", "label": "Live result reports", "kind": "artifact", "summary": "Live campaign outputs are ignored under tests/Live/results; durable narrative evidence belongs in docs.", "files": ["docs/WINSERVER-LIVE-VALIDATION-2026-05-07.md", "tests/Live/Data/seed-manifest.json"] }
+      ]
+    }
+  ],
+  "flows": [
+    { "id": "write", "title": "Namespace write / replace", "description": "The core mutation path: callers own literal prefixes, DrunkenAD preserves everything else.", "path": ["operator", "setData", "schemaStatus", "schema", "coreHelpers", "userObject", "prefixedWriter", "drinkStore", "adWrite"], "steps": ["Caller provides an exact identity and DataMap.", "Set-ADUserDrinkData requires drink to be writable on user objects.", "Resolve-DrunkenADUser performs an exact LDAP lookup and rejects zero or multiple matches.", "The prefixed writer removes only values matching owned literal prefixes.", "Replacement values are prefixed, deduped, and merged with unrelated existing values.", "No-op changes return early; empty final sets clear drink; non-empty final sets replace drink."] },
+    { "id": "read", "title": "Read one user / one namespace", "description": "Safe read path for inspecting all drink values or a single literal-prefix namespace.", "path": ["operator", "getData", "schemaStatus", "schema", "coreHelpers", "userObject", "drinkStore"], "steps": ["Caller chooses one identity parameter and optionally a Prefix.", "Get-ADUserDrinkData validates that drink exists and is not defunct.", "Resolve-DrunkenADUser returns exactly one user with drink loaded.", "Values are normalized to strings and blank entries are dropped.", "When Prefix is supplied, it is regex-escaped and treated literally."] },
+    { "id": "csv", "title": "CSV ingestion", "description": "Batch import rows into namespaced drink records using JSON or hashtable maps.", "path": ["csvSource", "csvImport", "csvMapping", "splitCsv", "setData", "prefixedWriter", "drinkStore", "examples"], "steps": ["Import-ADUserDrinkCsvData loads the CSV and namespace map.", "CsvMapping validates SamAccountName plus every mapped column before writes begin.", "Each mapping emits prefix/value records, optionally splitting a field with literal SplitOn.", "Rows with no SamAccountName or no drink data are skipped with warnings.", "Each non-empty row writes through Set-ADUserDrinkData, so the normal readiness and namespace replacement rules apply.", "The command returns per-row summary objects with ConfigSource, Namespaces, DataMap, and FinalDrinkValues."] },
+    { "id": "projection", "title": "Attribute projection", "description": "Copy selected AD user attributes into compact drink namespaces.", "path": ["operator", "projection", "projectionMap", "coreHelpers", "userObject", "setData", "drinkStore"], "steps": ["Set-ADUserDrinkProjection starts with the default map or a caller-supplied AttributeMap.", "IncludeDefaultAttributeMap merges custom prefixes on top of defaults.", "The user is resolved with the required source attributes loaded.", "ProjectionMap turns populated attribute values into a DataMap.", "The generated DataMap is written through Set-ADUserDrinkData."] },
+    { "id": "schema", "title": "Schema readiness / enablement", "description": "Separate schema presence from real user-write readiness, then enable only through guarded operator paths.", "path": ["schemaAdmin", "schemaCommands", "schemaStatus", "schema", "releaseGate", "integrationTests"], "steps": ["Test-ADDrinkAttributeEnabled checks whether drink exists and is not defunct.", "Test-ADDrinkAttributeReadyForUserWrite also verifies that user allows drink.", "SchemaStatus reports AttributeMissing, AttributeDefunct, or NotAllowedOnUserClass when blocked.", "The enablement script defaults to preview mode and writes a JSON report when requested.", "Apply mode requires expected forest root, domain DNS root, and schema master values.", "After enablement, rerun readiness, integration, or live campaign validation."] },
+    { "id": "release", "title": "Release readiness", "description": "Local and CI gates for shipping the module without conflating lab-only validation with default checks.", "path": ["manifest", "rootModule", "helpSurface", "syntaxGate", "unitTests", "releaseGate", "ciWorkflows", "docsHub"], "steps": ["The manifest and root module must agree on exported commands.", "Parser and docs hygiene run before deeper checks.", "Unit tests cover prefix safety, exact lookup, schema readiness, CSV mapping, and help.", "Test-DrunkenADRelease composes the local release gate.", "GitHub Actions repeat the core gate across Ubuntu, macOS, and Windows.", "Integration and live campaign checks stay opt-in because they require a prepared AD environment."] },
+    { "id": "live", "title": "Live campaign ladder", "description": "A higher-fidelity lab path for seeded users, rollback points, CSV, projection, CRUD, and reports.", "path": ["liveHarness", "integrationTests", "schemaCommands", "csvImport", "projection", "removeData", "liveReports"], "steps": ["The host method creates or verifies rollback before mutation.", "The campaign verifies domain and schema readiness.", "Seed users are reconciled from the selected profile.", "CSV ingestion, projection, and CRUD samples exercise the module against live AD.", "Timestamped results are written under tests/Live/results and durable findings are summarized in docs."] }
+  ],
+  "failureBoundaries": [
+    "ActiveDirectory module cannot be imported.",
+    "drink is missing, defunct, or not allowed on user.",
+    "Exact LDAP lookup returns zero or multiple users.",
+    "CSV input is missing SamAccountName or a mapped column.",
+    "A namespace prefix is null, empty, or whitespace.",
+    "A live Set-ADUser write fails.",
+    "Documentation links or generated live outputs violate CI hygiene."
+  ],
+  "entrypoints": [
+    "Get-Help about_DrunkenAD",
+    "Get-Help Set-ADUserDrinkData -Full",
+    "Import-Module ./DrunkenAD/DrunkenAD.psd1 -Force",
+    "pwsh -NoLogo -NoProfile -File ./tests/Invoke-DrunkenADTests.ps1",
+    "pwsh -NoLogo -NoProfile -File ./scripts/Test-DrunkenADRelease.ps1"
+  ]
+}
+  </script>
+
+  <script type="module">
+    const dataElement = document.getElementById('map-data');
+    const data = dataElement
+      ? JSON.parse(dataElement.textContent)
+      : await fetch(document.documentElement.dataset.mapSource || 'drunkenad-architecture-map.json').then(response => {
+          if (!response.ok) {
+            throw new Error(`Unable to load architecture map data: ${response.status}`);
+          }
+
+          return response.json();
+        });
+    const colorByKind = Object.fromEntries(data.legend.map(item => [item.kind, item.color]));
+    const nodesById = new Map();
+    const flowsForNode = new Map();
+    let activeFlow = data.flows[0];
+    let selectedNode = null;
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function renderChrome() {
+      document.title = data.title;
+      document.getElementById('title').textContent = data.title;
+      document.getElementById('subtitle').textContent = data.subtitle;
+      document.getElementById('version').textContent = `Module ${data.version}`;
+      document.getElementById('updated').textContent = `Mapped ${data.updated}`;
+
+      const legend = document.getElementById('legend');
+      data.legend.forEach(item => {
+        const wrap = el('span');
+        const dot = el('i', 'dot');
+        dot.style.color = item.color;
+        dot.style.background = item.color;
+        wrap.append(dot, document.createTextNode(item.label));
+        legend.append(wrap);
+      });
+
+      const buttons = document.getElementById('flowButtons');
+      data.flows.forEach(flow => {
+        const button = el('button', '', flow.title);
+        button.type = 'button';
+        button.dataset.flow = flow.id;
+        button.addEventListener('click', () => setFlow(flow.id));
+        buttons.append(button);
+      });
+
+      data.flows.forEach(flow => {
+        flow.path.forEach(nodeId => {
+          if (!flowsForNode.has(nodeId)) {
+            flowsForNode.set(nodeId, []);
+          }
+
+          flowsForNode.get(nodeId).push(flow);
+        });
+      });
+
+      const entrypoints = document.getElementById('entrypoints');
+      data.entrypoints.forEach(command => {
+        const item = el('span', 'pill', command);
+        entrypoints.append(item);
+      });
+
+      const boundaries = document.getElementById('boundaries');
+      data.failureBoundaries.forEach(boundary => boundaries.append(el('li', '', boundary)));
+    }
+
+    function renderMap() {
+      const lanes = document.getElementById('lanes');
+      data.lanes.forEach(lane => {
+        const laneEl = el('section', 'lane');
+        laneEl.dataset.lane = lane.id;
+        laneEl.append(el('h2', 'laneTitle', lane.title));
+        lane.nodes.forEach(node => {
+          nodesById.set(node.id, node);
+          const nodeEl = el('article', 'node');
+          nodeEl.dataset.node = node.id;
+          nodeEl.style.setProperty('--node-color', colorByKind[node.kind] || '#facc15');
+          nodeEl.tabIndex = 0;
+          nodeEl.append(el('strong', '', node.label));
+          nodeEl.append(el('small', '', node.summary));
+          nodeEl.addEventListener('mouseenter', () => selectNode(node.id));
+          nodeEl.addEventListener('focus', () => selectNode(node.id));
+          nodeEl.addEventListener('click', () => pinNode(node.id));
+          nodeEl.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              pinNode(node.id);
+            }
+          });
+          laneEl.append(nodeEl);
+        });
+        lanes.append(laneEl);
+      });
+    }
+
+    function setFlow(flowId, keepNodeId) {
+      activeFlow = data.flows.find(flow => flow.id === flowId) || data.flows[0];
+      selectedNode = keepNodeId && activeFlow.path.includes(keepNodeId)
+        ? nodesById.get(keepNodeId)
+        : nodesById.get(activeFlow.path[0]);
+      updateState();
+      requestAnimationFrame(drawPath);
+    }
+
+    function selectNode(nodeId) {
+      selectedNode = nodesById.get(nodeId);
+      updateDetails();
+      document.querySelectorAll('.node').forEach(node => {
+        node.classList.toggle('focused', node.dataset.node === nodeId);
+      });
+    }
+
+    function pinNode(nodeId) {
+      selectNode(nodeId);
+      updateState();
+      requestAnimationFrame(drawPath);
+    }
+
+    function updateState() {
+      const relatedFlowIds = new Set((selectedNode ? flowsForNode.get(selectedNode.id) : [])?.map(flow => flow.id) || []);
+      document.querySelectorAll('button[data-flow]').forEach(button => {
+        button.classList.toggle('active', button.dataset.flow === activeFlow.id);
+        button.classList.toggle('related', relatedFlowIds.has(button.dataset.flow));
+      });
+
+      const pathIds = new Set(activeFlow.path);
+      document.querySelectorAll('.node').forEach(node => {
+        node.classList.toggle('inPath', pathIds.has(node.dataset.node));
+        node.classList.toggle('outPath', !pathIds.has(node.dataset.node));
+        node.classList.toggle('focused', selectedNode && node.dataset.node === selectedNode.id);
+      });
+
+      updateDetails();
+      renderSteps();
+    }
+
+    function updateDetails() {
+      const title = document.getElementById('selectedTitle');
+      const text = document.getElementById('selectedText');
+      const files = document.getElementById('selectedFiles');
+      const relatedFlows = document.getElementById('relatedFlowButtons');
+      files.textContent = '';
+      relatedFlows.textContent = '';
+
+      if (selectedNode) {
+        title.textContent = selectedNode.label;
+        text.textContent = selectedNode.summary;
+        selectedNode.files.forEach(path => {
+          const link = el('a', '', path);
+          link.href = '../' + path;
+          link.title = path;
+          files.append(link);
+        });
+
+        const flows = flowsForNode.get(selectedNode.id) || [];
+        flows.forEach(flow => {
+          const button = el('button', flow.id === activeFlow.id ? 'active' : '', flow.title);
+          button.type = 'button';
+          button.setAttribute('data-related-flow', flow.id);
+          button.title = `Trace ${flow.title}`;
+          button.addEventListener('click', () => setFlow(flow.id, selectedNode.id));
+          relatedFlows.append(button);
+        });
+        return;
+      }
+
+      title.textContent = activeFlow.title;
+      text.textContent = activeFlow.description;
+    }
+
+    function renderSteps() {
+      const steps = document.getElementById('steps');
+      steps.textContent = '';
+      activeFlow.steps.forEach((step, index) => {
+        const item = el('li');
+        item.append(el('b', '', String(index + 1)));
+        item.append(el('span', '', step));
+        steps.append(item);
+      });
+    }
+
+    function drawPath() {
+      const svg = document.getElementById('paths');
+      svg.textContent = '';
+      const mapBox = document.getElementById('map').getBoundingClientRect();
+      const points = activeFlow.path
+        .map(id => document.querySelector(`[data-node="${id}"]`))
+        .filter(Boolean)
+        .map(node => {
+          const box = node.getBoundingClientRect();
+          return {
+            x: box.left - mapBox.left + box.width / 2 + document.getElementById('map').scrollLeft - 18,
+            y: box.top - mapBox.top + box.height / 2 + document.getElementById('map').scrollTop - 18
+          };
+        });
+
+      for (let index = 0; index < points.length - 1; index += 1) {
+        const from = points[index];
+        const to = points[index + 1];
+        const midX = (from.x + to.x) / 2;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'pathLine');
+        path.setAttribute('d', `M ${from.x} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x} ${to.y}`);
+        svg.append(path);
+      }
+
+      points.forEach((point, index) => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('class', 'pathDot');
+        circle.setAttribute('cx', point.x);
+        circle.setAttribute('cy', point.y);
+        circle.setAttribute('r', index === 0 ? '5' : '4');
+        svg.append(circle);
+      });
+    }
+
+    renderChrome();
+    renderMap();
+    setFlow(activeFlow.id);
+    window.addEventListener('resize', () => requestAnimationFrame(drawPath));
+    document.getElementById('map').addEventListener('scroll', () => requestAnimationFrame(drawPath));
+  </script>
+</body>
+</html>
