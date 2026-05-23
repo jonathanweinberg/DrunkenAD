@@ -1,8 +1,8 @@
 {
   "title": "DrunkenAD - Architecture & Flows",
   "subtitle": "An interactive map of the PowerShell module, its Active Directory data-store model, operator workflows, validation gates, and release surfaces.",
-  "version": "0.13.1",
-  "updated": "2026-05-15",
+  "version": "0.13.2",
+  "updated": "2026-05-23",
   "legend": [
     { "kind": "source", "label": "Inputs & operators", "color": "#f87171" },
     { "kind": "public", "label": "Public command surface", "color": "#facc15" },
@@ -56,7 +56,7 @@
           "id": "manifest",
           "label": "DrunkenAD.psd1",
           "kind": "public",
-          "summary": "Declares version 0.13.1, PowerShell 5.1 support, metadata, and FunctionsToExport parity.",
+          "summary": "Declares version 0.13.2, PowerShell 5.1 support, metadata, and FunctionsToExport parity.",
           "files": ["DrunkenAD/DrunkenAD.psd1"]
         },
         {

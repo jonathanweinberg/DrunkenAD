@@ -543,8 +543,8 @@
 {
   "title": "DrunkenAD - Architecture & Flows",
   "subtitle": "An interactive map of the PowerShell module, its Active Directory data-store model, operator workflows, validation gates, and release surfaces.",
-  "version": "0.13.1",
-  "updated": "2026-05-15",
+  "version": "0.13.2",
+  "updated": "2026-05-23",
   "legend": [
     { "kind": "source", "label": "Inputs & operators", "color": "#f87171" },
     { "kind": "public", "label": "Public command surface", "color": "#facc15" },
@@ -570,7 +570,7 @@
       "title": "Module Shell",
       "description": "The manifest and deterministic root loader define the public contract.",
       "nodes": [
-        { "id": "manifest", "label": "DrunkenAD.psd1", "kind": "public", "summary": "Declares version 0.13.1, PowerShell 5.1 support, metadata, and FunctionsToExport parity.", "files": ["DrunkenAD/DrunkenAD.psd1"] },
+        { "id": "manifest", "label": "DrunkenAD.psd1", "kind": "public", "summary": "Declares version 0.13.2, PowerShell 5.1 support, metadata, and FunctionsToExport parity.", "files": ["DrunkenAD/DrunkenAD.psd1"] },
         { "id": "rootModule", "label": "DrunkenAD.psm1", "kind": "public", "summary": "Small deterministic loader: dot-sources Private then Public scripts and exports the command list.", "files": ["DrunkenAD/DrunkenAD.psm1"] },
         { "id": "helpSurface", "label": "Get-Help surface", "kind": "public", "summary": "Comment-based help for every exported command plus about_DrunkenAD as a first-class operator entrypoint.", "files": ["DrunkenAD/en-US/about_DrunkenAD.help.txt", "tests/Help.Unit.Tests.ps1"] }
       ]

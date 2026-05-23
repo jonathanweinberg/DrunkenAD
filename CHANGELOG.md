@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.2
+
+- Fixed release-readiness drift by deriving the current release version from the
+  module manifest instead of hardcoding an older release number.
+- Added architecture atlas validation for the reusable JSON map, embedded
+  self-contained HTML data, external-data HTML variant, flow references, node
+  kinds, and repo-relative file links.
+- Wired atlas validation into documentation hygiene so docs CI and the local
+  release gate catch map drift before release.
+
 ## 0.13.1
 
 - Added an interactive architecture atlas with a self-contained HTML version,
