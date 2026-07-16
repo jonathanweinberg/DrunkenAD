@@ -51,7 +51,10 @@ Describe 'DrunkenAD release readiness' {
         $script:manifest.Version.ToString() | Should -Be '0.13.2'
         $script:manifest.PrivateData.PSData.ProjectUri | Should -Be 'https://github.com/jonathanweinberg/DrunkenAD'
         $script:manifest.PrivateData.PSData.ReleaseNotes | Should -Match '0.13.2'
-        @($script:manifest.FileList | Where-Object { $_ -like '*/en-US/about_DrunkenAD.help.txt' }) | Should -Not -BeNullOrEmpty
+        $aboutHelpSuffix = 'en-US/about_DrunkenAD.help.txt'
+        @($script:manifest.FileList | Where-Object {
+            ($_ -replace '\\', '/').EndsWith($aboutHelpSuffix, [System.StringComparison]::OrdinalIgnoreCase)
+        }) | Should -Not -BeNullOrEmpty
     }
 
     It 'records release notes in the changelog' {
