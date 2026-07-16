@@ -92,8 +92,6 @@ function Import-ADUserDrinkCsvData {
         throw "CSV path '$CsvPath' was not found."
     }
 
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
     $rows = @(Import-Csv -LiteralPath $CsvPath)
     $namespaceParams = @{}
 
@@ -108,6 +106,8 @@ function Import-ADUserDrinkCsvData {
     $mappings = @(Get-DrunkenADCsvMappings -NamespaceMap $effectiveNamespaceMap)
 
     Assert-DrunkenADCsvColumns -CsvPath $CsvPath -Rows $rows -Mappings $mappings
+
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     foreach ($row in $rows) {
         if ([string]::IsNullOrWhiteSpace($row.SamAccountName)) {

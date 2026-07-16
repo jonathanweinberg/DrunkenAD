@@ -1,3 +1,34 @@
+function Assert-DrunkenADNonOverlappingPrefixes {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Prefixes
+    )
+
+    $normalizedPrefixes = @()
+    foreach ($prefix in $Prefixes) {
+        if ([string]::IsNullOrWhiteSpace($prefix)) {
+            throw "Prefix values cannot be null, empty, or whitespace."
+        }
+
+        $normalizedPrefixes += $prefix
+    }
+
+    for ($leftIndex = 0; $leftIndex -lt $normalizedPrefixes.Count; $leftIndex++) {
+        for ($rightIndex = $leftIndex + 1; $rightIndex -lt $normalizedPrefixes.Count; $rightIndex++) {
+            $leftPrefix = $normalizedPrefixes[$leftIndex]
+            $rightPrefix = $normalizedPrefixes[$rightIndex]
+
+            $leftContainsRight = $leftPrefix.StartsWith($rightPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+            $rightContainsLeft = $rightPrefix.StartsWith($leftPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+
+            if ($leftContainsRight -or $rightContainsLeft) {
+                throw "Prefix '$leftPrefix' overlaps prefix '$rightPrefix'. Prefix namespaces in one operation must not contain one another."
+            }
+        }
+    }
+}
+
 function ConvertTo-DrunkenADPrefixMap {
     [CmdletBinding()]
     param(

@@ -106,6 +106,7 @@ function Set-ADUserDrinkPrefixedData {
         [switch]$PassThru
     )
 
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($PrefixMap.Keys | ForEach-Object { [string]$_ })
     Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $identityParams = @{}

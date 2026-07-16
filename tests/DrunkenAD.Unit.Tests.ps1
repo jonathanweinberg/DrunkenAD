@@ -149,6 +149,20 @@ Describe 'DrunkenAD unit tests' {
             }
         }
 
+        Context 'Assert-DrunkenADNonOverlappingPrefixes' {
+            It 'allows distinct literal prefixes' {
+                {
+                    Assert-DrunkenADNonOverlappingPrefixes -Prefixes 'Profile-', 'Flags-', 'Literal[01]-'
+                } | Should -Not -Throw
+            }
+
+            It 'rejects nested prefixes case-insensitively' {
+                {
+                    Assert-DrunkenADNonOverlappingPrefixes -Prefixes 'Profile-', 'profile-tier-'
+                } | Should -Throw '*overlap*'
+            }
+        }
+
         Context 'Split-DrunkenADCsvField' {
             It 'splits CSV multivalue fields with trimming and empty item removal' {
                 $result = Split-DrunkenADCsvField -Value 'Enabled; Audited ; ; Keep-Stable ' -Delimiter ';'
@@ -419,6 +433,18 @@ Describe 'DrunkenAD unit tests' {
                 Mock Assert-ADDrinkAttributeReadyForUserWrite {}
                 Mock Write-DrunkenADLog {}
                 $global:DrunkenADTest_SetADUserCalls = @()
+            }
+
+            It 'rejects overlapping prefixes before checking AD readiness' {
+                {
+                    Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{
+                        'Profile-'      = @('Tier=Gold')
+                        'Profile-Tier-' = @('Gold')
+                    } -Confirm:$false
+                } | Should -Throw '*overlap*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
             }
 
             It 'replaces only the targeted literal prefix and preserves unrelated values' {
@@ -771,6 +797,52 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw "*missing required column 'SamAccountName'*"
 
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+
+            It 'validates CSV columns before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            Department = 'Engineering'
+                        }
+                    )
+                }
+
+                $namespaceMap = @{
+                    'Org-' = @(
+                        @{ Column = 'Department'; Label = 'Department' }
+                    )
+                }
+
+                {
+                    Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                } | Should -Throw "*missing required column 'SamAccountName'*"
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+
+            It 'rejects a CSV with no data rows before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+                Mock Import-Csv { @() }
+
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                }
+
+                {
+                    Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                } | Should -Throw '*does not contain any data rows*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
                 Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
         }

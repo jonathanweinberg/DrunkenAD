@@ -151,6 +151,7 @@ function Assert-DrunkenADCsvColumns {
         [string]$CsvPath,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$Rows,
 
         [Parameter(Mandatory = $true)]
@@ -158,7 +159,7 @@ function Assert-DrunkenADCsvColumns {
     )
 
     if ($Rows.Count -eq 0) {
-        return
+        throw "CSV file '$CsvPath' does not contain any data rows."
     }
 
     $columns = @($Rows[0].PSObject.Properties.Name)
