@@ -1,13 +1,13 @@
 # Issue 008: July Bug Hunt - Prefix Isolation And Input Safety
 
-Status: In progress
+Status: Implemented locally; review pending
 
 GitHub issue: pending; local `gh` authentication was invalid on 2026-07-16.
 
 ## Summary
 
-A focused July 2026 bug hunt is reviewing the module's write, CSV, live-campaign,
-and validation boundaries. Confirmed fixes will be developed test-first on
+A focused July 2026 bug hunt reviewed the module's write, CSV, live-campaign,
+and validation boundaries. Confirmed fixes were developed test-first on
 `codex-bug-hunt-2026-07-16`, with GitHub issue/comment updates staged for the
 next authenticated session.
 
@@ -197,6 +197,9 @@ Acceptance criteria:
 - A fresh official Pester 5.7.1 package supplied by fully qualified manifest
   path passed 81 default tests and the complete release-readiness gate. The
   output identified the exact resolved manifest path and six discovered files.
+- Subsequent independent safety, compatibility, and public-input slices grew the
+  final branch gate to 100 discovered tests: 94 passed, 0 failed, and 6
+  integration tests remained intentionally not run.
 
 ## Implementation
 
