@@ -217,10 +217,13 @@ Acceptance criteria:
 - Pin Pester to 5.7.1, remove ignored-cache loading and module-path mutation, and
   constrain discovery to six named top-level test files.
 
-## GitHub Handoff
+## Current GitHub State
 
-When authentication is restored:
-
-1. Create a GitHub issue using this note as the body.
-2. Add commit-linked comments for each confirmed fix.
-3. Leave the issue open for review unless explicitly authorized to close it.
+- GitHub Issue [#8](https://github.com/jonathanweinberg/DrunkenAD/issues/8)
+  is open with `bug` and `maintenance` labels.
+- Its evidence comment links implementation commits, delivery commit `43fccb3`,
+  and draft PR [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
+- Documentation CI passed. PowerShell CI reached the branch tests and exposed
+  two Windows test-portability assertions tracked with Issue 010; the focused
+  test-only correction remains approval-gated.
+- Leave the issue open for review unless explicitly authorized to close it.

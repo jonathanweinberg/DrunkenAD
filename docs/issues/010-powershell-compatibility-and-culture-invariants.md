@@ -1,6 +1,6 @@
 # Issue 010: PowerShell Compatibility And Culture Invariants
 
-Status: Implemented on `codex-bug-hunt-2026-07-16`; remote CI and live-lab verification pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; Windows test correction and live-lab verification pending
 
 GitHub issue: [#10](https://github.com/jonathanweinberg/DrunkenAD/issues/10)
 
@@ -104,14 +104,25 @@ bounded fixes:
 - the workflow YAML parses successfully
 - no live AD command or campaign was executed
 
-The new Windows PowerShell 5.1 job still needs its first remote CI run after the
-branch can be pushed. Keep this issue open until that evidence is attached.
+The final trusted local branch gate discovered 100 tests: 94 passed, 0 failed,
+and 6 environment-gated integration tests were not run.
 
-## GitHub Handoff
+The remote matrix then ran on delivery commit `43fccb3`:
 
-When authentication is restored:
+- Documentation CI passed.
+- Ubuntu and macOS PowerShell jobs passed.
+- Windows PowerShell Core and Windows PowerShell 5.1 reached the suite but
+  failed two test portability assertions: a slash-specific manifest `FileList`
+  match and a per-fragment multiline help-example check.
+- These failures are not a confirmed module runtime defect. The narrow
+  test-only correction remains subject to explicit approval.
 
-1. Create a GitHub issue using this note as the body.
-2. Add commit-linked red/green evidence.
-3. Keep the issue open until the Windows PowerShell 5.1 lane passes remotely and
-   a controlled live-lab validation window is available.
+## Current GitHub State
+
+- GitHub Issue [#10](https://github.com/jonathanweinberg/DrunkenAD/issues/10)
+  is open with `bug` and `maintenance` labels.
+- Its evidence comment links implementation commit `412a4e6`, delivery commit
+  `43fccb3`, and draft PR
+  [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
+- Keep the issue open until the approved test correction produces a green
+  matrix and a controlled live-lab validation window is available.

@@ -56,7 +56,11 @@ After the bounded changes, 93 tests passed, 0 failed, and 6 integration tests
 remained intentionally not run. A separate normal-path regression verifies that
 ` alice ` is written and reported as `alice`. No live AD command was executed.
 
-## GitHub Handoff
+## Current GitHub State
 
-When authentication is restored, create this issue and attach the implementation
-commit and release-gate evidence. Keep it open for review.
+- GitHub Issue [#11](https://github.com/jonathanweinberg/DrunkenAD/issues/11)
+  is open with `bug` and `maintenance` labels.
+- Its evidence comment links implementation commit `4dc6a13`, delivery commit
+  `43fccb3`, and draft PR
+  [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
+- Keep the issue open for review.

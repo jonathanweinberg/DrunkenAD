@@ -123,13 +123,16 @@ implementation. After the bounded changes:
 - 86 tests pass, 0 fail, and 6 integration tests remain intentionally not run
 - no live AD command or campaign was executed
 
-The issue remains open for review and a controlled live-lab `Quick` campaign
-after authentication and an approved mutation window are available.
+The final trusted branch gate later reached 100 discovered tests: 94 passed, 0
+failed, and 6 environment-gated integration tests were not run. The issue
+remains open for review and a controlled live-lab `Quick` campaign after a green
+remote matrix and an explicitly approved mutation window are available.
 
-## GitHub Handoff
+## Current GitHub State
 
-When authentication is restored:
-
-1. Create a GitHub issue using this note as the body.
-2. Add commit-linked comments for each implemented guard.
-3. Keep the issue open for review and future live-lab verification.
+- GitHub Issue [#9](https://github.com/jonathanweinberg/DrunkenAD/issues/9)
+  is open with `bug` and `maintenance` labels.
+- Its evidence comment links implementation commit `50cd9a9`, delivery commit
+  `43fccb3`, and draft PR
+  [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
+- Keep the issue open for review and future live-lab verification.
