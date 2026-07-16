@@ -198,11 +198,16 @@ function ConvertTo-DrunkenADCsvDataMap {
         }
 
         foreach ($fieldValue in $fieldValues) {
+            if ([string]::IsNullOrWhiteSpace([string]$fieldValue)) {
+                continue
+            }
+
+            $normalizedFieldValue = ([string]$fieldValue).Trim()
             $recordValue = if ([string]::IsNullOrWhiteSpace($mapping.Label)) {
-                $fieldValue
+                $normalizedFieldValue
             }
             else {
-                '{0}={1}' -f $mapping.Label, $fieldValue
+                '{0}={1}' -f $mapping.Label, $normalizedFieldValue
             }
 
             Add-DrunkenADCsvRecord -DataMap $dataMap -Prefix $mapping.Prefix -Value $recordValue

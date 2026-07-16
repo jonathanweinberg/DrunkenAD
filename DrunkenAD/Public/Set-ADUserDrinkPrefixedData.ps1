@@ -171,10 +171,7 @@ function Set-ADUserDrinkPrefixedData {
 
     $updatedDrinks = ConvertTo-DrunkenADStringArray -Values $updatedDrinks -SkipBlank
 
-    $currentFingerprint = @($currentDrinks | Sort-Object) -join "`n"
-    $updatedFingerprint = @($updatedDrinks | Sort-Object) -join "`n"
-
-    if ($currentFingerprint -eq $updatedFingerprint) {
+    if (Test-DrunkenADStringSetEqual -ReferenceValues $currentDrinks -DifferenceValues $updatedDrinks) {
         Write-Verbose "No drink attribute changes are required for $($user.SamAccountName)."
         Write-DrunkenADLog -LogPath $effectiveLogPath -Message "No drink attribute changes were required for $($user.SamAccountName)."
 

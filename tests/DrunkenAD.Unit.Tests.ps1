@@ -507,6 +507,21 @@ Describe 'DrunkenAD unit tests' {
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
             }
 
+            It 'does not confuse one newline-containing value with two values' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        drink             = @("Target-a`nTarget-b", 'Keep-stable')
+                    }
+                }
+
+                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Target-' = @('a', 'b') } -Confirm:$false
+
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
+                @($global:DrunkenADTest_SetADUserCalls[0].Replace.drink).Count | Should -Be 3
+            }
+
             It 'normalizes preserved values to strings before calling Set-ADUser Replace' {
                 $preservedValue = New-Object psobject
                 $preservedValue | Add-Member -MemberType ScriptMethod -Name ToString -Value { 'Keep-me' } -Force
@@ -795,6 +810,34 @@ Describe 'DrunkenAD unit tests' {
                 $result.ConfigSource | Should -Be 'NamespaceMap'
                 $result.Namespaces | Should -Contain 'Profile-'
                 $result.Namespaces | Should -Contain 'Flags-'
+            }
+
+            It 'does not create label-only records from blank CSV fields' {
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            SamAccountName = 'alice'
+                            ProfileTier    = '   '
+                            Flags          = 'Enabled'
+                        }
+                    )
+                }
+
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                    'Flags-' = @(
+                        @{ Column = 'Flags' }
+                    )
+                }
+
+                Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' | Out-Null
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    -not $DataMap.Contains('Profile-') -and
+                    ((@($DataMap['Flags-']) -join ',') -eq 'Enabled')
+                }
             }
 
             It 'loads mappings from a JSON config file when ConfigPath is supplied' {
