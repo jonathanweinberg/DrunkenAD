@@ -20,9 +20,12 @@ A host wrapper must make a live campaign repeatable enough that another operator
 can understand what happened after the run. At minimum, it should:
 
 - choose the `Quick`, `Standard`, or `Full` campaign profile
+- use the profile's fixed seed count without an independent override
 - create or verify a rollback point before mutation
 - make the repository workspace available where the guest-side script runs
-- run the guest-side campaign with explicit paths and profile settings
+- create a unique per-run manifest, CSV, and config bundle
+- record the SHA-256 hash of each run input in operator notes
+- run the guest-side campaign with literal-safe paths and profile settings
 - capture standard output, errors, summary JSON, and operator notes
 - return a nonzero exit code when the guest-side campaign fails
 - avoid writing secrets or durable credentials into tracked files
@@ -44,6 +47,7 @@ Operator notes should capture:
 - target lab identity
 - campaign profile
 - seed count
+- run-input paths and SHA-256 hashes
 - any manual preflight checks
 
 If the host method cannot create the rollback point itself, it should fail unless
@@ -51,18 +55,22 @@ the operator provides proof that an acceptable rollback point already exists.
 
 ## Guest Or Remote Workspace
 
-The guest-side campaign needs access to the repository, generated seed data, the
-CSV ingestion config, and a writable results directory. A host method can provide
+The guest-side campaign needs access to the repository, its run-specific seed
+data and CSV ingestion config, and a writable results directory. A host method can provide
 that workspace through a shared folder, staged archive, remote copy, mounted
 volume, or another transport.
 
 The workspace contract is:
 
 - module source is importable from the guest-side PowerShell session
-- `tests/Live/Data/seed-manifest.json` and `seed-ingestion.csv` are present
-- `examples/data/drink-ingestion-config.json` is present
+- `tests/Live/results/<run-id>/inputs/` contains the exact manifest, CSV, and config used by the run
+- manifest and CSV identities are nonblank, unique, and equal as sets
 - `tests/Live/results/<run-id>/` is writable
 - generated outputs remain ignored by Git
+
+The guest campaign owns only its bounded root OU. An unexpected account under
+that root is a blocking condition, not a prune candidate. A same-named account
+outside the root is never moved into campaign ownership.
 
 The generic docs should avoid hard-coded transport paths. Put those details in
 the wrapper or a method-specific runbook.
@@ -98,6 +106,8 @@ platform credential store, or interactive prompt.
 Credential handling rules:
 
 - never commit secrets or live passwords
+- provide `DRUNKENAD_SEED_PASSWORD` only through the guest process environment for approved mutation
+- permit `-WhatIf` preview without requiring the seed password
 - keep credential-adjacent receipts under `tests/Live/results/`
 - restrict local credential files to the operator account when possible
 - redact credentials from operator notes and console output

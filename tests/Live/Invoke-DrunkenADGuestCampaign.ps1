@@ -1,4 +1,4 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [string]$RepoRootPath = '\\psf\DrunkenAD_CODEX',
 
@@ -15,6 +15,7 @@ param(
 
     [string]$ExpectedDomainDn = 'DC=lab,DC=contoso,DC=com',
 
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$')]
     [string]$RootOuName = 'DrunkenAD Seed',
 
     [ValidateSet('Quick', 'Standard', 'Full')]
@@ -24,8 +25,12 @@ param(
 
     [int]$ValidationSamplePerRegion = 30,
 
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$SnapshotName,
 
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$SnapshotId
 )
 
@@ -86,6 +91,78 @@ function Get-DrunkenADGuestCampaignProfile {
     }
 }
 
+function ConvertTo-DrunkenADLdapFilterValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($character in $Value.ToCharArray()) {
+        switch ([int][char]$character) {
+            0   { [void]$builder.Append('\00') }
+            40  { [void]$builder.Append('\28') }
+            41  { [void]$builder.Append('\29') }
+            42  { [void]$builder.Append('\2a') }
+            92  { [void]$builder.Append('\5c') }
+            default { [void]$builder.Append($character) }
+        }
+    }
+
+    $builder.ToString()
+}
+
+function Assert-SeedIdentitySetsMatch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$ManifestUsers,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$CsvRows
+    )
+
+    $manifestIdentities = @{}
+    foreach ($manifestUser in $ManifestUsers) {
+        $identity = [string]$manifestUser.SamAccountName
+        if ([string]::IsNullOrWhiteSpace($identity)) {
+            throw 'The seed manifest contains a blank SamAccountName.'
+        }
+
+        $identity = $identity.Trim()
+        if ($manifestIdentities.ContainsKey($identity)) {
+            throw "The seed manifest contains a duplicate SamAccountName."
+        }
+
+        $manifestIdentities[$identity] = $true
+    }
+
+    $csvIdentities = @{}
+    foreach ($csvRow in $CsvRows) {
+        $identity = [string]$csvRow.SamAccountName
+        if ([string]::IsNullOrWhiteSpace($identity)) {
+            throw 'The seed CSV contains a blank SamAccountName.'
+        }
+
+        $identity = $identity.Trim()
+        if ($csvIdentities.ContainsKey($identity)) {
+            throw "The seed CSV contains a duplicate SamAccountName."
+        }
+
+        $csvIdentities[$identity] = $true
+    }
+
+    $missingFromCsvCount = @($manifestIdentities.Keys | Where-Object { -not $csvIdentities.ContainsKey($_) }).Count
+    $unexpectedInCsvCount = @($csvIdentities.Keys | Where-Object { -not $manifestIdentities.ContainsKey($_) }).Count
+    if ($missingFromCsvCount -gt 0 -or $unexpectedInCsvCount -gt 0) {
+        throw "Seed manifest and CSV SamAccountName sets differ. Missing from CSV: $missingFromCsvCount; unexpected in CSV: $unexpectedInCsvCount."
+    }
+}
+
 function Get-OwnedPrefixList {
     [CmdletBinding()]
     param()
@@ -134,10 +211,15 @@ function Get-OuLayout {
         [Parameter(Mandatory = $true)]
         [string]$DomainDn,
 
+        [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$')]
         [string]$RootOuName = 'DrunkenAD Seed'
     )
 
     $rootDn = 'OU={0},{1}' -f $RootOuName, $DomainDn
+    $rootParentDn = ($rootDn -split ',', 2)[1]
+    if ($rootParentDn -ne $DomainDn) {
+        throw "The campaign root OU must be an immediate child of the verified domain DN."
+    }
 
     [ordered]@{
         Root = $rootDn
@@ -173,7 +255,7 @@ function Ensure-OrganizationalUnit {
 
     $name = ($DistinguishedName -split ',')[0] -replace '^OU=', ''
     $path = (($DistinguishedName -split ',', 2)[1])
-    New-ADOrganizationalUnit -Name $name -Path $path -ProtectedFromAccidentalDeletion:$false -Server $DomainController -ErrorAction Stop | Out-Null
+    New-ADOrganizationalUnit -Name $name -Path $path -ProtectedFromAccidentalDeletion:$true -Server $DomainController -ErrorAction Stop | Out-Null
 
     Start-Sleep -Milliseconds 250
     $created = $null
@@ -260,10 +342,16 @@ function Set-ManagedSeedUser {
         [string]$SearchBaseDn,
 
         [Parameter(Mandatory = $true)]
-        [string]$DefaultPassword
+        [securestring]$DefaultPassword
     )
 
-    $existingUser = Get-ADUser -LDAPFilter ('(sAMAccountName={0})' -f $SeedUser.SamAccountName) -SearchBase $SearchBaseDn -SearchScope Subtree -Properties mail,pager,employeeID,department,title,company,description,displayName,userPrincipalName,givenName,sn,physicalDeliveryOfficeName,l,st,co,c,distinguishedName,objectGuid -Server $DomainController -ErrorAction SilentlyContinue
+    $escapedSamAccountName = ConvertTo-DrunkenADLdapFilterValue -Value ([string]$SeedUser.SamAccountName)
+    $matchingUsers = @(Get-ADUser -LDAPFilter ('(sAMAccountName={0})' -f $escapedSamAccountName) -SearchBase $SearchBaseDn -SearchScope Subtree -Properties mail,pager,employeeID,department,title,company,description,displayName,userPrincipalName,givenName,sn,physicalDeliveryOfficeName,l,st,co,c,distinguishedName,objectGuid -Server $DomainController -ErrorAction Stop)
+    if ($matchingUsers.Count -gt 1) {
+        throw "Multiple users under the campaign root matched the seed SamAccountName."
+    }
+
+    $existingUser = if ($matchingUsers.Count -eq 1) { $matchingUsers[0] } else { $null }
 
     $replacementAttributes = @{
         mail                       = $SeedUser.Mail
@@ -288,7 +376,7 @@ function Set-ManagedSeedUser {
             Title             = $SeedUser.Title
             Company           = $SeedUser.Company
             Description       = $SeedUser.Description
-            AccountPassword   = (ConvertTo-SecureString -String $DefaultPassword -AsPlainText -Force)
+            AccountPassword   = $DefaultPassword
             Enabled           = $false
             Path              = $TargetOuDn
             OtherAttributes   = $replacementAttributes
@@ -305,22 +393,28 @@ function Set-ManagedSeedUser {
     }
 
     $identity = $existingUser.ObjectGuid
+    $objectChanged = $false
     if ($existingUser.DistinguishedName -notlike ('*,{0}' -f $TargetOuDn)) {
         Move-ADObject -Identity $identity -TargetPath $TargetOuDn -Server $DomainController -ErrorAction Stop
+        $objectChanged = $true
     }
 
     if ($existingUser.Name -ne $SeedUser.DisplayName) {
         Rename-ADObject -Identity $identity -NewName $SeedUser.DisplayName -Server $DomainController -ErrorAction Stop
+        $objectChanged = $true
     }
 
-    if (-not (Test-SeedUserRequiresAttributeUpdate -SeedUser $SeedUser -ExistingUser $existingUser)) {
+    $requiresAttributeUpdate = Test-SeedUserRequiresAttributeUpdate -SeedUser $SeedUser -ExistingUser $existingUser
+    if (-not $objectChanged -and -not $requiresAttributeUpdate) {
         return [pscustomobject]@{
             Action         = 'Unchanged'
             SamAccountName = $SeedUser.SamAccountName
         }
     }
 
-    Set-ADUser -Identity $identity -Server $DomainController -GivenName $SeedUser.GivenName -Surname $SeedUser.Surname -DisplayName $SeedUser.DisplayName -UserPrincipalName $SeedUser.UserPrincipalName -Department $SeedUser.Department -Title $SeedUser.Title -Company $SeedUser.Company -Description $SeedUser.Description -Replace $replacementAttributes -ErrorAction Stop
+    if ($requiresAttributeUpdate) {
+        Set-ADUser -Identity $identity -Server $DomainController -GivenName $SeedUser.GivenName -Surname $SeedUser.Surname -DisplayName $SeedUser.DisplayName -UserPrincipalName $SeedUser.UserPrincipalName -Department $SeedUser.Department -Title $SeedUser.Title -Company $SeedUser.Company -Description $SeedUser.Description -Replace $replacementAttributes -ErrorAction Stop
+    }
 
     [pscustomobject]@{
         Action         = 'Updated'
@@ -746,6 +840,17 @@ try {
         throw "Expected the CSV row count to match the seed manifest count ($($seedManifest.Count)) but found $($csvRows.Count)."
     }
 
+    Assert-SeedIdentitySetsMatch -ManifestUsers $seedManifest -CsvRows $csvRows
+
+    if (-not $PSCmdlet.ShouldProcess($ouLayout['Root'], "Run the $($profile.Name) DrunkenAD live campaign")) {
+        $summary['Status'] = 'Preview'
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($env:DRUNKENAD_SEED_PASSWORD)) {
+        throw 'DRUNKENAD_SEED_PASSWORD must be set in the guest environment before live seed mutation.'
+    }
+
     foreach ($ouDn in @($ouLayout['Root'], $ouLayout['NA'], $ouLayout['EMEA'], $ouLayout['APAC'])) {
         Ensure-OrganizationalUnit -DistinguishedName $ouDn | Out-Null
     }
@@ -834,29 +939,26 @@ try {
     }
 
     $seedWatch = Start-PhaseStopwatch
-    $defaultPassword = 'DrunkenAD!Seed2026'
+    $defaultPassword = ConvertTo-SecureString -String $env:DRUNKENAD_SEED_PASSWORD -AsPlainText -Force
     $seedFailures = New-Object System.Collections.Generic.List[object]
     $createdCount = 0
     $updatedCount = 0
     $unchangedCount = 0
-    $prunedUsers = New-Object System.Collections.Generic.List[string]
     $expectedSamAccountNames = @{}
     foreach ($seedUser in $seedManifest) {
         $expectedSamAccountNames[$seedUser.SamAccountName] = $true
     }
 
     $existingManagedUsers = @(Get-ADUser -LDAPFilter '(objectClass=user)' -SearchBase $ouLayout['Root'] -SearchScope Subtree -Properties sAMAccountName,distinguishedName,objectGuid -Server $DomainController -ErrorAction Stop)
-    foreach ($existingManagedUser in $existingManagedUsers) {
-        if (-not $expectedSamAccountNames.ContainsKey($existingManagedUser.SamAccountName)) {
-            Remove-ADObject -Identity $existingManagedUser.ObjectGuid -Confirm:$false -Server $DomainController -ErrorAction Stop
-            $prunedUsers.Add($existingManagedUser.SamAccountName)
-        }
+    $unexpectedManagedUsers = @($existingManagedUsers | Where-Object { -not $expectedSamAccountNames.ContainsKey($_.SamAccountName) })
+    if ($unexpectedManagedUsers.Count -gt 0) {
+        throw "Unexpected users were found under the campaign root OU. Refusing to prune or reconcile while $($unexpectedManagedUsers.Count) unowned user(s) are present."
     }
 
     foreach ($seedUser in $seedManifest) {
         $targetOuDn = Get-RegionTargetOu -Region $seedUser.Region -OuLayout $ouLayout
         try {
-            $seedResult = Set-ManagedSeedUser -SeedUser $seedUser -TargetOuDn $targetOuDn -SearchBaseDn $ExpectedDomainDn -DefaultPassword $defaultPassword
+            $seedResult = Set-ManagedSeedUser -SeedUser $seedUser -TargetOuDn $targetOuDn -SearchBaseDn $ouLayout['Root'] -DefaultPassword $defaultPassword
             if ($seedResult.Action -eq 'Created') {
                 $createdCount++
             }
@@ -888,8 +990,8 @@ try {
         Created         = $createdCount
         Updated         = $updatedCount
         Unchanged       = $unchangedCount
-        Pruned          = $prunedUsers.Count
-        PrunedUsers     = @($prunedUsers.ToArray())
+        Pruned          = 0
+        PrunedUsers     = @()
         FailureCount    = $seedFailures.Count
         CountsByOu      = [pscustomobject]$countsByOu
         TotalManaged    = $totalManagedUsers
