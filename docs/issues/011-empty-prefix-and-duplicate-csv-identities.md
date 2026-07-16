@@ -1,8 +1,8 @@
 # Issue 011: Empty Prefix And Duplicate CSV Identities
 
-Status: Implemented locally; review pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; review pending
 
-GitHub issue: pending; local `gh` authentication was invalid on 2026-07-16.
+GitHub issue: [#11](https://github.com/jonathanweinberg/DrunkenAD/issues/11)
 
 ## Summary
 

@@ -1,8 +1,8 @@
 # Issue 008: July Bug Hunt - Prefix Isolation And Input Safety
 
-Status: Implemented locally; review pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; review pending
 
-GitHub issue: pending; local `gh` authentication was invalid on 2026-07-16.
+GitHub issue: [#8](https://github.com/jonathanweinberg/DrunkenAD/issues/8)
 
 ## Summary
 

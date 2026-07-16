@@ -1,9 +1,11 @@
 flowchart LR
     INPUTS["Inputs<br/>DrunkenAD.psd1<br/>DrunkenAD.psm1<br/>Public commands<br/>Private helpers<br/>docs<br/>tests"]
+    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>six tracked top-level test files<br/>never tests/Live/results"]
     SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
-    CHECKS["Release gate<br/>manifest metadata<br/>clean import<br/>export parity<br/>syntax<br/>docs hygiene<br/>unit tests"]
-    CI["CI acceptance<br/>Ubuntu<br/>macOS<br/>Windows<br/>no PSGallery publish"]
+    CHECKS["Local source gate<br/>manifest metadata<br/>clean import + export parity<br/>syntax + docs + architecture<br/>94 passed; 6 integration not run"]
+    CI["Remote CI matrix<br/>Ubuntu pwsh<br/>macOS pwsh<br/>Windows pwsh<br/>Windows PowerShell 5.1<br/>no PSGallery publish"]
 
     INPUTS --> SCRIPT
+    TRUST --> SCRIPT
     SCRIPT --> CHECKS
     CHECKS --> CI

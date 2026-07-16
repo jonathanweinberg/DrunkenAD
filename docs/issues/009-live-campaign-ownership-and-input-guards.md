@@ -1,8 +1,8 @@
 # Issue 009: Live Campaign Ownership And Input Guards
 
-Status: Implemented locally; live-lab verification pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; live-lab verification pending
 
-GitHub issue: pending; local `gh` authentication was invalid on 2026-07-16.
+GitHub issue: [#9](https://github.com/jonathanweinberg/DrunkenAD/issues/9)
 
 ## Summary
 

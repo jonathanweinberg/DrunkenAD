@@ -33,7 +33,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.13.2 release integrity patch: derive release-readiness checks from the manifest and validate the architecture atlas.'
+            ReleaseNotes = '0.13.2 safety and release-integrity patch: harden namespace, CSV, live-campaign, trusted-test, PowerShell 5.1, and architecture-atlas boundaries.'
         }
     }
 }

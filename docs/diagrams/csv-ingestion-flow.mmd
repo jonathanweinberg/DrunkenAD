@@ -1,8 +1,11 @@
 flowchart LR
-    CSV["CSV rows"] --> VALIDATE["Validate required columns"]
-    MAP["JSON or hashtable namespace map"] --> VALIDATE
-    VALIDATE --> ROW["Build per-row DataMap"]
-    ROW --> WRITE["Set-ADUserDrinkData"]
+    CSV["CSV rows"] --> LOCAL["Local preflight<br/>paths + required columns"]
+    MAP["JSON or hashtable namespace map"] --> LOCAL
+    LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
+    OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
+    IDENTITIES --> ROW["Build per-row DataMap<br/>skip blank mapped values"]
+    ROW --> READY["Verify drink write readiness"]
+    READY --> WRITE["Set-ADUserDrinkData"]
     WRITE --> AD["Active Directory user drink"]
     AD --> READBACK["Sample read-back validation"]
     READBACK --> REPORT["Processed, failures, samples"]

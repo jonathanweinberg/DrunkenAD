@@ -2,6 +2,18 @@
 
 ## 0.13.2
 
+- Hardened namespace and CSV input boundaries by rejecting blank or overlapping
+  prefixes, empty CSV input, duplicate normalized identities, and ambiguous
+  local configuration before Active Directory readiness or lookup.
+- Fixed stale empty projections, delimiter-based multivalue comparison
+  collisions, blank labeled CSV records, and culture-sensitive prefix matching.
+- Isolated local and release validation from ignored live-result artifacts by
+  requiring exact Pester 5.7.1 and an explicit tracked six-file test allowlist.
+- Made the live campaign fail closed on unexpected or unowned users, require
+  rollback evidence and confirmation, compare exact manifest/CSV identity sets,
+  and record per-run inputs with SHA-256 hashes.
+- Added a Windows PowerShell 5.1 CI lane and regressions for script common
+  parameters, JSON null/array conversion, and empty smoke assertions.
 - Fixed release-readiness drift by deriving the current release version from the
   module manifest instead of hardcoding an older release number.
 - Added architecture atlas validation for the reusable JSON map, embedded
@@ -9,6 +21,9 @@
   kinds, and repo-relative file links.
 - Wired atlas validation into documentation hygiene so docs CI and the local
   release gate catch map drift before release.
+- Refreshed the architecture atlas, Mermaid sources, issue mirrors, and six
+  page-facing documentation plates to describe the current safety boundaries
+  without claiming remote CI, merge, tag, publish, or live-lab proof.
 
 ## 0.13.1
 

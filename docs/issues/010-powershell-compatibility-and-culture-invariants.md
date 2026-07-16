@@ -1,8 +1,8 @@
 # Issue 010: PowerShell Compatibility And Culture Invariants
 
-Status: Implemented locally; remote CI and live-lab verification pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; remote CI and live-lab verification pending
 
-GitHub issue: pending; local `gh` authentication was invalid on 2026-07-16.
+GitHub issue: [#10](https://github.com/jonathanweinberg/DrunkenAD/issues/10)
 
 ## Summary
 

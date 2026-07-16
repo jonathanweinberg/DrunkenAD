@@ -22,9 +22,9 @@ around the same `drink` attribute model.
 flowchart LR
     PRIVATE["Private helpers<br/>Core.ps1<br/>PrefixMap.ps1<br/>ProjectionMap.ps1<br/>CsvMapping.ps1<br/>SchemaStatus.ps1"]
     ROOT["DrunkenAD.psm1<br/>deterministic dot-source loader"]
-    PUBLIC["Public commands<br/>Get / Set / Remove<br/>Import CSV<br/>Projection<br/>Schema readiness"]
-    MANIFEST["DrunkenAD.psd1<br/>FunctionsToExport parity<br/>ModuleVersion 0.12.1"]
-    RELEASE["Release readiness<br/>syntax<br/>docs<br/>unit tests<br/>exported commands<br/>manifest metadata"]
+    PUBLIC["12 exported commands<br/>Get / Set / Remove<br/>CSV + projection<br/>schema readiness<br/>compatibility wrappers"]
+    MANIFEST["DrunkenAD.psd1<br/>FunctionsToExport parity<br/>ModuleVersion 0.13.2<br/>PowerShell 5.1"]
+    RELEASE["Source readiness<br/>syntax + docs<br/>trusted Pester 5.7.1<br/>export parity<br/>architecture atlas"]
 
     PRIVATE --> ROOT
     ROOT --> PUBLIC
@@ -82,12 +82,14 @@ Source file: [diagrams/use-case-map.mmd](diagrams/use-case-map.mmd)
 
 ```mermaid
 flowchart TD
-    START["Caller provides DataMap and identity"] --> READY["Check drink is writable on user"]
+    START["Caller provides DataMap and identity"] --> VALIDATE["Validate nonblank, non-overlapping literal prefixes"]
+    VALIDATE --> READY["Check drink is writable on user"]
     READY --> RESOLVE["Resolve exactly one AD user"]
     RESOLVE --> READ["Read current drink values"]
-    READ --> FILTER["Remove values matching owned prefixes"]
+    READ --> FILTER["Remove OrdinalIgnoreCase prefix matches"]
     FILTER --> MERGE["Add replacement values for owned prefixes"]
-    MERGE --> DECIDE{"Any final drink values?"}
+    MERGE --> COMPARE["Compare multivalue elements without delimiter flattening"]
+    COMPARE --> DECIDE{"Any final drink values?"}
     DECIDE -->|Yes| REPLACE["Set-ADUser -Replace drink"]
     DECIDE -->|No| CLEAR["Set-ADUser -Clear drink"]
     REPLACE --> RETURN["Return final values when PassThru is used"]
@@ -102,10 +104,13 @@ Source file: [diagrams/namespace-write-model.mmd](diagrams/namespace-write-model
 
 ```mermaid
 flowchart LR
-    CSV["CSV rows"] --> VALIDATE["Validate required columns"]
-    MAP["JSON or hashtable namespace map"] --> VALIDATE
-    VALIDATE --> ROW["Build per-row DataMap"]
-    ROW --> WRITE["Set-ADUserDrinkData"]
+    CSV["CSV rows"] --> LOCAL["Local preflight<br/>paths + required columns"]
+    MAP["JSON or hashtable namespace map"] --> LOCAL
+    LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
+    OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
+    IDENTITIES --> ROW["Build per-row DataMap<br/>skip blank mapped values"]
+    ROW --> READY["Verify drink write readiness"]
+    READY --> WRITE["Set-ADUserDrinkData"]
     WRITE --> AD["Active Directory user drink"]
     AD --> READBACK["Sample read-back validation"]
     READBACK --> REPORT["Processed, failures, samples"]
@@ -138,15 +143,15 @@ Source file: [diagrams/schema-readiness-flow.mmd](diagrams/schema-readiness-flow
 
 ```mermaid
 flowchart TD
-    SNAP["Snapshot or rollback point"] --> PARSE["Parser gate"]
-    PARSE --> UNIT["Unit tests"]
-    UNIT --> INTEGRATION["Live integration tests"]
-    INTEGRATION --> SMOKE["Campaign smoke validation"]
-    SMOKE --> SEED["Seed reconcile"]
-    SEED --> CSV["CSV ingestion"]
-    CSV --> PROJECTION["Attribute projection"]
-    PROJECTION --> CRUD["CRUD sample validation"]
-    CRUD --> SUMMARY["campaign-summary.json"]
+    ROLLBACK["1. Rollback evidence + operator confirmation"] --> TRUST["2. Syntax + trusted Pester 5.7.1"]
+    TRUST --> INTEGRATION["3. Opt-in live integration tests"]
+    INTEGRATION --> READINESS["4. Domain, services + schema readiness"]
+    READINESS --> INPUTS["5. Per-run manifest, CSV + config with SHA-256"]
+    INPUTS --> IDENTITIES["6. Exact unique manifest/CSV identity set"]
+    IDENTITIES --> SEED["7. Bounded seed reconcile; fail closed on unexpected users"]
+    SEED --> DATA["8. CSV ingestion + attribute projection"]
+    DATA --> CRUD["9. CRUD sample + read-back validation"]
+    CRUD --> SUMMARY["10. campaign-summary.json + operator notes"]
 ```
 
 Source file: [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladder.mmd)
@@ -160,12 +165,14 @@ flowchart LR
     QUICK["Quick<br/>30 seed users<br/>3 CRUD samples per region"]
     STANDARD["Standard<br/>300 seed users<br/>10 CRUD samples per region"]
     FULL["Full<br/>3,000 seed users<br/>100 CRUD samples per region<br/>default"]
-    HARNESS["Live campaign harness<br/>snapshot<br/>seed reconcile<br/>CSV ingestion<br/>projection<br/>CRUD validation"]
-    SUMMARY["campaign-summary.json<br/>profile-derived totals"]
+    PREFLIGHT["Campaign preflight<br/>rollback evidence + confirmation<br/>run-specific inputs + SHA-256<br/>exact manifest/CSV identity set"]
+    HARNESS["Bounded live execution<br/>campaign root only<br/>no implicit prune or account adoption<br/>CSV + projection + CRUD"]
+    SUMMARY["campaign-summary.json<br/>operator notes<br/>profile-derived totals"]
 
-    QUICK --> HARNESS
-    STANDARD --> HARNESS
-    FULL --> HARNESS
+    QUICK --> PREFLIGHT
+    STANDARD --> PREFLIGHT
+    FULL --> PREFLIGHT
+    PREFLIGHT --> HARNESS
     HARNESS --> SUMMARY
 ```
 
@@ -178,11 +185,13 @@ Source file: [diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profil
 ```mermaid
 flowchart LR
     INPUTS["Inputs<br/>DrunkenAD.psd1<br/>DrunkenAD.psm1<br/>Public commands<br/>Private helpers<br/>docs<br/>tests"]
+    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>six tracked top-level test files<br/>never tests/Live/results"]
     SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
-    CHECKS["Release gate<br/>manifest metadata<br/>clean import<br/>export parity<br/>syntax<br/>docs hygiene<br/>unit tests"]
-    CI["CI acceptance<br/>Ubuntu<br/>macOS<br/>Windows<br/>no PSGallery publish"]
+    CHECKS["Local source gate<br/>manifest metadata<br/>clean import + export parity<br/>syntax + docs + architecture<br/>94 passed; 6 integration not run"]
+    CI["Remote CI matrix<br/>Ubuntu pwsh<br/>macOS pwsh<br/>Windows pwsh<br/>Windows PowerShell 5.1<br/>no PSGallery publish"]
 
     INPUTS --> SCRIPT
+    TRUST --> SCRIPT
     SCRIPT --> CHECKS
     CHECKS --> CI
 ```
