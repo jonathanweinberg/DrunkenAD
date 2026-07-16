@@ -188,7 +188,7 @@ flowchart LR
     TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>six tracked top-level test files<br/>never tests/Live/results"]
     SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
     CHECKS["Local source gate<br/>manifest metadata<br/>clean import + export parity<br/>syntax + docs + architecture<br/>94 passed; 6 integration not run"]
-    CI["Remote CI matrix<br/>Ubuntu pwsh<br/>macOS pwsh<br/>Windows pwsh<br/>Windows PowerShell 5.1<br/>no PSGallery publish"]
+    CI["Remote CI matrix passed<br/>Ubuntu pwsh<br/>macOS pwsh<br/>Windows pwsh<br/>Windows PowerShell 5.1<br/>no PSGallery publish"]
 
     INPUTS --> SCRIPT
     TRUST --> SCRIPT

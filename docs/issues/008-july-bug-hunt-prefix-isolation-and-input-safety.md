@@ -221,9 +221,9 @@ Acceptance criteria:
 
 - GitHub Issue [#8](https://github.com/jonathanweinberg/DrunkenAD/issues/8)
   is open with `bug` and `maintenance` labels.
-- Its evidence comment links implementation commits, delivery commit `43fccb3`,
-  and draft PR [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
-- Documentation CI passed. PowerShell CI reached the branch tests and exposed
-  two Windows test-portability assertions tracked with Issue 010; the focused
-  test-only correction remains approval-gated.
+- Its evidence comments link implementation commits, delivery commit `43fccb3`,
+  Windows portability commit `c259a1c`, and draft PR
+  [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
+- Documentation CI and the complete Ubuntu, macOS, Windows PowerShell Core, and
+  Windows PowerShell 5.1 matrix passed on `c259a1c`.
 - Leave the issue open for review unless explicitly authorized to close it.

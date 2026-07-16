@@ -14,6 +14,9 @@
   and record per-run inputs with SHA-256 hashes.
 - Added a Windows PowerShell 5.1 CI lane and regressions for script common
   parameters, JSON null/array conversion, and empty smoke assertions.
+- Made release-metadata and help-example assertions separator- and
+  parser-neutral, then passed the complete Ubuntu, macOS, Windows PowerShell
+  Core, and Windows PowerShell 5.1 matrix.
 - Fixed release-readiness drift by deriving the current release version from the
   module manifest instead of hardcoding an older release number.
 - Added architecture atlas validation for the reusable JSON map, embedded
@@ -23,7 +26,7 @@
   release gate catch map drift before release.
 - Refreshed the architecture atlas, Mermaid sources, issue mirrors, and six
   page-facing documentation plates to describe the current safety boundaries
-  without claiming remote CI, merge, tag, publish, or live-lab proof.
+  and verified CI state without claiming merge, tag, publish, or live-lab proof.
 
 ## 0.13.1
 

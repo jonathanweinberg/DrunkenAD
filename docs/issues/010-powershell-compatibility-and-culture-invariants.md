@@ -1,6 +1,6 @@
 # Issue 010: PowerShell Compatibility And Culture Invariants
 
-Status: Implemented on `codex-bug-hunt-2026-07-16`; Windows test correction and live-lab verification pending
+Status: Implemented on `codex-bug-hunt-2026-07-16`; full CI matrix passed; live-lab verification pending
 
 GitHub issue: [#10](https://github.com/jonathanweinberg/DrunkenAD/issues/10)
 
@@ -114,15 +114,24 @@ The remote matrix then ran on delivery commit `43fccb3`:
 - Windows PowerShell Core and Windows PowerShell 5.1 reached the suite but
   failed two test portability assertions: a slash-specific manifest `FileList`
   match and a per-fragment multiline help-example check.
-- These failures are not a confirmed module runtime defect. The narrow
-  test-only correction remains subject to explicit approval.
+- These failures were test portability defects rather than a confirmed module
+  runtime defect.
+
+After explicit approval, commit `c259a1c` normalized manifest separators before
+the help-topic suffix check and aggregated parsed example code per command. The
+trusted local gate passed with 100 discovered, 94 passed, 0 failed, and 6 not
+run. Both current-head workflows then passed:
+
+- Documentation CI: https://github.com/jonathanweinberg/DrunkenAD/actions/runs/29535087208
+- PowerShell CI: https://github.com/jonathanweinberg/DrunkenAD/actions/runs/29535087237
+- Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 all passed.
 
 ## Current GitHub State
 
 - GitHub Issue [#10](https://github.com/jonathanweinberg/DrunkenAD/issues/10)
   is open with `bug` and `maintenance` labels.
-- Its evidence comment links implementation commit `412a4e6`, delivery commit
-  `43fccb3`, and draft PR
+- Its evidence comments link implementation commit `412a4e6`, delivery commit
+  `43fccb3`, Windows portability commit `c259a1c`, and draft PR
   [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
-- Keep the issue open until the approved test correction produces a green
-  matrix and a controlled live-lab validation window is available.
+- Keep the issue open for review and a separately approved controlled live-lab
+  validation window.

@@ -60,7 +60,7 @@ remained intentionally not run. A separate normal-path regression verifies that
 
 - GitHub Issue [#11](https://github.com/jonathanweinberg/DrunkenAD/issues/11)
   is open with `bug` and `maintenance` labels.
-- Its evidence comment links implementation commit `4dc6a13`, delivery commit
-  `43fccb3`, and draft PR
+- Its evidence comments link implementation commit `4dc6a13`, delivery commit
+  `43fccb3`, Windows portability commit `c259a1c`, and draft PR
   [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
 - Keep the issue open for review.

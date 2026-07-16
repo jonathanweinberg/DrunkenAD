@@ -124,15 +124,15 @@ implementation. After the bounded changes:
 - no live AD command or campaign was executed
 
 The final trusted branch gate later reached 100 discovered tests: 94 passed, 0
-failed, and 6 environment-gated integration tests were not run. The issue
-remains open for review and a controlled live-lab `Quick` campaign after a green
-remote matrix and an explicitly approved mutation window are available.
+failed, and 6 environment-gated integration tests were not run. The complete
+remote matrix passed on `c259a1c`. The issue remains open for review and a
+controlled live-lab `Quick` campaign in an explicitly approved mutation window.
 
 ## Current GitHub State
 
 - GitHub Issue [#9](https://github.com/jonathanweinberg/DrunkenAD/issues/9)
   is open with `bug` and `maintenance` labels.
-- Its evidence comment links implementation commit `50cd9a9`, delivery commit
-  `43fccb3`, and draft PR
+- Its evidence comments link implementation commit `50cd9a9`, delivery commit
+  `43fccb3`, Windows portability commit `c259a1c`, and draft PR
   [#12](https://github.com/jonathanweinberg/DrunkenAD/pull/12).
 - Keep the issue open for review and future live-lab verification.
