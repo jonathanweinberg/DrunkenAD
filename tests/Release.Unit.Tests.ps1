@@ -2,6 +2,7 @@ Describe 'DrunkenAD release readiness' {
     BeforeAll {
         $script:projectRoot = Split-Path -Path $PSScriptRoot -Parent
         $script:releaseScriptPath = Join-Path -Path $script:projectRoot -ChildPath 'scripts/Test-DrunkenADRelease.ps1'
+        $script:testRunnerPath = Join-Path -Path $script:projectRoot -ChildPath 'tests/Invoke-DrunkenADTests.ps1'
         $script:docsScriptPath = Join-Path -Path $script:projectRoot -ChildPath 'scripts/Test-DrunkenADDocs.ps1'
         $script:architectureMapScriptPath = Join-Path -Path $script:projectRoot -ChildPath 'scripts/Test-DrunkenADArchitectureMap.ps1'
         $script:manifestPath = Join-Path -Path $script:projectRoot -ChildPath 'DrunkenAD/DrunkenAD.psd1'
@@ -22,6 +23,28 @@ Describe 'DrunkenAD release readiness' {
         $releaseScriptContent | Should -Match '\$releaseVersion\s*=\s*\$manifest\.Version\.ToString\(\)'
         $releaseScriptContent | Should -Not -Match 'Expected module version 0\.13\.0'
         $releaseScriptContent | Should -Not -Match 'ReleaseNotes must describe the 0\.13\.0 release'
+    }
+
+    It 'loads only the pinned Pester runtime and explicitly trusted test files' {
+        $releaseScriptContent = Get-Content -LiteralPath $script:releaseScriptPath -Raw
+        $runnerContent = Get-Content -LiteralPath $script:testRunnerPath -Raw
+
+        $releaseScriptContent | Should -Not -Match 'Add-DrunkenADLocalPesterCache|tests/Live/results|PSModulePath'
+        $runnerContent | Should -Not -Match 'Add-DrunkenADLocalPesterCache|tests/Live/results|PSModulePath|MinimumVersion'
+        $runnerContent | Should -Match 'RequiredVersion\s+\$requiredPesterVersion'
+        $runnerContent | Should -Match "\[version\]'5\.7\.1'"
+        $runnerContent | Should -Not -Match '\$configuration\.Run\.Path\s*=\s*\$PSScriptRoot'
+
+        foreach ($trustedTestName in @(
+            'DrunkenAD.Unit.Tests.ps1',
+            'Help.Unit.Tests.ps1',
+            'LiveCampaign.Unit.Tests.ps1',
+            'Release.Unit.Tests.ps1',
+            'SchemaEnablement.Unit.Tests.ps1',
+            'DrunkenAD.Integration.Tests.ps1'
+        )) {
+            $runnerContent | Should -Match ([regex]::Escape($trustedTestName))
+        }
     }
 
     It 'marks the module as the 0.13.2 release with publish-ready metadata' {

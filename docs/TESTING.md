@@ -25,11 +25,23 @@ Those tests focus on the safety-critical behavior:
 - first-class `Get-Help` coverage for every exported command and the
   `about_DrunkenAD` topic
 
-Run both parser and unit tests with:
+The test runner requires exactly Pester 5.7.1. Run the unit tests with:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1
 ```
+
+For an offline or isolated environment, pass a trusted, fully qualified Pester
+5.7.1 manifest path outside the repository's live-result storage:
+
+```powershell
+pwsh -NoLogo -NoProfile `
+    -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 `
+    -PesterManifestPath /opt/powershell/modules/Pester/5.7.1/Pester.psd1
+```
+
+The runner prints the resolved Pester version and manifest path, and discovers
+only its explicit top-level test allowlist.
 
 If you only want the parser gate:
 

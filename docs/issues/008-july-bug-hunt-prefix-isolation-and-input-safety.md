@@ -95,6 +95,72 @@ Acceptance criteria:
 - invalid input performs no AD readiness query, user lookup, or write
 - valid requests preserve the existing readiness and `ShouldProcess` gates
 
+## Confirmed Finding 5: Multivalue Fingerprint Collision
+
+`Set-ADUserDrinkPrefixedData` decides whether a write is needed by sorting each
+value array and joining it with newline separators. A single stored value that
+contains a newline can produce the same fingerprint as two requested values.
+The command then reports no change and skips a required AD update.
+
+Impact:
+
+- one multivalue shape can be mistaken for a different shape
+- a legitimate namespace replacement can silently remain unapplied
+- quoted multiline CSV fields can make the collision reachable through ingestion
+
+Acceptance criteria:
+
+- equality compares value elements without delimiter-based flattening
+- value count and membership both contribute to equality
+- existing case-insensitive no-op behavior is preserved unless separately changed
+- a one-value-to-two-value newline collision performs the expected write
+
+## Confirmed Finding 6: Blank Labeled CSV Cells Become Records
+
+The CSV converter adds a mapping label before its common record helper checks
+for blank values. A blank or whitespace-only source cell mapped with
+`Label = 'Tier'` therefore becomes the nonblank stored payload `Tier=` instead
+of being omitted like an unlabeled blank cell.
+
+Impact:
+
+- imports can create syntactically present but semantically empty directory data
+- labeled and unlabeled mappings handle the same blank source inconsistently
+- downstream consumers may treat `Label=` as an intentional value
+
+Acceptance criteria:
+
+- blank source field values are skipped before label formatting
+- a blank labeled mapping never emits a label-only record
+- other populated mappings on the same row still import normally
+- `SplitOn` and non-split mappings keep their existing populated-value behavior
+
+## Confirmed Finding 7: Release Validation Executes Ignored Artifacts
+
+Both default and release test harnesses search `tests/Live/results/*/Modules` when
+Pester 5 is not installed, prepend the selected ignored directory to
+`PSModulePath`, and import `Pester` by name with only a minimum version. The
+runner also gives Pester the entire `tests` directory, allowing recursively
+discovered `*.Tests.ps1` files under ignored live results to execute.
+
+Impact:
+
+- untracked run output can execute code inside a trusted release gate
+- a fake Pester module can forge a zero-failure result without running real tests
+- ignored test files can execute top-level discovery code even when Integration
+  tags are excluded
+- local release results vary with workstation residue and module inventory
+
+Acceptance criteria:
+
+- no test or release script searches or imports from `tests/Live/results`
+- no harness mutates `PSModulePath`
+- Pester is imported at exactly version 5.7.1 from an installed module or an
+  explicit fully qualified manifest path outside live-result storage
+- resolved Pester path and version are printed for provenance
+- default discovery runs only an explicit allowlist of tracked top-level tests
+- release tests enforce these source-level trust-boundary invariants
+
 ## Evidence
 
 - `DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1` removes matching values in a
@@ -120,6 +186,17 @@ Acceptance criteria:
   passed 78 tests with 0 failures and 6 integration tests not run.
 - The second `scripts/Test-DrunkenADRelease.ps1` run passed syntax, architecture,
   documentation hygiene, and all 78 default tests.
+- The newline-collision regression failed before implementation because one
+  embedded-newline value and two separate values produced the same fingerprint;
+  the element-wise comparison passed all 79 tests afterward.
+- The blank labeled-cell regression failed before implementation because the
+  actual data map contained `Tier=`; source normalization passed all 80 tests.
+- The release-provenance invariant failed before implementation on the ignored
+  cache function and recursive test root. After removal, the runner failed
+  closed when no trusted Pester was installed instead of loading ignored output.
+- A fresh official Pester 5.7.1 package supplied by fully qualified manifest
+  path passed 81 default tests and the complete release-readiness gate. The
+  output identified the exact resolved manifest path and six discovered files.
 
 ## Implementation
 
@@ -132,6 +209,10 @@ Acceptance criteria:
   projected values.
 - Apply one case-insensitive, non-overlapping prefix-set contract to the generic
   writer, remover, projection, CSV mapper, and legacy updater before AD readiness.
+- Compare multivalue sets element by element without separator flattening.
+- Normalize CSV source fields before label formatting and skip blank values.
+- Pin Pester to 5.7.1, remove ignored-cache loading and module-path mutation, and
+  constrain discovery to six named top-level test files.
 
 ## GitHub Handoff
 

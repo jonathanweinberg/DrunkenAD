@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$PesterManifestPath = $env:DRUNKENAD_PESTER_MANIFEST
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -8,30 +10,6 @@ $projectRoot = Split-Path -Path $PSScriptRoot -Parent
 $manifestPath = Join-Path -Path $projectRoot -ChildPath 'DrunkenAD/DrunkenAD.psd1'
 $moduleRoot = Split-Path -Path $manifestPath -Parent
 $changelogPath = Join-Path -Path $projectRoot -ChildPath 'CHANGELOG.md'
-
-function Add-DrunkenADLocalPesterCache {
-    [CmdletBinding()]
-    param()
-
-    if (Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version -ge [version]'5.0' }) {
-        return
-    }
-
-    $cacheRoot = Join-Path -Path $projectRoot -ChildPath 'tests/Live/results'
-    if (-not (Test-Path -LiteralPath $cacheRoot)) {
-        return
-    }
-
-    $candidate = Get-ChildItem -LiteralPath $cacheRoot -Directory |
-        ForEach-Object { Join-Path -Path $_.FullName -ChildPath 'Modules' } |
-        Where-Object { Test-Path -LiteralPath (Join-Path -Path $_ -ChildPath 'Pester') } |
-        Sort-Object -Descending |
-        Select-Object -First 1
-
-    if ($candidate) {
-        $env:PSModulePath = '{0}{1}{2}' -f $candidate, [System.IO.Path]::PathSeparator, $env:PSModulePath
-    }
-}
 
 & (Join-Path -Path $PSScriptRoot -ChildPath 'Test-DrunkenADSyntax.ps1')
 & (Join-Path -Path $PSScriptRoot -ChildPath 'Test-DrunkenADDocs.ps1')
@@ -78,7 +56,11 @@ foreach ($requiredDirectory in @('Private', 'Public')) {
     }
 }
 
-Add-DrunkenADLocalPesterCache
-& (Join-Path -Path $projectRoot -ChildPath 'tests/Invoke-DrunkenADTests.ps1') -Output Normal
+$testParams = @{ Output = 'Normal' }
+if (-not [string]::IsNullOrWhiteSpace($PesterManifestPath)) {
+    $testParams['PesterManifestPath'] = $PesterManifestPath
+}
+
+& (Join-Path -Path $projectRoot -ChildPath 'tests/Invoke-DrunkenADTests.ps1') @testParams
 
 Write-Host 'DrunkenAD release-readiness checks passed.' -ForegroundColor Green
