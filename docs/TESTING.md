@@ -184,7 +184,7 @@ For module changes, the clean loop is:
 
 The repository includes two GitHub Actions workflows:
 
-- [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core PowerShell gate.
+- [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core gate on Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 Desktop with pinned Pester 5.7.1.
 - [.github/workflows/documentation-ci.yml](../.github/workflows/documentation-ci.yml) runs documentation hygiene checks.
 
 The PowerShell workflow:

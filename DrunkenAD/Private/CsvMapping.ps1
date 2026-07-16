@@ -33,6 +33,7 @@ function ConvertTo-DrunkenADHashtable {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $InputObject
     )
 
@@ -55,7 +56,7 @@ function ConvertTo-DrunkenADHashtable {
             $items += ,(ConvertTo-DrunkenADHashtable -InputObject $item)
         }
 
-        return $items
+        return ,$items
     }
 
     if ($InputObject -is [psobject] -and @($InputObject.PSObject.Properties).Count -gt 0) {

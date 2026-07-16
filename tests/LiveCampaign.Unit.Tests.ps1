@@ -98,6 +98,22 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
         $passwordCheckIndex | Should -BeGreaterThan $confirmationIndex
     }
 
+    It 'allows the inline smoke assertion to expect an empty value set' {
+        $assertionFunction = $script:guestCampaignAst.FindAll(
+            {
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -eq 'Assert-DrinkValuesMatch'
+            },
+            $true
+        ) | Select-Object -First 1
+        $expectedParameter = $assertionFunction.Body.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'Expected' }
+
+        $assertionFunction | Should -Not -BeNullOrEmpty
+        $expectedParameter.Attributes.TypeName.Name | Should -Contain 'AllowEmptyCollection'
+    }
+
     It 'validates exact manifest and CSV identities before any campaign mutation' {
         $script:guestCampaignContent | Should -Match 'function Assert-SeedIdentitySetsMatch'
         $script:guestCampaignContent | Should -Match '(?s)Assert-SeedIdentitySetsMatch.+foreach \(\$ouDn'

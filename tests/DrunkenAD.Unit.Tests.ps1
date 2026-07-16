@@ -169,6 +169,16 @@ Describe 'DrunkenAD unit tests' {
             }
         }
 
+        Context 'ConvertTo-DrunkenADHashtable' {
+            It 'preserves nested JSON null values without a binding error' {
+                $configObject = '{"Profile-":[{"Column":"Tier","Label":null}]}' | ConvertFrom-Json
+
+                $result = ConvertTo-DrunkenADHashtable -InputObject $configObject
+
+                $result['Profile-'][0]['Label'] | Should -BeNullOrEmpty
+            }
+        }
+
         Context 'Split-DrunkenADCsvField' {
             It 'splits CSV multivalue fields with trimming and empty item removal' {
                 $result = Split-DrunkenADCsvField -Value 'Enabled; Audited ; ; Keep-Stable ' -Delimiter ';'
@@ -432,6 +442,28 @@ Describe 'DrunkenAD unit tests' {
 
                 $result | Should -Be @('Flags-Audited', 'Flags-Enabled')
             }
+
+            It 'matches prefix ownership ordinally under Turkish culture' {
+                $previousCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+                $previousUiCulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+                try {
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('tr-TR')
+                    [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('tr-TR')
+                    Mock Resolve-DrunkenADUser {
+                        [pscustomobject]@{
+                            drink = @('FILE-Old', 'Keep-Stable')
+                        }
+                    }
+
+                    $result = Get-ADUserDrinkData -SamAccountName 'demo' -Prefix 'file-'
+
+                    $result | Should -Be @('FILE-Old')
+                }
+                finally {
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = $previousCulture
+                    [System.Threading.Thread]::CurrentThread.CurrentUICulture = $previousUiCulture
+                }
+            }
         }
 
         Context 'Set-ADUserDrinkPrefixedData' {
@@ -475,6 +507,32 @@ Describe 'DrunkenAD unit tests' {
                 $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Test1-old'
                 $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Keep-me'
                 $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Not -Contain 'Test[1]-old'
+            }
+
+            It 'replaces prefix ownership ordinally under Turkish culture' {
+                $previousCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+                $previousUiCulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+                try {
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('tr-TR')
+                    [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('tr-TR')
+                    Mock Resolve-DrunkenADUser {
+                        [pscustomobject]@{
+                            SamAccountName    = 'demo'
+                            DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                            drink             = @('FILE-Old', 'Keep-Stable')
+                        }
+                    }
+
+                    $result = Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'file-' = @('New') } -Confirm:$false -PassThru
+
+                    $result | Should -Contain 'file-New'
+                    $result | Should -Contain 'Keep-Stable'
+                    $result | Should -Not -Contain 'FILE-Old'
+                }
+                finally {
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = $previousCulture
+                    [System.Threading.Thread]::CurrentThread.CurrentUICulture = $previousUiCulture
+                }
             }
 
             It 'clears the attribute when all values are removed' {

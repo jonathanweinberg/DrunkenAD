@@ -146,8 +146,9 @@ function Set-ADUserDrinkPrefixedData {
             throw "Prefix values cannot be null, empty, or whitespace."
         }
 
-        $escapedPrefix = [regex]::Escape($prefix)
-        $updatedDrinks = @($updatedDrinks | Where-Object { $_ -notmatch ('^{0}' -f $escapedPrefix) })
+        $updatedDrinks = @($updatedDrinks | Where-Object {
+            -not $_.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        })
 
         $rawValues = ConvertTo-DrunkenADStringArray -Values $PrefixMap[$prefixKey] -SkipBlank
         $prefixedValues = @()

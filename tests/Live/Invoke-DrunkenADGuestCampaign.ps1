@@ -181,8 +181,9 @@ function Get-FilteredDrinkValues {
 
     $result = @()
     foreach ($prefix in $Prefixes) {
-        $escapedPrefix = [regex]::Escape($prefix)
-        $result += @($Values | Where-Object { $_ -match ('^{0}' -f $escapedPrefix) })
+        $result += @($Values | Where-Object {
+            $_.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        })
     }
 
     @($result | Sort-Object -Unique)
@@ -559,6 +560,7 @@ function Assert-DrinkValuesMatch {
         [string[]]$Actual,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [string[]]$Expected,
 
         [Parameter(Mandatory = $true)]

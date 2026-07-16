@@ -75,3 +75,44 @@ jobs:
           path: ${{ env.PESTER_RESULT_PATH }}
           if-no-files-found: ignore
           retention-days: 14
+
+  windows-powershell-51:
+    name: Windows PowerShell 5.1
+    runs-on: windows-latest
+
+    permissions:
+      contents: read
+
+    env:
+      PESTER_VERSION: 5.7.1
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $psGallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+          if ($psGallery) {
+              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          }
+          else {
+              Register-PSRepository -Default -InstallationPolicy Trusted
+          }
+          Install-Module Pester -RequiredVersion $env:PESTER_VERSION -Scope CurrentUser -Force -SkipPublisherCheck
+
+      - name: Run release-readiness checks in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion -notlike '5.1.*' -or $PSVersionTable.PSEdition -ne 'Desktop') {
+              throw "Expected Windows PowerShell 5.1 Desktop but found $($PSVersionTable.PSVersion) $($PSVersionTable.PSEdition)."
+          }
+          $pesterManifest = Get-Module Pester -ListAvailable |
+              Where-Object Version -eq ([version]$env:PESTER_VERSION) |
+              Select-Object -First 1 -ExpandProperty Path
+          if ([string]::IsNullOrWhiteSpace($pesterManifest)) {
+              throw "Pester $env:PESTER_VERSION was not found."
+          }
+          .\scripts\Test-DrunkenADRelease.ps1 -PesterManifestPath $pesterManifest

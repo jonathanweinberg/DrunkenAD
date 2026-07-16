@@ -311,7 +311,7 @@ More detail lives in [docs/README.md](docs/README.md), [docs/USE-CASES.md](docs/
 
 GitHub Actions runs two fast default gates:
 
-- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, runs the unit suite, and runs release-readiness checks on Ubuntu, macOS, and Windows.
+- [.github/workflows/powershell-ci.yml](.github/workflows/powershell-ci.yml) installs a pinned Pester version, validates the module manifest, parses tracked PowerShell files, runs the unit suite, and runs release-readiness checks on Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 Desktop.
 - [.github/workflows/documentation-ci.yml](.github/workflows/documentation-ci.yml) checks documentation hygiene, rejects machine-specific checkout paths, verifies Markdown image/link targets, and ensures live result artifacts stay untracked.
 
 The PowerShell workflow uploads per-OS Pester XML results as short-lived artifacts. Integration tests and the full live campaign stay opt-in because they require a prepared Active Directory lab.

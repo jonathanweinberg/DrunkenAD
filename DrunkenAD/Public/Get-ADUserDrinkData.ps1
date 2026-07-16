@@ -105,8 +105,9 @@ function Get-ADUserDrinkData {
     $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
 
     if ($PSBoundParameters.ContainsKey('Prefix')) {
-        $escapedPrefix = [regex]::Escape($Prefix)
-        $values = @($values | Where-Object { $_ -match ('^{0}' -f $escapedPrefix) })
+        $values = @($values | Where-Object {
+            $_.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        })
     }
 
     @($values)
