@@ -443,6 +443,15 @@ Describe 'DrunkenAD unit tests' {
                 $result | Should -Be @('Flags-Audited', 'Flags-Enabled')
             }
 
+            It 'rejects a blank supplied prefix before checking AD readiness' {
+                {
+                    Get-ADUserDrinkData -SamAccountName 'demo' -Prefix '   '
+                } | Should -Throw '*Prefix*blank*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeEnabled -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+            }
+
             It 'matches prefix ownership ordinally under Turkish culture' {
                 $previousCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
                 $previousUiCulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
@@ -895,6 +904,47 @@ Describe 'DrunkenAD unit tests' {
                 Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
                     -not $DataMap.Contains('Profile-') -and
                     ((@($DataMap['Flags-']) -join ',') -eq 'Enabled')
+                }
+            }
+
+            It 'rejects duplicate normalized CSV identities before checking AD readiness' {
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{ SamAccountName = 'Alice'; ProfileTier = 'Gold' }
+                        [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Silver' }
+                    )
+                }
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                }
+
+                {
+                    Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                } | Should -Throw '*duplicate*SamAccountName*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+
+            It 'trims a unique CSV identity before writing and reporting it' {
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Gold' }
+                    )
+                }
+                $namespaceMap = @{
+                    'Profile-' = @(
+                        @{ Column = 'ProfileTier'; Label = 'Tier' }
+                    )
+                }
+
+                $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+
+                $result.SamAccountName | Should -Be 'alice'
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'alice'
                 }
             }
 

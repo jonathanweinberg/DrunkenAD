@@ -19,6 +19,12 @@ It uses these columns:
 - `TenantId`
 - `SyncState`
 
+Every nonblank `SamAccountName` is trimmed and must be unique
+case-insensitively within the file. Duplicate identities fail local preflight
+before schema checks or user writes, which prevents row order from deciding the
+final namespace value. Blank identities retain the documented warning-and-skip
+behavior.
+
 The sample import script maps those columns into namespaces like this:
 
 - `ProfileTier` -> `Profile-Tier=<value>`
@@ -70,6 +76,7 @@ semicolons from becoming empty `drink` records.
 Before running the import:
 
 - make sure the target users already exist in AD
+- make sure each nonblank `SamAccountName` appears only once in the CSV
 - confirm `drink` is writable on user objects with `Test-ADDrinkAttributeReadyForUserWrite`
 - decide which namespaces this workflow owns so it does not overwrite data managed elsewhere
 

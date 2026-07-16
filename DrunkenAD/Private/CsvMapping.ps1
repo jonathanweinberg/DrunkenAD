@@ -177,6 +177,28 @@ function Assert-DrunkenADCsvColumns {
     }
 }
 
+function Assert-DrunkenADCsvIdentities {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Rows
+    )
+
+    $seenIdentities = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in $Rows) {
+        $identity = [string]$row.SamAccountName
+        if ([string]::IsNullOrWhiteSpace($identity)) {
+            continue
+        }
+
+        $identity = $identity.Trim()
+        if (-not $seenIdentities.Add($identity)) {
+            throw "CSV contains duplicate SamAccountName '$identity'."
+        }
+    }
+}
+
 function ConvertTo-DrunkenADCsvDataMap {
     [CmdletBinding()]
     param(

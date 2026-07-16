@@ -106,6 +106,7 @@ function Import-ADUserDrinkCsvData {
     $mappings = @(Get-DrunkenADCsvMappings -NamespaceMap $effectiveNamespaceMap)
 
     Assert-DrunkenADCsvColumns -CsvPath $CsvPath -Rows $rows -Mappings $mappings
+    Assert-DrunkenADCsvIdentities -Rows $rows
 
     Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
@@ -115,20 +116,22 @@ function Import-ADUserDrinkCsvData {
             continue
         }
 
+        $samAccountName = ([string]$row.SamAccountName).Trim()
+
         $dataMap = ConvertTo-DrunkenADCsvDataMap -Row $row -Mappings $mappings
 
         if ($dataMap.Count -eq 0) {
-            Write-Warning "Skipping '$($row.SamAccountName)' because the row did not contain any drink data."
+            Write-Warning "Skipping '$samAccountName' because the row did not contain any drink data."
             continue
         }
 
         $finalDrinkValues = @()
-        if ($PSCmdlet.ShouldProcess($row.SamAccountName, 'Import drink data from CSV')) {
-            $finalDrinkValues = @(Set-ADUserDrinkData -SamAccountName $row.SamAccountName -DataMap $dataMap -DomainController $DomainController -LogPath $LogPath -Confirm:$false -PassThru)
+        if ($PSCmdlet.ShouldProcess($samAccountName, 'Import drink data from CSV')) {
+            $finalDrinkValues = @(Set-ADUserDrinkData -SamAccountName $samAccountName -DataMap $dataMap -DomainController $DomainController -LogPath $LogPath -Confirm:$false -PassThru)
         }
 
         [pscustomobject]@{
-            SamAccountName   = $row.SamAccountName
+            SamAccountName   = $samAccountName
             ConfigSource     = if ($PSCmdlet.ParameterSetName -eq 'NamespaceMap') { 'NamespaceMap' } else { $ConfigPath }
             Namespaces       = @($dataMap.Keys)
             DataMap          = $dataMap
