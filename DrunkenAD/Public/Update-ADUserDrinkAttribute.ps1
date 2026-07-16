@@ -117,9 +117,9 @@ function Update-ADUserDrinkAttribute {
         [switch]$PassThru
     )
 
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
     $prefixMap = ConvertTo-DrunkenADPrefixMap -Prefixes $Prefixes -DrinkValues $DrinkValues
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($prefixMap.Keys | ForEach-Object { [string]$_ })
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
     $effectiveLogPath = Resolve-DrunkenADLogPath -LogPath $LogPath -EnableLogging:$EnableLogging
     $identityParams = @{}
 

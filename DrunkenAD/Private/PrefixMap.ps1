@@ -2,8 +2,13 @@ function Assert-DrunkenADNonOverlappingPrefixes {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [string[]]$Prefixes
     )
+
+    if ($Prefixes.Count -eq 0) {
+        throw 'At least one prefix must be supplied.'
+    }
 
     $normalizedPrefixes = @()
     foreach ($prefix in $Prefixes) {

@@ -43,9 +43,7 @@ function ConvertTo-DrunkenADProjectionDataMap {
             }
         }
 
-        if ($records.Count -gt 0) {
-            $dataMap[$prefix] = $records
-        }
+        $dataMap[$prefix] = $records
     }
 
     $dataMap

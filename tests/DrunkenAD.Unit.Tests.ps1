@@ -161,6 +161,12 @@ Describe 'DrunkenAD unit tests' {
                     Assert-DrunkenADNonOverlappingPrefixes -Prefixes 'Profile-', 'profile-tier-'
                 } | Should -Throw '*overlap*'
             }
+
+            It 'rejects an empty prefix set with a deterministic error' {
+                {
+                    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @()
+                } | Should -Throw '*at least one prefix*'
+            }
         }
 
         Context 'Split-DrunkenADCsvField' {
@@ -567,6 +573,22 @@ Describe 'DrunkenAD unit tests' {
 
                 Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
             }
+
+            It 'rejects an overlapping DataMap before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+
+                {
+                    Set-ADUserDrinkData -SamAccountName 'demo' -DataMap @{
+                        'Profile-'      = @('Tier=Gold')
+                        'Profile-Tier-' = @('Gold')
+                    } -Confirm:$false
+                } | Should -Throw '*overlap*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+            }
         }
 
         Context 'Remove-ADUserDrinkData' {
@@ -590,6 +612,19 @@ Describe 'DrunkenAD unit tests' {
             It 'honors WhatIf at the generic remover layer' {
                 Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes 'Profile-' -WhatIf
 
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
+
+            It 'rejects a blank prefix before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+
+                {
+                    Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes '   ' -Confirm:$false
+                } | Should -Throw '*cannot be null, empty, or whitespace*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
                 Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
         }
@@ -656,6 +691,39 @@ Describe 'DrunkenAD unit tests' {
                     $DataMap.Count -eq 1 -and
                     ((@($DataMap['Org-']) | Sort-Object) -join ',') -eq 'department=Identity,title=Engineer'
                 }
+            }
+
+            It 'clears a projected namespace when all mapped source values are blank' {
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName    = 'demo'
+                        DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
+                        department        = $null
+                        title             = '   '
+                    }
+                }
+
+                Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('department', 'title') } -Confirm:$false | Out-Null
+
+                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and
+                    $DataMap.Contains('Org-') -and
+                    @($DataMap['Org-']).Count -eq 0
+                }
+            }
+
+            It 'rejects an invalid projection map before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+
+                {
+                    Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('   ') } -Confirm:$false
+                } | Should -Throw '*must include at least one attribute name*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
 
             It 'merges a custom map with the default projection map when requested' {
@@ -845,6 +913,32 @@ Describe 'DrunkenAD unit tests' {
                 Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
                 Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
+
+            It 'rejects overlapping CSV namespaces before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+                Mock Import-Csv {
+                    @(
+                        [pscustomobject]@{
+                            SamAccountName = 'alice'
+                            ProfileTier    = 'Gold'
+                        }
+                    )
+                }
+
+                $namespaceMap = @{
+                    'Profile-'      = @(@{ Column = 'ProfileTier'; Label = 'Tier' })
+                    'Profile-Tier-' = @(@{ Column = 'ProfileTier' })
+                }
+
+                {
+                    Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                } | Should -Throw '*overlap*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
+            }
         }
 
         Context 'Invoke-ADUserDrinkDataDemo' {
@@ -883,6 +977,19 @@ Describe 'DrunkenAD unit tests' {
             It 'honors WhatIf at the wrapper layer' {
                 Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-' -DrinkValues 'A' -WhatIf
 
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+            }
+
+            It 'rejects mismatched arrays before checking AD readiness' {
+                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                    throw 'AD readiness should not run for invalid local input.'
+                }
+
+                {
+                    Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-', 'Two-', 'Three-' -DrinkValues 'A', 'B' -Confirm:$false
+                } | Should -Throw '*counts must match*'
+
+                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
                 Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
             }
 

@@ -104,6 +104,8 @@ function Get-DrunkenADCsvMappings {
         [hashtable]$NamespaceMap
     )
 
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($NamespaceMap.Keys | ForEach-Object { [string]$_ })
+
     $mappings = @()
 
     foreach ($prefix in $NamespaceMap.Keys) {

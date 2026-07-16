@@ -122,8 +122,6 @@ function Set-ADUserDrinkProjection {
         [switch]$PassThru
     )
 
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
     $defaultAttributeMap = Get-DrunkenADDefaultProjectionAttributeMap
     $effectiveAttributeMap = if ($PSBoundParameters.ContainsKey('AttributeMap')) {
         if ($IncludeDefaultAttributeMap) {
@@ -136,6 +134,9 @@ function Set-ADUserDrinkProjection {
     else {
         $defaultAttributeMap
     }
+
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($effectiveAttributeMap.Keys | ForEach-Object { [string]$_ })
+    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $attributeNames = @(
         foreach ($prefix in $effectiveAttributeMap.Keys) {
