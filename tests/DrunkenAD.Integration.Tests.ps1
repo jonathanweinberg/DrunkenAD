@@ -256,6 +256,46 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         $actualValues | Should -Be ($expectedValues | Sort-Object)
     }
 
+    It 'preserves shipped CSV and default projection values in <Order> order' -ForEach @(
+        @{ Order = 'CSV then projection' },
+        @{ Order = 'projection then CSV' }
+    ) {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        $csvPath = Join-Path $TestDrive 'sample-coexistence.csv'
+        @(
+            'SamAccountName,ProfileTier,ProfileRegion,Flags,RoutingMailbox,TenantId,SyncState'
+            ('{0},Gold,NA,Enabled;Audited,Queue,Example,Synced' -f $script:userName)
+        ) | Set-Content -LiteralPath $csvPath -Encoding utf8
+        $configPath = Join-Path $PSScriptRoot '../examples/data/drink-ingestion-config.json'
+        Remove-ADUserDrinkData -SamAccountName $script:userName -Prefixes @('CsvProfile-', 'CsvRouting-', 'Flags-', 'Tenant-', 'Sync-', 'Profile-', 'Identity-', 'Meta-', 'Routing-', 'Notify-') -DomainController $script:domainController -Confirm:$false
+        if ($Order -eq 'CSV then projection') {
+            Import-ADUserDrinkCsvData -CsvPath $csvPath -ConfigPath $configPath -DomainController $script:domainController -Confirm:$false | Out-Null
+            Set-ADUserDrinkProjection -SamAccountName $script:userName -DomainController $script:domainController -Confirm:$false
+        }
+        else {
+            Set-ADUserDrinkProjection -SamAccountName $script:userName -DomainController $script:domainController -Confirm:$false
+            Import-ADUserDrinkCsvData -CsvPath $csvPath -ConfigPath $configPath -DomainController $script:domainController -Confirm:$false | Out-Null
+        }
+
+        $values = @(Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController)
+        $expected = @(
+            'CsvProfile-Tier=Gold', 'CsvProfile-Region=NA', 'CsvRouting-Mailbox=Queue'
+            'Flags-Enabled', 'Flags-Audited', 'Tenant-Id=Example', 'Sync-State=Synced'
+            ('Profile-samAccountName={0}' -f $script:userName)
+            ('Identity-userPrincipalName={0}' -f $script:userPrincipalName)
+            ('Meta-employeeID={0}' -f $script:employeeId)
+            ('Routing-mail={0}' -f $script:mail)
+            ('Notify-pager={0}' -f $script:mail)
+        )
+        $owned = @($values | Where-Object { $_ -match '^(CsvProfile|CsvRouting|Flags|Tenant|Sync|Profile|Identity|Meta|Routing|Notify)-' } | Sort-Object)
+        $owned | Should -Be ($expected | Sort-Object)
+        $values | Should -Contain 'Keep-Stable'
+    }
+
     It 'applies case-only replacements on a real directory' {
         if (-not $script:readinessStatus.ReadyForUserWrite) {
             Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'

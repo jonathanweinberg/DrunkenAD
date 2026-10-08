@@ -91,20 +91,11 @@ function Get-ADUserDrinkData {
         throw 'Prefix cannot be null, empty, or blank when supplied.'
     }
 
-    Assert-ADDrinkAttributeEnabled -Server $DomainController
+    $schemaStatus = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru
 
-    $resolveUserParams = @{
-        Server     = $DomainController
-        Properties = @('drink')
-    }
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName'    { $resolveUserParams['SamAccountName'] = $SamAccountName }
-        'UserPrincipalName' { $resolveUserParams['UserPrincipalName'] = $UserPrincipalName }
-        'EmployeeID'        { $resolveUserParams['EmployeeID'] = $EmployeeID }
-        'Mail'              { $resolveUserParams['Mail'] = $Mail }
-        'Pager'             { $resolveUserParams['Pager'] = $Pager }
-    }
+    $resolveUserParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+    $resolveUserParams.Server = $schemaStatus.Server
+    $resolveUserParams.Properties = @('drink')
 
     $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
 

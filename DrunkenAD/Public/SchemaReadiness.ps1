@@ -5,7 +5,9 @@ Tests whether the Active Directory `drink` attribute exists and is not defunct.
 .DESCRIPTION
 Queries the schema naming context on the target domain controller and verifies
 that an attribute with the LDAP display name `drink` exists and is not defunct.
-The Boolean result preserves the original meaning of schema presence. Use
+The Boolean result checks only schema presence, without walking user class
+inheritance. PassThru also validates the full class graph for readiness details
+and fails if that graph cannot be resolved safely. Use
 `Test-ADDrinkAttributeReadyForUserWrite` when you need to know whether the
 attribute is also allowed on the Active Directory `user` class.
 
@@ -14,7 +16,8 @@ Optional domain controller to query. When omitted, the default AD connection
 behavior is used.
 
 .PARAMETER PassThru
-Returns a richer object describing the lookup instead of a simple Boolean.
+Returns a richer object describing schema presence and full user write readiness
+instead of a simple Boolean.
 
 .INPUTS
 None. This command does not accept pipeline input.
@@ -57,7 +60,7 @@ function Test-ADDrinkAttributeEnabled {
         [switch]$PassThru
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly:(-not $PassThru)
 
     if ($PassThru) {
         $status

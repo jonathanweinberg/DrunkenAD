@@ -40,7 +40,8 @@ Optional log file path for appended activity records.
 
 .PARAMETER PassThru
 Returns a summary object containing the effective attribute map, the generated
-data map, and computed `drink` values, including with `WhatIf`. These values are
+data map, Status (Written, NoChange, Declined, or WhatIf), and computed `drink`
+values, including with `WhatIf`. These values are
 based on the initial read; concurrent directory changes require a fresh read.
 
 .INPUTS
@@ -151,18 +152,19 @@ function Set-ADUserDrinkProjection {
         PrefixMap = $dataMap
         Context = $context
         LogPath = $LogPath
-        PassThru = $true
+        ResultObject = $true
     }
     foreach ($name in @('WhatIf', 'Confirm')) {
         if ($PSBoundParameters.ContainsKey($name)) { $writeParams[$name] = $PSBoundParameters[$name] }
     }
-    $finalDrinkValues = @(Invoke-DrunkenADPrefixWrite @writeParams)
+    $writeResult = Invoke-DrunkenADPrefixWrite @writeParams
     if ($PassThru) {
         [pscustomobject]@{
             SamAccountName = $user.SamAccountName
             EffectiveAttributeMap = $effectiveAttributeMap
             DataMap = $dataMap
-            FinalDrinkValues = $finalDrinkValues
+            FinalDrinkValues = @($writeResult.FinalDrinkValues)
+            Status = $writeResult.Status
         }
     }
 }

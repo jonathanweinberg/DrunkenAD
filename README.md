@@ -337,7 +337,8 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 
 - It expects target users to already exist in Active Directory.
 - It expects `Test-ADDrinkAttributeReadyForUserWrite` to succeed before any import is attempted.
-- It turns fixed CSV columns into namespace records such as `Profile-`, `Flags-`, `Routing-`, `Tenant-`, and `Sync-`.
+- It uses `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and `Sync-`, separate from the built-in projection namespaces.
+- Each row replaces every mapped namespace; blank cells remove old mapped records. Review this behavior with `-WhatIf` before updating an existing import.
 - It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
 - It uses the same domain controller for validation, lookup, and write operations.
@@ -366,7 +367,7 @@ Use an in-memory namespace map instead of a config file:
 
 ```powershell
 $namespaceMap = @{
-    'Profile-' = @(
+    'CsvProfile-' = @(
         @{ Column = 'ProfileTier'; Label = 'Tier' }
         @{ Column = 'ProfileRegion'; Label = 'Region' }
     )

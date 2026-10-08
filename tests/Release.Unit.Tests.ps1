@@ -9,20 +9,85 @@ Describe 'DrunkenAD release readiness' {
         $script:manifest = Test-ModuleManifest -Path $script:manifestPath
     }
 
-    It 'has a release-readiness script that does not publish artifacts' {
-        Test-Path -LiteralPath $script:releaseScriptPath -PathType Leaf | Should -BeTrue
+    Context 'Release gate behavior in an isolated fixture' {
+        BeforeEach {
+            $script:fixtureRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            New-Item (Join-Path $script:fixtureRoot 'scripts') -ItemType Directory -Force | Out-Null
+            New-Item (Join-Path $script:fixtureRoot 'tests') -ItemType Directory -Force | Out-Null
+            Copy-Item (Join-Path $script:projectRoot 'DrunkenAD') $script:fixtureRoot -Recurse
+            Copy-Item (Join-Path $script:projectRoot 'CHANGELOG.md') $script:fixtureRoot
+            $script:fixtureGate = Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADRelease.ps1'
+            Copy-Item $script:releaseScriptPath $script:fixtureGate
+            Set-Content (Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADSyntax.ps1') "'syntax' | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
+            Set-Content (Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADDocs.ps1') "'docs' | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
+            Set-Content (Join-Path $script:fixtureRoot 'tests/Invoke-DrunkenADTests.ps1') "param(`$Output, `$PesterManifestPath) ('tests:' + `$PesterManifestPath) | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
+            Mock Publish-Module { throw 'Publishing is forbidden in release gate tests.' }
+        }
 
-        $releaseScriptContent = Get-Content -LiteralPath $script:releaseScriptPath -Raw
-        $releaseScriptContent | Should -Match 'Test-DrunkenADSyntax'
-        $releaseScriptContent | Should -Match 'Test-DrunkenADDocs'
-        $releaseScriptContent | Should -Not -Match 'Publish-Module'
-    }
+        AfterEach {
+            $fixtureModuleRoot = Join-Path $script:fixtureRoot 'DrunkenAD'
+            $fixtureModules = @(Get-Module -Name DrunkenAD | Where-Object { $_.ModuleBase -eq $fixtureModuleRoot })
+            if ($fixtureModules.Count -gt 0) {
+                Remove-Module -ModuleInfo $fixtureModules -Force -ErrorAction Stop
+            }
+            Import-Module $script:manifestPath -Global -Force -ErrorAction Stop
+            @(Get-Module -Name DrunkenAD | Where-Object { $_.ModuleBase -eq $fixtureModuleRoot }).Count | Should -Be 0
+            @(Get-Module -Name DrunkenAD | Where-Object { $_.ModuleBase -eq (Split-Path $script:manifestPath -Parent) }).Count | Should -Be 1
+        }
 
-    It 'derives the current release version from the manifest in the release gate' {
-        $releaseScriptContent = Get-Content -LiteralPath $script:releaseScriptPath -Raw
-        $releaseScriptContent | Should -Match '\$releaseVersion\s*=\s*\$manifest\.Version\.ToString\(\)'
-        $releaseScriptContent | Should -Not -Match 'Expected module version 0\.13\.0'
-        $releaseScriptContent | Should -Not -Match 'ReleaseNotes must describe the 0\.13\.0 release'
+        It 'runs prerequisite checks and forwards the selected test runtime without publishing' {
+            & $script:fixtureGate -PesterManifestPath 'synthetic-pester.psd1'
+            $calls = @(Get-Content (Join-Path $script:fixtureRoot 'calls.txt'))
+            $calls.Count | Should -Be 3
+            $calls[0] | Should -Be 'syntax'
+            $calls[1] | Should -Be 'docs'
+            $calls[2] | Should -Be 'tests:synthetic-pester.psd1'
+            Should -Invoke Publish-Module -Times 0 -Exactly
+        }
+
+        It 'stops before tests when a prerequisite fails' {
+            Set-Content (Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADDocs.ps1') "throw 'Synthetic documentation failure'"
+            { & $script:fixtureGate } | Should -Throw '*Synthetic documentation failure*'
+            @(Get-Content (Join-Path $script:fixtureRoot 'calls.txt')).Count | Should -Be 1
+            Should -Invoke Publish-Module -Times 0 -Exactly
+        }
+
+        It 'uses the manifest version rather than a hard-coded release version' {
+            Mock Test-ModuleManifest {
+                param($Path)
+                $exports = @{}
+                foreach ($name in (Import-PowerShellDataFile -LiteralPath $Path).FunctionsToExport) {
+                    $exports[$name] = $true
+                }
+                [pscustomobject]@{
+                    Version = [version]'9.8.7'
+                    PrivateData = @{ PSData = @{
+                        ProjectUri = 'https://github.com/jonathanweinberg/DrunkenAD'
+                        ReleaseNotes = 'Release 9.8.7 fixture'
+                    } }
+                    ExportedFunctions = $exports
+                }
+            }
+            Add-Content (Join-Path $script:fixtureRoot 'CHANGELOG.md') "`n## 9.8.7"
+            { & $script:fixtureGate } | Should -Not -Throw
+            Should -Invoke Test-ModuleManifest -Times 1 -Exactly
+        }
+
+        It 'rejects release notes that do not describe the manifest version' {
+            Mock Test-ModuleManifest {
+                param($Path)
+                [pscustomobject]@{
+                    Version = [version](Import-PowerShellDataFile -LiteralPath $Path).ModuleVersion
+                    PrivateData = @{ PSData = @{
+                        ProjectUri = 'https://github.com/jonathanweinberg/DrunkenAD'
+                        ReleaseNotes = 'Unrelated release'
+                    } }
+                }
+            }
+            { & $script:fixtureGate } | Should -Throw '*ReleaseNotes must describe*'
+            @(Get-Content (Join-Path $script:fixtureRoot 'calls.txt')).Count | Should -Be 2
+            Should -Invoke Test-ModuleManifest -Times 1 -Exactly
+        }
     }
 
     It 'loads only the pinned Pester runtime and explicitly trusted test files' {
@@ -39,7 +104,9 @@ Describe 'DrunkenAD release readiness' {
             'DrunkenAD.Unit.Tests.ps1',
             'Help.Unit.Tests.ps1',
             'LiveCampaign.Unit.Tests.ps1',
+            'Logging.Unit.Tests.ps1',
             'Release.Unit.Tests.ps1',
+            'SampleOwnership.Unit.Tests.ps1',
             'SchemaEnablement.Unit.Tests.ps1',
             'DrunkenAD.Integration.Tests.ps1'
         )) {
@@ -89,6 +156,7 @@ Describe 'DrunkenAD release readiness' {
             'DrunkenAD.Unit.Tests.ps1', 'Help.Unit.Tests.ps1', 'LiveCampaign.Unit.Tests.ps1',
             'Release.Unit.Tests.ps1', 'SchemaEnablement.Unit.Tests.ps1',
             'SchemaStatus.Unit.Tests.ps1', 'WriteOperation.Unit.Tests.ps1',
+            'Logging.Unit.Tests.ps1', 'SampleOwnership.Unit.Tests.ps1',
             'DrunkenAD.Integration.Tests.ps1'
         )) {
             Set-Content (Join-Path $testRoot $name) "Describe 'Fixture' { It 'passes' { 1 | Should -Be 1 } }"

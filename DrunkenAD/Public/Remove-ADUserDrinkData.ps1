@@ -103,6 +103,6 @@ function Remove-ADUserDrinkData {
     foreach ($prefix in $Prefixes) { $dataMap[$prefix] = @() }
     $parameters = @{} + $PSBoundParameters
     $parameters.Remove('Prefixes')
-    $parameters['DataMap'] = $dataMap
-    Set-ADUserDrinkData @parameters
+    $parameters['PrefixMap'] = $dataMap
+    Set-ADUserDrinkPrefixedData @parameters
 }

@@ -100,8 +100,10 @@ Good ownership boundaries:
 
 | Owner | Prefixes |
 | --- | --- |
-| CSV ingestion | `Profile-`, `Flags-`, `Routing-`, `Tenant-`, `Sync-` |
-| AD projection | `Identity-`, `Meta-`, `Notify-`, `Org-` |
+| Sample CSV ingestion | `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, `Sync-` |
+| Default AD projection | `Profile-`, `Identity-`, `Meta-`, `Routing-`, `Notify-` |
 | CRUD validation | `Keep-`, `Scenario-`, `Literal[01]-` |
 
 Shared prefixes are allowed, but they should be deliberate and documented.
+The shipped sample and default projection use disjoint prefixes and can run in
+either order. Custom maps must preserve that separation themselves.

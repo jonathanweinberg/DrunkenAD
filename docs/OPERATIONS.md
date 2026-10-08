@@ -3,7 +3,7 @@
 This runbook is for operators who need to validate, write, ingest, project, or
 remove DrunkenAD values in a live Active Directory environment.
 
-![Schema readiness flow](images/documentation-suite-2026-05-07/schema-readiness-flow.png)
+See the current [schema readiness flow](DIAGRAMS.md#schema-readiness-flow).
 
 The source diagram for this page lives at
 [diagrams/schema-readiness-flow.mmd](diagrams/schema-readiness-flow.mmd).
@@ -56,8 +56,10 @@ Import-ADUserDrinkCsvData `
     -WhatIf
 ```
 
-The CSV workflow should own its configured prefixes. If another workflow also
-writes `Profile-` or `Routing-`, document that shared ownership before running.
+The sample CSV map owns `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and
+`Sync-`, separate from the default projection. Custom maps must also avoid
+unintended overlap. Blank mapped cells clear old records; preview existing
+imports before applying this behavior. See [CSV migration guidance](HOW-TO-INGEST-CSV.md#blank-cells-and-existing-imports).
 
 ## Attribute Projection
 
@@ -86,6 +88,24 @@ Remove-ADUserDrinkData `
     -DomainController 'dc01.contoso.com' `
     -WhatIf
 ```
+
+## Activity Logs
+
+The compatibility writer's `-EnableLogging` uses the current user's local
+application-data directory, under `DrunkenAD/logs-v1`. If that private root is
+unavailable, logging warns and requires an explicit path instead of falling
+back to shared temporary storage. It reuses `activity.log`, rotating to
+`activity.previous.log`, with at most 1 MiB per file. Entries carry a module
+session identifier and counts, not user identities or attribute values.
+Rotation is restricted to recognized module-owned files and rejects links.
+Older GUID-named logs are not automatically deleted.
+Preview mode does not append or rotate activity logs.
+
+Supply one `-LogPath` across commands for a caller-managed batch log. Explicit
+paths are append-only and are not automatically rotated; manage their access
+and retention. Logging is best effort: a failure emits a warning, not a false
+directory-write failure. A `Written` status is evidence that the directory call
+succeeded, not a guarantee that a log record was stored.
 
 ## Live Validation
 

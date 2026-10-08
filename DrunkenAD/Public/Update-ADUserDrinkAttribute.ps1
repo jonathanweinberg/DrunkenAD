@@ -36,10 +36,12 @@ Optional domain controller to use consistently for validation, lookup, and write
 Suppresses confirmation prompts by forwarding `-Confirm:$false`.
 
 .PARAMETER EnableLogging
-Enables default logging when no `LogPath` is supplied.
+Enables bounded count-only logging under the current user's local application
+data when no `LogPath` is supplied. Reuses one 1 MiB log and one archive, with a
+session identifier. Logging failures warn without changing the write outcome.
 
 .PARAMETER LogPath
-Optional explicit log file path.
+Optional explicit append-only log path. Caller manages access and retention.
 
 .PARAMETER PassThru
 Returns the final `drink` value set after the update logic is computed.

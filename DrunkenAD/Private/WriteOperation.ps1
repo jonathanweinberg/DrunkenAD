@@ -92,15 +92,19 @@ function Invoke-DrunkenADPrefixWrite {
         [psobject]$Context,
 
         [string]$LogPath,
-        [switch]$PassThru
+        [switch]$PassThru,
+        [switch]$ResultObject
     )
 
     if (-not $Context.ReadyForUserWrite -or [string]::IsNullOrWhiteSpace($Context.Server)) {
         throw 'A validated write context with a pinned domain controller is required.'
     }
     $plan = Get-DrunkenADPrefixWritePlan -CurrentValues $User.drink -PrefixMap $PrefixMap -RangeUpper $Context.RangeUpper
+    $status = 'NoChange'
     if ($plan.Remove.Count -gt 0 -or $plan.Add.Count -gt 0) {
-        if ($PSCmdlet.ShouldProcess($User.SamAccountName, "Remove $($plan.Remove.Count) and add $($plan.Add.Count) drink value(s)")) {
+        $reason = [System.Management.Automation.ShouldProcessReason]::None
+        $description = "Remove $($plan.Remove.Count) and add $($plan.Add.Count) drink value(s) for $($User.SamAccountName)"
+        if ($PSCmdlet.ShouldProcess($description, $description + '?', 'Confirm drink write', [ref]$reason)) {
             $parameters = @{
                 Identity = $User.DistinguishedName
                 Server = $Context.Server
@@ -110,12 +114,15 @@ function Invoke-DrunkenADPrefixWrite {
             if ($plan.Remove.Count -gt 0) { $parameters['Remove'] = @{ drink = $plan.Remove } }
             if ($plan.Add.Count -gt 0) { $parameters['Add'] = @{ drink = $plan.Add } }
             Set-ADUser @parameters
+            $status = 'Written'
             Write-DrunkenADLog -LogPath $LogPath -Message "Updated drink attribute: removed $($plan.Remove.Count), added $($plan.Add.Count) value(s)."
         }
+        else { $status = if ($reason -eq [System.Management.Automation.ShouldProcessReason]::WhatIf) { 'WhatIf' } else { 'Declined' } }
     }
     else {
         Write-Verbose 'No drink attribute changes are required.'
         Write-DrunkenADLog -LogPath $LogPath -Message 'No drink attribute changes were required.'
     }
-    if ($PassThru) { $plan.FinalDrinkValues }
+    if ($ResultObject) { [pscustomobject]@{ Status = $status; FinalDrinkValues = $plan.FinalDrinkValues } }
+    elseif ($PassThru) { $plan.FinalDrinkValues }
 }

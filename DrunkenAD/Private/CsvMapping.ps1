@@ -212,6 +212,7 @@ function ConvertTo-DrunkenADCsvDataMap {
     $dataMap = @{}
 
     foreach ($mapping in $Mappings) {
+        if (-not $dataMap.ContainsKey($mapping.Prefix)) { $dataMap[$mapping.Prefix] = @() }
         $columnValue = [string]$Row.($mapping.Column)
         $fieldValues = if ([string]::IsNullOrWhiteSpace($mapping.SplitOn)) {
             @($columnValue)

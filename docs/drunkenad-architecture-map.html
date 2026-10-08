@@ -706,7 +706,7 @@
           "id": "schemaStatus",
           "label": "SchemaStatus.ps1",
           "kind": "private",
-          "summary": "Selects a DC, reads rangeUpper, traverses user inheritance and auxiliary classes, and fails closed on incomplete or malformed schema graphs.",
+          "summary": "Pins the RootDSE controller, including explicit aliases. Reads check attribute presence only; writes validate rangeUpper and traverse inheritance and auxiliary classes.",
           "files": ["DrunkenAD/Private/SchemaStatus.ps1"]
         },
         {
@@ -868,8 +868,8 @@
       "path": ["operator", "getData", "schemaStatus", "schema", "coreHelpers", "userObject", "drinkStore"],
       "steps": [
         "Caller chooses one identity parameter and optionally a Prefix.",
-        "Get-ADUserDrinkData validates that drink exists and is not defunct.",
-        "Resolve-DrunkenADUser returns exactly one user with drink loaded.",
+        "Get-ADUserDrinkData validates that drink exists and is not defunct without a write-readiness class walk.",
+        "Resolve-DrunkenADUser returns exactly one user with drink loaded from the same RootDSE-resolved controller.",
         "Values are normalized to strings and blank entries are dropped.",
         "When Prefix is supplied, blank values are rejected locally and matching uses OrdinalIgnoreCase StartsWith semantics."
       ]
@@ -882,10 +882,10 @@
       "steps": [
         "Validate CSV paths, mapping shape, columns, non-overlapping prefixes, and unique normalized SamAccountName identities locally.",
         "Create one readiness context and pin the domain controller.",
-        "Build each usable row map, resolve the user, and validate lengths before the first write; blank identity/data rows emit warnings.",
-        "Apply each prepared row through the shared private writer using prefix-scoped Remove/Add.",
-        "Stream row summaries with computed FinalDrinkValues, including WhatIf previews.",
-        "On a later write failure, stop with completed, failed-row, pending, and prepared counts. Earlier successful rows are not rolled back."
+        "Build every mapped namespace, including empty replacements for blank cells; skip only blank identities. Resolve all users and validate lengths before the first write.",
+        "After row approval, refresh the resolved object on the pinned controller and compute the current prefix-scoped Remove/Add delta.",
+        "Stream computed FinalDrinkValues with Written, NoChange, Declined, or WhatIf status; results are not a post-write read-back.",
+        "On a later failure, stop with processed, failed-row, pending, and per-status counts. Earlier successful rows are not rolled back."
       ]
     },
     {
@@ -894,11 +894,11 @@
       "description": "Copy selected AD user attributes into compact drink namespaces.",
       "path": ["operator", "projection", "projectionMap", "schemaStatus", "coreHelpers", "userObject", "prefixedWriter", "drinkStore"],
       "steps": [
-        "Set-ADUserDrinkProjection starts with the default map or a caller-supplied AttributeMap.",
+        "Set-ADUserDrinkProjection starts with the default map or a caller-supplied AttributeMap. The shipped CSV config uses separate namespaces.",
         "IncludeDefaultAttributeMap merges custom prefixes on top of defaults.",
         "Create one readiness context, then resolve the user once with required source attributes on the selected DC.",
         "ProjectionMap retains every owned prefix, using an empty replacement when all mapped source attributes are blank.",
-        "The shared private writer reuses that user and context; PassThru returns a computed preview even under WhatIf."
+        "The shared private writer reuses that user and context; PassThru returns a computed snapshot and explicit outcome status, including under WhatIf."
       ]
     },
     {

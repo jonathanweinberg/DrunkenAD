@@ -30,24 +30,46 @@ resolves every usable row and validates all prefixed value lengths before any
 write. A missing or ambiguous user therefore prevents the whole import from
 starting. The CSV identity contract remains `SamAccountName`.
 
+Immediately before applying each approved row, the importer reads `drink` again
+from the same resolved object on the pinned controller. This reduces the stale
+snapshot window; it is not a lock or a transaction. A concurrent write after
+that read can still conflict.
+
 Directory errors during execution still stop the import. Already completed
 writes are not rolled back. The terminating error's `TargetObject` exposes
 `CompletedRowCount`, `FailedRowNumber` (including the header), `PendingRowCount`,
-and `PreparedRowCount`. Completed rows have already emitted their normal result
-objects. Counts include processed no-op or preview rows; they are not a claim
-that every processed row changed AD. Capture streamed results when an audit of
-partial progress is required.
+and `PreparedRowCount`, plus per-status row counts. Completed means processed,
+not necessarily written. Each result's `Status` distinguishes `Written`,
+`NoChange`, `Declined`, and `WhatIf`. Capture streamed results when an audit of
+partial progress is required. `FinalDrinkValues` is the computed desired
+snapshot, not proof that a declined or previewed operation changed AD and not
+a post-write read-back.
 
 The sample import script maps those columns into namespaces like this:
 
-- `ProfileTier` -> `Profile-Tier=<value>`
-- `ProfileRegion` -> `Profile-Region=<value>`
+- `ProfileTier` -> `CsvProfile-Tier=<value>`
+- `ProfileRegion` -> `CsvProfile-Region=<value>`
 - `Flags` -> one `Flags-<value>` record per semicolon-delimited item
-- `RoutingMailbox` -> `Routing-Mailbox=<value>`
+- `RoutingMailbox` -> `CsvRouting-Mailbox=<value>`
 - `TenantId` -> `Tenant-Id=<value>`
 - `SyncState` -> `Sync-State=<value>`
 
 The JSON mapping format uses namespace prefixes as top-level keys. Each entry points at a CSV column and can optionally add a `Label` or split multivalue fields with `SplitOn`.
+
+## Blank Cells And Existing Imports
+
+Every row replaces all namespaces declared by its mapping. Blank or
+whitespace-only cells contribute no records; if all columns for a namespace
+are blank, existing values in that namespace are removed. A row with a valid
+identity and all mapped cells blank clears all mapped namespaces. Unmapped
+prefixes remain untouched. To leave a namespace unchanged, omit it from the
+mapping used for that import, rather than supplying blank cells.
+
+This corrects the previous skip-blank behavior and matches projection semantics.
+Preview existing import files before adopting the change. The sample config now
+uses `CsvProfile-` and `CsvRouting-` to avoid the default projection's `Profile-`
+and `Routing-`. Existing stored values are not automatically renamed or removed;
+review ownership and migrate old sample data explicitly.
 
 ## Multivalue Fields
 
@@ -120,7 +142,7 @@ Import-ADUserDrinkCsvData `
     -DomainController 'dc01.contoso.com'
 ```
 
-Each row produces a namespaced `DataMap` and writes it through `Set-ADUserDrinkData`.
+Each row produces a namespaced `DataMap` and uses the shared prefix-scoped writer.
 
 ## Use A Different JSON Mapping
 
@@ -139,7 +161,7 @@ For ad hoc runs, you can pass a hashtable directly:
 
 ```powershell
 $namespaceMap = @{
-    'Profile-' = @(
+    'CsvProfile-' = @(
         @{ Column = 'ProfileTier'; Label = 'Tier' }
         @{ Column = 'ProfileRegion'; Label = 'Region' }
     )

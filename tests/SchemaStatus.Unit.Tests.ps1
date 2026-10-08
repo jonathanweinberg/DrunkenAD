@@ -303,14 +303,67 @@ Describe 'Schema readiness inheritance and metadata' {
             }
         }
 
-        It 'preserves an explicit server including its port without requiring dnsHostName' {
+        It 'resolves an explicit domain alias before every schema query' {
+            $status = Get-DrunkenADDrinkAttributeStatus -Server 'contoso.com'
+
+            $status.Server | Should -Be 'discovered.contoso.com'
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq 'contoso.com' }
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com' }
+        }
+
+        It 'fails closed for an explicit alias without a resolved hostname' {
             $script:SchemaStatusRootDse.PSObject.Properties.Remove('dnsHostName')
 
-            $status = Get-DrunkenADDrinkAttributeStatus -Server 'explicit.contoso.com:50000'
+            { Get-DrunkenADDrinkAttributeStatus -Server 'contoso.com' } | Should -Throw '*dnsHostName*'
+            Assert-MockCalled Get-ADObject -Times 0
+        }
 
-            $status.Server | Should -Be 'explicit.contoso.com:50000'
-            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq 'explicit.contoso.com:50000' }
-            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'explicit.contoso.com:50000' }
+        It 'preserves an explicit port while resolving <Endpoint>' -ForEach @(
+            @{ Endpoint = 'explicit.contoso.com:50000' }
+            @{ Endpoint = 'contoso.com:50000' }
+        ) {
+            $status = Get-DrunkenADDrinkAttributeStatus -Server $Endpoint
+            $status.Server | Should -Be 'discovered.contoso.com:50000'
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq $Endpoint }
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com:50000' }
+        }
+
+        It 'rejects invalid explicit port <Endpoint> before discovery' -ForEach @(
+            @{ Endpoint = 'contoso.com:0' }
+            @{ Endpoint = 'contoso.com:65536' }
+            @{ Endpoint = 'contoso.com:abc' }
+        ) {
+            { Get-DrunkenADDrinkAttributeStatus -Server $Endpoint } | Should -Throw '*valid port*'
+            Assert-MockCalled Get-ADRootDSE -Times 0
+        }
+
+        It 'preserves bare IPv6 discovery compatibility' {
+            $status = Get-DrunkenADDrinkAttributeStatus -Server '2001:db8::1'
+
+            $status.Server | Should -Be 'discovered.contoso.com'
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq '2001:db8::1' }
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com' }
+        }
+
+        It 'keeps boolean presence independent of an ambiguous class graph while PassThru fails closed' {
+            $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ auxiliaryClass = @('duplicate') }
+            $first = New-SchemaStatusTestClass -Name 'first'
+            $second = New-SchemaStatusTestClass -Name 'second'
+            $script:SchemaStatusReferences['(&(objectClass=classSchema)(|(lDAPDisplayName=duplicate)(cn=duplicate)))'] = @($first, $second)
+
+            Test-ADDrinkAttributeEnabled -Server 'contoso.com' | Should -BeTrue
+            Assert-MockCalled Get-ADObject -Times 1 -Exactly
+            { Test-ADDrinkAttributeEnabled -Server 'contoso.com' -PassThru } | Should -Throw '*ambiguous*'
+        }
+
+        It 'returns full readiness details from the public presence PassThru path' {
+            $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ mustContain = @('drink') }
+
+            $status = Test-ADDrinkAttributeEnabled -PassThru
+            $status.Enabled | Should -BeTrue
+            $status.ReadyForUserWrite | Should -BeTrue
+            $status.RangeUpper | Should -Be 777
+            $status.UserClassDistinguishedName | Should -Be $script:SchemaStatusUser.DistinguishedName
         }
 
         It 'fails before schema queries when discovered dnsHostName is <HostnameState>' -ForEach @(
@@ -473,16 +526,65 @@ Describe 'Schema readiness inheritance and metadata' {
             }
         }
 
-        It 'keeps both private assertions silent on success' {
+        It 'keeps the private presence assertion silent unless status is requested' {
             $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ mustContain = @('drink') }
 
             @(Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com').Count | Should -Be 0
-            @(Assert-ADDrinkAttributeReadyForUserWrite -Server 'explicit.contoso.com').Count | Should -Be 0
+            (Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com' -PassThru).Server | Should -Be 'discovered.contoso.com'
         }
 
         It 'keeps the private presence assertion distinct from write readiness' {
             { Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com' } | Should -Not -Throw
-            { Assert-ADDrinkAttributeReadyForUserWrite -Server 'explicit.contoso.com' } | Should -Throw '*not allowed on the Active Directory user class*'
+            (Get-DrunkenADDrinkAttributeStatus -Server 'explicit.contoso.com').ReadyForUserWrite | Should -BeFalse
+        }
+
+        It 'reads successfully without querying an unresolved class graph or write-only range metadata' {
+            $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ auxiliaryClass = @('missing') }
+            $script:SchemaStatusDrink.rangeUpper = 'invalid'
+
+            (Assert-ADDrinkAttributeEnabled -PassThru).Enabled | Should -BeTrue
+            Assert-MockCalled Get-ADObject -Times 1 -Exactly
+            Assert-MockCalled Get-ADObject -Times 0 -ParameterFilter { $LDAPFilter -like '*classSchema*' }
+        }
+
+        It 'reuses the resolved controller for <Command> user reads' -ForEach @(
+            @{ Command = 'Get-ADUserDrinkData' }
+            @{ Command = 'Get-AdUserDrinkPrefixedData' }
+        ) {
+            Mock Resolve-DrunkenADUser { [pscustomobject]@{ drink = @('Meta-One', 'Other-Two') } }
+            $parameters = @{ SamAccountName = 'reader'; DomainController = 'contoso.com' }
+            if ($Command -eq 'Get-AdUserDrinkPrefixedData') { $parameters.DrinkValuePrefix = 'Meta-' }
+            else { $parameters.Prefix = 'Meta-' }
+
+            @(& $Command @parameters) | Should -Be @('Meta-One')
+            Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
+                $Server -eq 'discovered.contoso.com' -and $SamAccountName -eq 'reader'
+            }
+            Assert-MockCalled Get-ADObject -Times 1 -Exactly
+        }
+
+        It 'blocks reads of defunct attributes without querying classes' {
+            $script:SchemaStatusDrink.isDefunct = $true
+            { Assert-ADDrinkAttributeEnabled } | Should -Throw '*not enabled*'
+            Assert-MockCalled Get-ADObject -Times 1 -Exactly
+        }
+
+        It 'forwards every identity through both read entry points' {
+            Mock Resolve-DrunkenADUser { [pscustomobject]@{ drink = @('Meta-One') } }
+            foreach ($command in @('Get-ADUserDrinkData', 'Get-AdUserDrinkPrefixedData')) {
+                foreach ($identity in @('SamAccountName', 'UserPrincipalName', 'EmployeeID', 'Mail', 'Pager')) {
+                    $parameters = @{ $identity = 'identity-value'; DomainController = 'contoso.com:50000' }
+                    if ($command -eq 'Get-AdUserDrinkPrefixedData') { $parameters.DrinkValuePrefix = 'Meta-' }
+                    else { $parameters.Prefix = 'Meta-' }
+                    @(& $command @parameters) | Should -Be @('Meta-One')
+                }
+            }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 10 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com:50000' }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly -ParameterFilter { $SamAccountName -eq 'identity-value' }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly -ParameterFilter { $UserPrincipalName -eq 'identity-value' }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly -ParameterFilter { $EmployeeID -eq 'identity-value' }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly -ParameterFilter { $Mail -eq 'identity-value' }
+            Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly -ParameterFilter { $Pager -eq 'identity-value' }
         }
 
         It 'keeps the private presence assertion blocking absent attributes' {

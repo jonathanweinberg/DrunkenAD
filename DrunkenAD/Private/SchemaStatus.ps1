@@ -68,15 +68,15 @@ function Test-DrunkenADSchemaClassAllowsAttribute {
                 }
 
                 $query = $Context.Query
-                $matches = @(Get-ADObject @query -LDAPFilter ('(&(objectClass=classSchema){0})' -f $identifierFilter) -Properties $Context.Properties)
-                if ($matches.Count -eq 0) {
+                $classMatches = @(Get-ADObject @query -LDAPFilter ('(&(objectClass=classSchema){0})' -f $identifierFilter) -Properties $Context.Properties)
+                if ($classMatches.Count -eq 0) {
                     throw "Schema class reference '$reference' could not be resolved from the target schema."
                 }
-                if ($matches.Count -gt 1) {
+                if ($classMatches.Count -gt 1) {
                     throw "Schema class reference '$reference' is ambiguous; multiple schema entries were returned."
                 }
 
-                $Context.Classes[$reference] = $matches[0]
+                $Context.Classes[$reference] = $classMatches[0]
             }
 
             $relatedClass = $Context.Classes[$reference]
@@ -101,7 +101,8 @@ function Test-DrunkenADSchemaClassAllowsAttribute {
 function Get-DrunkenADDrinkAttributeStatus {
     [CmdletBinding()]
     param(
-        [string]$Server
+        [string]$Server,
+        [switch]$PresenceOnly
     )
 
     Initialize-DrunkenADModule
@@ -114,13 +115,27 @@ function Get-DrunkenADDrinkAttributeStatus {
         $rootDseParams['Server'] = $Server
     }
 
-    $rootDse = Get-ADRootDSE @rootDseParams
-    if ([string]::IsNullOrWhiteSpace($Server)) {
-        $Server = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'dnsHostName')
-        if ([string]::IsNullOrWhiteSpace($Server)) {
-            throw 'RootDSE did not return dnsHostName; schema queries cannot be pinned to a domain controller.'
+    $explicitPort = $null
+    $parsedAddress = $null
+    $isBareIPv6 = [System.Net.IPAddress]::TryParse($Server, [ref]$parsedAddress) -and
+        $parsedAddress.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6
+    if (-not [string]::IsNullOrWhiteSpace($Server) -and $Server.Contains(':') -and -not $isBareIPv6) {
+        $endpointMatch = [regex]::Match($Server, '^([^:\s]+|\[[^\]\s]+\]):([0-9]+)$')
+        $portNumber = 0
+        if (-not $endpointMatch.Success -or
+            -not [int]::TryParse($endpointMatch.Groups[2].Value, [ref]$portNumber) -or
+            $portNumber -lt 1 -or $portNumber -gt 65535) {
+            throw 'Server must specify a hostname and a valid port between 1 and 65535.'
         }
+        $explicitPort = $portNumber
     }
+
+    $rootDse = Get-ADRootDSE @rootDseParams
+    $Server = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'dnsHostName')
+    if ([string]::IsNullOrWhiteSpace($Server)) {
+        throw 'RootDSE did not return dnsHostName; schema queries cannot be pinned to a domain controller.'
+    }
+    if ($null -ne $explicitPort) { $Server = '{0}:{1}' -f $Server, $explicitPort }
 
     $schemaNamingContext = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'schemaNamingContext')
     if ([string]::IsNullOrWhiteSpace($schemaNamingContext)) {
@@ -139,17 +154,20 @@ function Get-DrunkenADDrinkAttributeStatus {
     }
 
     $classProperties = @('mayContain', 'systemMayContain', 'mustContain', 'systemMustContain', 'subClassOf', 'auxiliaryClass', 'systemAuxiliaryClass', 'lDAPDisplayName', 'distinguishedName', 'governsID')
-    $userClassMatches = @(Get-ADObject @commonSchemaParams -LDAPFilter '(&(objectClass=classSchema)(lDAPDisplayName=user))' -Properties $classProperties)
+    $userClassMatches = @()
+    if (-not $PresenceOnly) {
+        $userClassMatches = @(Get-ADObject @commonSchemaParams -LDAPFilter '(&(objectClass=classSchema)(lDAPDisplayName=user))' -Properties $classProperties)
+    }
     if ($userClassMatches.Count -gt 1) {
         throw "Multiple schema entries for the Active Directory user class were returned. Aborting because the schema lookup is ambiguous."
     }
 
-    if ($userClassMatches.Count -eq 0) {
+    if (-not $PresenceOnly -and $userClassMatches.Count -eq 0) {
         throw 'The Active Directory user class could not be resolved from the target schema.'
     }
 
     $attributeObject = if ($attributeMatches.Count -eq 1) { $attributeMatches[0] } else { $null }
-    $userClassObject = $userClassMatches[0]
+    $userClassObject = if ($userClassMatches.Count -eq 1) { $userClassMatches[0] } else { $null }
     $attributePresent = $null -ne $attributeObject
     $isDefunct = if ($attributePresent) { [bool](Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'isDefunct') } else { $null }
     $isEnabled = $attributePresent -and (-not $isDefunct)
@@ -157,7 +175,7 @@ function Get-DrunkenADDrinkAttributeStatus {
     $attributeDn = Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'distinguishedName'
     $rangeUpper = $null
     $rangeValues = @(Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'rangeUpper')
-    if ($rangeValues.Count -gt 0) {
+    if (-not $PresenceOnly -and $rangeValues.Count -gt 0) {
         $parsedRangeUpper = 0
         if ($rangeValues.Count -ne 1 -or
             -not [int]::TryParse([string]$rangeValues[0], [ref]$parsedRangeUpper) -or $parsedRangeUpper -lt 0) {
@@ -167,7 +185,7 @@ function Get-DrunkenADDrinkAttributeStatus {
         $rangeUpper = $parsedRangeUpper
     }
 
-    if ($isEnabled) {
+    if ($isEnabled -and -not $PresenceOnly) {
         # String(OID) schema references normally use LDAP names; also accept numeric OIDs and DNs.
         $attributeIdentifiers = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         [void]$attributeIdentifiers.Add('drink')
@@ -200,7 +218,7 @@ function Get-DrunkenADDrinkAttributeStatus {
         $blockingReason = 'AttributeDefunct'
         $blockingMessage = "The 'drink' attribute is defunct in the target Active Directory schema."
     }
-    elseif (-not $allowedOnUserClass) {
+    elseif (-not $PresenceOnly -and -not $allowedOnUserClass) {
         $blockingReason = 'NotAllowedOnUserClass'
         $blockingMessage = "The 'drink' attribute exists in the target Active Directory schema but is not allowed on the Active Directory user class."
     }
@@ -224,25 +242,14 @@ function Get-DrunkenADDrinkAttributeStatus {
 function Assert-ADDrinkAttributeEnabled {
     [CmdletBinding()]
     param(
-        [string]$Server
+        [string]$Server,
+        [switch]$PassThru
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly
 
     if (-not $status.Enabled) {
         throw "The 'drink' attribute is not enabled in the target Active Directory schema."
     }
-}
-
-function Assert-ADDrinkAttributeReadyForUserWrite {
-    [CmdletBinding()]
-    param(
-        [string]$Server
-    )
-
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
-
-    if (-not $status.ReadyForUserWrite) {
-        throw $status.BlockingMessage
-    }
+    if ($PassThru) { $status }
 }

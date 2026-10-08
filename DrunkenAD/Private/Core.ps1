@@ -97,6 +97,10 @@ function Test-DrunkenADStringSetEqual {
     return $true
 }
 
+function Get-DrunkenADLogRoot {
+    [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
+}
+
 function Resolve-DrunkenADLogPath {
     [CmdletBinding()]
     param(
@@ -113,13 +117,93 @@ function Resolve-DrunkenADLogPath {
         return $null
     }
 
-    $logRoot = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
+    $logRoot = Get-DrunkenADLogRoot
     if ([string]::IsNullOrWhiteSpace($logRoot)) {
-        $logRoot = [System.IO.Path]::GetTempPath()
+        Write-Warning 'DrunkenAD automatic logging is unavailable because the personal log directory could not be resolved. Specify -LogPath to enable logging. This does not change the directory operation outcome.' -WarningAction Continue
+        return $null
     }
 
-    $logDirectory = Join-Path -Path $logRoot -ChildPath 'DrunkenAD'
-    Join-Path -Path $logDirectory -ChildPath ('activity-{0}.log' -f [guid]::NewGuid().ToString('N'))
+    $logDirectory = Join-Path -Path $logRoot -ChildPath 'DrunkenAD/logs-v1'
+    $script:DrunkenADDefaultLogPath = Join-Path -Path $logDirectory -ChildPath 'activity.log'
+    $script:DrunkenADDefaultLogPath
+}
+
+function Assert-DrunkenADLogNotLinked {
+    param([string]$Path)
+
+    $current = [System.IO.Path]::GetFullPath($Path)
+    while (-not [string]::IsNullOrWhiteSpace($current)) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item) {
+            if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'Logging through symbolic links or reparse points is not permitted.'
+            }
+        }
+        $current = [System.IO.Path]::GetDirectoryName($current)
+    }
+}
+
+function Write-DrunkenADDefaultLog {
+    param([string]$Message, [string]$LogPath)
+
+    if ($WhatIfPreference) { return }
+
+    $limit = 1048576
+    $header = '# DrunkenAD bounded log v1'
+    $archive = Join-Path (Split-Path $LogPath -Parent) 'activity.previous.log'
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    if (-not (Get-Variable DrunkenADLogSession -Scope Script -ErrorAction SilentlyContinue)) {
+        $script:DrunkenADLogSession = [guid]::NewGuid().ToString('N')
+    }
+    $line = '{0:u} session={1} {2}{3}' -f (Get-Date), $script:DrunkenADLogSession, $Message, [Environment]::NewLine
+    $bytes = $encoding.GetBytes($line)
+    if ($bytes.Length -gt ($limit - $encoding.GetByteCount($header + [Environment]::NewLine))) {
+        throw 'Log entry exceeds the bounded log size limit.'
+    }
+
+    # A stable, path-specific mutex coordinates rotation across module instances.
+    $hash = [System.Security.Cryptography.SHA256]::Create()
+    try { $key = [BitConverter]::ToString($hash.ComputeHash($encoding.GetBytes([IO.Path]::GetFullPath($LogPath).ToUpperInvariant()))).Replace('-', '') }
+    finally { $hash.Dispose() }
+    $mutex = New-Object System.Threading.Mutex($false, ('DrunkenADLog_' + $key))
+    $locked = $false
+    try {
+        try { $locked = $mutex.WaitOne(5000) }
+        catch [System.Threading.AbandonedMutexException] { $locked = $true }
+        if (-not $locked) { throw 'Timed out waiting for the default log writer.' }
+        foreach ($path in @($LogPath, $archive)) {
+            Assert-DrunkenADLogNotLinked $path
+            if (Test-Path -LiteralPath $path) {
+                if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or
+                    (Get-Content -LiteralPath $path -TotalCount 1 -ErrorAction Stop) -cne $header) {
+                    throw 'Default log path contains a file not owned by DrunkenAD.'
+                }
+                if ((Get-Item -LiteralPath $path).Length -gt $limit) {
+                    throw 'Existing default log exceeds the bounded log size limit.'
+                }
+            }
+        }
+        $directory = Split-Path $LogPath -Parent
+        [void][IO.Directory]::CreateDirectory($directory)
+        if ((Test-Path -LiteralPath $LogPath) -and ((Get-Item -LiteralPath $LogPath).Length + $bytes.Length -gt $limit)) {
+            if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -ErrorAction Stop }
+            Move-Item -LiteralPath $LogPath -Destination $archive -ErrorAction Stop
+        }
+        $stream = [IO.File]::Open($LogPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try {
+            if ($stream.Length -eq 0) {
+                $headerBytes = $encoding.GetBytes($header + [Environment]::NewLine)
+                $stream.Write($headerBytes, 0, $headerBytes.Length)
+            }
+            [void]$stream.Seek(0, [IO.SeekOrigin]::End)
+            $stream.Write($bytes, 0, $bytes.Length)
+        }
+        finally { $stream.Dispose() }
+    }
+    finally {
+        if ($locked) { $mutex.ReleaseMutex() }
+        $mutex.Dispose()
+    }
 }
 
 function Write-DrunkenADLog {
@@ -131,16 +215,29 @@ function Write-DrunkenADLog {
         [string]$LogPath
     )
 
-    if ([string]::IsNullOrWhiteSpace($LogPath)) {
+    if ($WhatIfPreference -or [string]::IsNullOrWhiteSpace($LogPath)) {
         return
     }
 
-    $directoryPath = Split-Path -Path $LogPath -Parent
-    if (-not [string]::IsNullOrWhiteSpace($directoryPath) -and -not (Test-Path -LiteralPath $directoryPath)) {
-        New-Item -Path $directoryPath -ItemType Directory -Force | Out-Null
-    }
+    try {
+        if ((Get-Variable DrunkenADDefaultLogPath -Scope Script -ErrorAction SilentlyContinue) -and
+            [string]::Equals($LogPath, $script:DrunkenADDefaultLogPath, [StringComparison]::Ordinal)) {
+            Write-DrunkenADDefaultLog -Message $Message -LogPath $LogPath
+            return
+        }
 
-    Add-Content -LiteralPath $LogPath -Value ('{0:u} {1}' -f (Get-Date), $Message)
+        Assert-DrunkenADLogNotLinked $LogPath
+        $directoryPath = Split-Path -Path $LogPath -Parent
+        if (-not [string]::IsNullOrWhiteSpace($directoryPath) -and -not (Test-Path -LiteralPath $directoryPath)) {
+            New-Item -Path $directoryPath -ItemType Directory -Force -ErrorAction Stop | Out-Null
+        }
+
+        Add-Content -LiteralPath $LogPath -Value ('{0:u} {1}' -f (Get-Date), $Message) -ErrorAction Stop
+    }
+    catch {
+        # Logging must not turn an already completed directory write into a failure.
+        Write-Warning 'DrunkenAD could not write the activity log. This does not change the directory operation outcome.' -WarningAction Continue
+    }
 }
 
 function Get-DrunkenADIdentityDescription {

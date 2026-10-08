@@ -113,7 +113,9 @@ Unrelated values added after the initial read on the same DC are preserved.
 Case-only payload changes remove the old spelling and add the requested one.
 
 One DC is selected per operation and reused for schema checks, lookup, and
-write. For multiple writers, configure the same explicit `-DomainController`:
+write. Even a domain alias is resolved to the RootDSE controller for that
+operation. For multiple writers, configure the same actual DC hostname in
+`-DomainController`, not a domain-wide alias:
 independent automatic selections can reach different DCs, and normal AD
 replication of a nonlinked multivalued attribute can still lose updates.
 Concurrent writes to the same prefix are not serialized or transactional; a
@@ -124,6 +126,11 @@ Readiness reports expose that limit; it is not hard-coded into the writer.
 `-PassThru` returns values computed from the initial read, including with
 `-WhatIf`. It is a preview/result calculation, not a fresh directory read or
 a concurrency guarantee.
+
+CSV and projection summary objects additionally expose `Status`: `Written`,
+`NoChange`, `Declined`, or `WhatIf`. The generic write commands retain their
+string-array `-PassThru` contract. CSV refreshes each approved row's values after
+whole-input preflight; it still needs external same-prefix coordination.
 
 ## Removal Semantics
 
@@ -162,6 +169,9 @@ The older prefixed-data commands still exist:
 - `Update-ADUserDrinkAttribute`
 
 They are still supported, but the generic `DrinkData` names are the preferred public surface.
+No removal is scheduled in the 0.13 series. A future deprecation requires a
+published migration table, a supported warning period, and a breaking-version
+decision; this maintenance release does not remove aliases or `-AutoConfirm`.
 
 ## Attribute Projection
 
@@ -193,3 +203,8 @@ Set-ADUserDrinkProjection `
 ```
 
 If you want your custom namespaces plus the default projection payload, add `-IncludeDefaultAttributeMap`.
+
+The sample CSV config uses `CsvProfile-` and `CsvRouting-`, not the projection's
+`Profile-` and `Routing-`. Both workflows clear old values for owned prefixes
+whose source fields are blank. Existing custom maps still require an ownership
+review before combining workflows.

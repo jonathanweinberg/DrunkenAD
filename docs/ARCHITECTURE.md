@@ -33,6 +33,11 @@ The main public commands are:
 Compatibility commands remain available for older call sites, but new code
 should use the `DrinkData` and projection names.
 
+Reads check only that the attribute exists and is enabled, then use the same
+RootDSE-resolved controller for the user lookup. They do not traverse the class
+graph or depend on write readiness. Explicit server aliases are resolved to
+the actual controller for both read and write operations.
+
 ## Write Semantics
 
 ```mermaid
@@ -66,14 +71,17 @@ as text, not a regular expression.
 
 CSV ingestion and projection both build a `DataMap`, then use the same private
 writer and operation context. CSV resolves and validates every usable row
-before its first write. Projection reuses its already resolved user.
+before its first write, then refreshes each approved row's values by resolved
+identity immediately before applying its delta. Projection reuses its already
+resolved user. CSV and projection summaries include an explicit outcome status.
 
 ```mermaid
 flowchart LR
     CSV["CSV and namespace map"] --> LOCAL["Validate local input"]
     LOCAL --> CONTEXT["One schema check and DC"]
     CONTEXT --> PREPARE["Resolve and validate all rows"]
-    PREPARE --> WRITE["Apply each owned delta"]
+    PREPARE --> FRESH["Approve and refresh each resolved user"]
+    FRESH --> WRITE["Apply each owned delta"]
     WRITE --> RESULTS["Row results or failure progress"]
 ```
 
@@ -83,7 +91,9 @@ The source diagram for this flow lives at
 CSV ingestion starts from rows and a namespace map. A mapping may opt into
 multivalue expansion with `SplitOn`; only that column is split, and the
 delimiter is treated literally. Projection starts from AD attributes and an
-attribute map. After that, both paths share the same safety behavior.
+attribute map. Both replace every mapped prefix, including empty namespaces.
+The shipped CSV config uses separate prefixes from the built-in projection so
+the two workflows preserve each other's data.
 
 ## Failure Boundaries
 

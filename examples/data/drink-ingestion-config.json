@@ -1,5 +1,5 @@
 {
-  "Profile-": [
+  "CsvProfile-": [
     {
       "Column": "ProfileTier",
       "Label": "Tier"
@@ -15,7 +15,7 @@
       "SplitOn": ";"
     }
   ],
-  "Routing-": [
+  "CsvRouting-": [
     {
       "Column": "RoutingMailbox",
       "Label": "Mailbox"

@@ -91,18 +91,9 @@ function Get-AdUserDrinkPrefixedData {
         [string]$DomainController
     )
 
-    $getParams = @{
-        Prefix           = $DrinkValuePrefix
-        DomainController = $DomainController
-    }
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName'    { $getParams['SamAccountName'] = $SamAccountName }
-        'UserPrincipalName' { $getParams['UserPrincipalName'] = $UserPrincipalName }
-        'EmployeeID'        { $getParams['EmployeeID'] = $EmployeeID }
-        'Mail'              { $getParams['Mail'] = $Mail }
-        'Pager'             { $getParams['Pager'] = $Pager }
-    }
+    $getParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+    $getParams.Prefix = $DrinkValuePrefix
+    $getParams.DomainController = $DomainController
 
     Get-ADUserDrinkData @getParams
 }

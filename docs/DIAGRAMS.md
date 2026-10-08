@@ -100,17 +100,21 @@ Source file: [diagrams/namespace-write-model.mmd](diagrams/namespace-write-model
 Historical plate: [CSV ingestion flow image](images/documentation-suite-2026-05-07/csv-ingestion-flow.png). The Mermaid diagram below is current.
 
 ```mermaid
-flowchart LR
+flowchart TD
     CSV["CSV rows"] --> LOCAL["Local preflight<br/>paths + required columns"]
     MAP["JSON or hashtable namespace map"] --> LOCAL
     LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
     OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
     IDENTITIES --> READY["One readiness context<br/>pin effective DC"]
     READY --> ROW["Preflight every usable row<br/>resolve identity + validate value lengths"]
-    ROW --> WRITE["Shared private writer<br/>prefix-scoped Remove/Add"]
+    ROW --> APPROVE["CSV-wide ShouldProcess<br/>Yes / No to All"]
+    APPROVE --> FRESH["Refresh approved resolved object<br/>recompute delta on pinned DC"]
+    FRESH --> WRITE["Shared private writer<br/>prefix-scoped Remove/Add<br/>blank cells clear mapped namespaces"]
     WRITE --> AD["Active Directory user drink"]
-    AD --> REPORT["Stream per-row computed previews"]
-    WRITE -->|Runtime failure| FAILURE["Stop with completed / failed / pending counts<br/>earlier rows are not rolled back"]
+    AD --> REPORT["Computed values + explicit Status<br/>Written / NoChange / Declined / WhatIf"]
+    APPROVE -->|Declined or preview| REPORT
+    WRITE -->|Runtime failure| FAILURE["Stop with progress and status counts<br/>earlier rows are not rolled back"]
+    FRESH -->|Read failure| FAILURE
 ```
 
 Source file: [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd)

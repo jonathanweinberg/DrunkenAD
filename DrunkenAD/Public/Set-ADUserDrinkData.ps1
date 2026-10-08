@@ -103,7 +103,6 @@ function Set-ADUserDrinkData {
         [switch]$PassThru
     )
 
-    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($DataMap.Keys | ForEach-Object { [string]$_ })
     $parameters = @{} + $PSBoundParameters
     $parameters.Remove('DataMap')
     $parameters['PrefixMap'] = $DataMap

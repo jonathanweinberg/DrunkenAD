@@ -49,6 +49,14 @@ CSV INGESTION
     config file or an in-memory NamespaceMap. Split-DrunkenADCsvField documents
     the literal delimiter behavior used by SplitOn mappings.
 
+    Every mapped namespace is replaced, including an empty replacement when all
+    its source cells are blank. Preview existing imports before applying this
+    behavior. The sample CsvProfile- and CsvRouting- prefixes do not overlap the
+    built-in projection. No stored values are automatically migrated.
+
+    CSV and projection summaries include Written, NoChange, Declined, or WhatIf
+    status. Computed values are not a post-write directory read-back.
+
 LIVE VALIDATION
     The repository includes optional integration tests and seeded live campaign
     scripts for lab validation. Start with the command help and repository docs

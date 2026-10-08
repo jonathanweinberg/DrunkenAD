@@ -5,15 +5,28 @@
 - Replaced whole-attribute writes with prefix-scoped Remove/Add deltas on one
   selected domain controller. Case-only changes are honored, unowned values
   added after the read are preserved, and schema length bounds are validated.
-- Reused one readiness context and one user lookup per write; CSV preflights all
-  usable rows before mutation and reports progress when a later write fails.
+- Reused one readiness context per operation; CSV preflights all usable rows,
+  refreshes each approved resolved object before writing, and reports progress
+  and per-outcome counts on failure.
+- Made blank CSV fields replace empty owned namespaces, matching projection.
+  The sample config now uses `CsvProfile-` and `CsvRouting-` to coexist with the
+  unchanged default projection. Existing imports need a preview and ownership
+  review; stored values are not automatically migrated.
+- Added explicit Written, NoChange, Declined, and WhatIf statuses to CSV and
+  projection summaries, without changing generic writer string-array output.
+- Kept read checks lightweight and pinned explicit server aliases to the
+  controller reported by RootDSE, preserving explicitly supplied ports.
 - Added inherited and auxiliary-class schema readiness, fail-closed graph
   validation, and explicit schema-cache refresh after guarded enablement.
-- Made default optional log files unique per run and limited messages to counts.
-- Expanded the trusted test allowlist to eight files, failed discovery/container
+- Bounded default optional logs, added session correlation, and limited messages
+  to counts. Explicit log paths remain caller-managed; logging failures warn
+  without misreporting an already completed directory write.
+- Expanded the explicit trusted test allowlist, failed discovery/container
   errors reliably, and checked manifest FileList completeness.
 - Refreshed current Mermaid flows and atlas data; dated infographic plates are
   retained as historical rather than presented as current write contracts.
+- Added sample/projection coexistence and smoke-cleanup regressions; campaign
+  checks now read final directory state after both workflows.
 - Hardened namespace and CSV input boundaries by rejecting blank or overlapping
   prefixes, empty CSV input, duplicate normalized identities, and ambiguous
   local configuration before Active Directory readiness or lookup.

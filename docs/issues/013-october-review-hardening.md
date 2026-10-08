@@ -14,27 +14,20 @@ existing candidate. A clean archive of the July candidate produced 94 passing
 tests, no failures, and six integration tests not run. That is the comparison
 baseline, not evidence that public main has been repaired.
 
-The requested OpenAI Docs workflow starts with current official guidance,
-inventory, behavioral preservation, and representative validation. This repo is
-a PowerShell module with no OpenAI API/model integration to migrate. The
-[GPT-6 Astra migration guidance](https://developers.openai.com/api/docs/guides/latest-model/gpt-6-astra.md#migration-quickstart)
-informs the review discipline; it is not a formal certification or a reason to
-add an unrelated AI dependency.
-
 Three complementary standards govern the decisions:
 
 | Perspective | Acceptance Standard | Outcome |
 | --- | --- | --- |
-| Builder: contract and compatibility | Existing exports, parameter sets, wrappers, help, and PowerShell 5.1 remain usable. | Shared private writer removes repeated work without a public API break. |
-| Critic: adversarial state transitions | Prove ownership, stale-read behavior, malformed schema handling, partial failure, and preview safety. | New regressions target actual loss/failure boundaries rather than only happy paths. |
-| Quality gatekeeper: reproducibility | Exact baseline, pinned Pester, discovery failures, Windows execution, and live cleanup are checked separately. | Unit success is not presented as schema-mutation or distributed-concurrency proof. |
+| Contract and compatibility | Existing exports, parameter sets, wrappers, help, and PowerShell 5.1 remain usable. | Shared private writer removes repeated work without a public API break. |
+| Adversarial state transitions | Prove ownership, stale-read behavior, malformed schema handling, partial failure, and preview safety. | New regressions target actual loss/failure boundaries rather than only happy paths. |
+| Reproducibility | Exact baseline, pinned Pester, discovery failures, Windows execution, and live cleanup are checked separately. | Unit success is not presented as schema-mutation or distributed-concurrency proof. |
 
 These perspectives agree on scoped deltas and schema traversal. They differ on
 removing old APIs and simplifying schema provisioning: an aesthetically smaller
 API is not sufficient justification for breaking callers or inventing forest
 schema objects. Strategy therefore favors a compatible repair now and explicit
-future design decisions where necessary. Delegated implementation reviews and
-an independent final regression review supplement the primary review.
+future design decisions where necessary. An independent final regression review
+supplements the primary review.
 
 ## External Finding Decisions
 
@@ -54,7 +47,7 @@ an independent final regression review supplement the primary review.
 | CSV supports only SamAccountName | Documented format restriction, not an undisclosed bug. | Preserve the contract. Additional identity columns require an explicit ambiguity and migration design. |
 | No schema length validation | Confirmed. | Use the selected schema's actual `rangeUpper`, including the prefix. Do not hardcode 256 or invent a bound when the schema omits it. |
 | Case-only updates are ignored | Confirmed. | Use ordinal, case-sensitive delta comparison while retaining case-insensitive ownership and desired-value deduplication. |
-| Shared temporary log includes payloads | Confirmed. | Default optional logs use unique per-user files and count-only messages. Callers still control explicit log paths and their retention/permissions. |
+| Shared temporary log includes payloads | Confirmed. | Logs contain counts only. The follow-up bounds the current user's default log; explicit paths remain caller-managed. |
 | Projection `WhatIf -PassThru` returns nothing | Confirmed. | Return the computed snapshot preview under WhatIf. Explicitly document that it is not a fresh directory read-back. |
 | Version-pinned release tests drift | Main was stale; July corrected the number but still pinned assertions. | Derive version assertions from the manifest, verify version shape and current changelog heading, and retain export parity. Public main changes only after an authorized merge. |
 | Repeated identity forwarding | Valid in changed write paths. | Centralize bound-identity extraction in a private helper; retain explicit public parameter declarations for discoverability and compatibility. |
@@ -81,6 +74,31 @@ now belongs to the outer import command and approved rows call the shared writer
 without a second prompt. Preview or declined rows still return computed values.
 Dedicated interactive-host regressions verify the two All choices.
 
+## Second Review Decisions
+
+The follow-up reviewed the candidate at `c2949ef`. The changes below are
+tracked in the same issue and PR, without another duplicate issue mirror.
+
+| Finding | Decision |
+| --- | --- |
+| Sample CSV collides with projection defaults | Confirmed. Rename only the sample prefixes to `CsvProfile-` and `CsvRouting-`; preserve default projection compatibility. Test the combined map and both execution orders against final state. |
+| CSV blanks retain old values | Confirmed inconsistency. Retain every mapped prefix, including empty replacements. Document the behavior change and preview/migration guidance; no automatic data migration. |
+| CSV writes reuse preflight snapshots | Confirmed. Keep full validation, refresh approved resolved identities immediately before mutation, and expose later failures. This narrows the stale window but cannot eliminate races. |
+| Results do not distinguish outcomes | Confirmed. CSV/projection summaries report Written, NoChange, Declined, or WhatIf. Failure progress separates processed counts from write counts. Generic writer output remains compatible. |
+| Reads traverse the write-readiness graph | Confirmed. Attribute reads use a lightweight presence check and the same resolved controller. Full readiness queries retain graph validation. |
+| Explicit domain aliases can drift between calls | Confirmed. Pin the RootDSE hostname for all subsequent calls while preserving an explicit port. Separate operations still need a shared actual DC hostname. |
+| Default logs accumulate per invocation | Confirmed. Reuse a bounded current-user log with one archive and session correlation. Do not delete legacy or caller-managed files; log failures warn separately from write outcomes. |
+| Dead readiness assertion and automatic-variable shadowing | Remove the unused private assertion and rename the class lookup variable. Keep explicit public parameter declarations for help and binding. |
+| Smoke cleanup failures are hidden | Confirmed. Require terminating removal and verified absence before reporting success; add executable cleanup failure tests. |
+| Wrapper stacking and repeated checks | Remove avoidable forwarding/check duplication and reuse the existing identity helper for reads. Keep validation at the public boundary and private plan boundary, and retain supported exports. |
+| Source-only release and campaign tests | Replace selected text assertions with executable release-gate and cleanup tests. Static ownership/safety guards remain supplemental, not live proof. |
+| Large docs, seed data, and tracking volume | Keep existing reproducible assets and historical records. Update current diagrams in place; avoid new generated plates or another issue mirror. Future receipts belong on the issue, contracts in operator docs. |
+| Merge drafts and close implemented issues | Operationally sensible after review, but not authorized by a pasted recommendation. Keep #12 and #15 separately attributable, then merge #12, retarget/revalidate #15, and merge only with owner approval. Leave issues ready for closure. |
+
+Supported compatibility commands have no scheduled 0.13-series removal. A
+future removal needs migration guidance, a warning period, and a breaking-version
+decision; reducing export count alone is not a correctness fix.
+
 ## Verification Ledger
 
 The October ledger is sanitized. Credentials, new raw output, and other private
@@ -90,13 +108,21 @@ does not broaden permission to publish future lab artifacts.
 | Check | Result |
 | --- | --- |
 | Clean July baseline, Pester 5.7.1 | 94 passed, 0 failed, 6 integration not run. |
-| Candidate local source gate | 204 passed, 0 failed, 8 integration not run; syntax, docs, atlas, and release gate passed. |
+| Initial October candidate local source gate | 204 passed, 0 failed, 8 integration not run; syntax, docs, atlas, and release gate passed. |
 | Windows Server 2025 / Windows PowerShell 5.1 | 204 unit tests passed, including both confirmation choices; 8 integration tests excluded from that process. |
 | Real-directory readiness | Ready without any schema modification. |
 | Isolated live integration | 8 passed, 0 failed, 0 skipped, 0 failed containers. Separate fresh process after rollback preparation; no newly created test accounts remained. |
 | Independent final regression review | One actionable CSV confirmation-scope regression found and fixed; both new tests fail against an in-memory regression mutation and pass against the fix. |
 | Diagrams and atlas | Five Mermaid sources rendered successfully. All seven atlas flows and 34 nodes checked at desktop/mobile widths; no page errors or document overflow. Long labels wrap in both atlas variants. |
 | Remote CI | See issue #13 and the PR checks for the exact pushed candidate; local validation is not a remote CI claim. |
+
+Second-review validation: the local release gate passes with 256 unit tests.
+Windows PowerShell 5.1 passes 255, with one macOS-specific link test skipped;
+ten integration cases are excluded from both unit runs. The combined suite
+also exposed and corrected fixture-module leakage and nonportable manifest
+test setup. Follow-up live and remote CI receipts are recorded on issue #13.
+An independent review found a preview-mode log-rotation defect; regression
+tests now prove existing logs are byte-for-byte unchanged under preview.
 
 ## Remaining Limits
 
@@ -108,11 +134,11 @@ does not broaden permission to publish future lab artifacts.
   writers on different DCs. Use one writer/DC policy or external coordination.
 - Schema readiness is a schema legality check, not proof of object ACL rights,
   replication convergence, or successful future writes.
-- CSV preflight retains prepared rows in memory and lengthens the read-to-write
-  interval. It deliberately prioritizes avoiding predictable partial writes;
-  very large imports need memory/runtime measurement before scale claims.
+- CSV preflight retains prepared rows in memory. Execution refreshes approved
+  objects, but same-prefix changes after that read can still cause conflicts.
+  Very large imports need memory/runtime measurement before scale claims.
 - Schema enablement code is unit-tested, not applied to the live forest in this
-  pass. The eight-case integration suite is not a seeded-scale campaign.
+  pass. The isolated integration suite is not a seeded-scale campaign.
 - Logs are payload-minimized, not an audited secure logging subsystem. Explicit
   paths, platform file permissions, retention, and error/transcript handling
   remain operator responsibilities.
