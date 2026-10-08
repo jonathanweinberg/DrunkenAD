@@ -350,7 +350,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Stale-' -DomainController $script:domainController | Should -Be @('Stale-New')
     }
 
-    # These seven areas are unverified live contracts until an approved Tier1 run.
+    # These cases are unverified live contracts until an approved Tier1 run.
     # Select with -Tag Tier1; both environment opt-ins are also mandatory.
     Context 'Bounded Tier1 live regressions' -Tag 'Tier1' -Skip:(-not $script:runTier1) {
         BeforeAll {
@@ -686,6 +686,99 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
                 $second.Status | Should -Be 'NoChange'
                 Assert-Tier1StoredValues $expected
                 Get-Tier1DrinkVersion | Should -Be $beforeVersion -Because 'no-op writes must not advance drink replication metadata on the same DC'
+            }
+        }
+
+        It 'checks native <AttributeName> projection boundaries through <CommandName> under <CultureName>' -TestCases @(
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; AttributeName = 'whenCreated' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; AttributeName = 'whenCreated' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; AttributeName = 'whenCreated' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; AttributeName = 'whenCreated' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; AttributeName = 'DistinguishedName' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; AttributeName = 'DistinguishedName' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; AttributeName = 'DistinguishedName' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; AttributeName = 'DistinguishedName' }
+        ) {
+            param($CommandName, $CultureName, $AttributeName)
+            if (-not (Initialize-Tier1Case)) { return }
+            $context = Get-Tier1WriteContext
+            if ($null -eq $context.RangeUpper -or $context.RangeUpper -lt 16 -or $context.RangeUpper -gt 4096) {
+                Set-ItResult -Skipped -Because 'Evidence Gap: rangeUpper must be present and between 16 and 4096 for this bounded projection probe.'
+                return
+            }
+            $limit = [int]$context.RangeUpper
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [cultureinfo]::CurrentCulture.Name | Should -BeExactly $CultureName
+                [cultureinfo]::CurrentUICulture.Name | Should -BeExactly $CultureName
+
+                $owned = Get-Tier1OwnedUser
+                $source = Get-ADUser -Identity $owned.ObjectGUID -Properties $AttributeName -Server $script:domainController -ErrorAction Stop
+                [guid]$source.ObjectGUID | Should -Be $script:userGuid
+                $sourceValue = $source.$AttributeName
+                $prefixStem = 'T1Projection[01]-'
+                if ($AttributeName -eq 'whenCreated') {
+                    ($sourceValue -is [datetime]) | Should -BeTrue -Because 'whenCreated must remain a native scalar DateTime'
+                    $rendered = $sourceValue.ToString('MM/dd/yyyy HH:mm:ss', [cultureinfo]::InvariantCulture)
+                }
+                else {
+                    ($sourceValue -is [string]) | Should -BeTrue -Because 'DistinguishedName must remain a native scalar string'
+                    $sourceValue | Should -Match ','
+                    $sourceValue | Should -Match '='
+                    $rendered = $sourceValue
+                    $prefixStem += [char]0x00E9 + [char]::ConvertFromUtf32(0x1F642) + '-'
+                }
+                $record = $AttributeName + '=' + $rendered
+                $peerExpected = 'T1Peer-samAccountName=' + $owned.SamAccountName
+                $paddingLength = $limit - $prefixStem.Length - $record.Length
+                if ($paddingLength -lt 0 -or $peerExpected.Length -gt $limit) {
+                    Set-ItResult -Skipped -Because 'Evidence Gap: live rangeUpper is too small for the prefixed native source or companion projection. No schema or source attributes were changed.'
+                    return
+                }
+
+                # Vary only the literal prefix; count the complete value in UTF-16 code units.
+                $exactPrefix = $prefixStem + ('x' * $paddingLength)
+                $negativePrefix = $exactPrefix + 'x'
+                $exact = $exactPrefix + $record
+                $overlong = $negativePrefix + $record
+                $exact.Length | Should -Be $limit
+                $overlong.Length | Should -Be ($limit + 1)
+                $negativeSeed = @('T1Keep-Stable', 'T1Peer-Old', ($negativePrefix + 'Old'))
+                Reset-Tier1Drink -Values $negativeSeed
+                $beforeVersion = Get-Tier1DrinkVersion
+                $parameters = @{
+                    SamAccountName = $script:userName
+                    AttributeMap = @{ $negativePrefix = @($AttributeName); 'T1Peer-' = @('samAccountName') }
+                    DomainController = $script:domainController
+                    Confirm = $false
+                    PassThru = $true
+                    ErrorAction = 'Stop'
+                }
+                $failure = $null
+                try { & $CommandName @parameters | Out-Null }
+                catch { $failure = $_ }
+                $failure | Should -Not -BeNullOrEmpty
+                $failure.Exception.Message | Should -BeExactly "A drink value has $($limit + 1) characters; the target schema allows at most $limit, including the prefix."
+                $failure.FullyQualifiedErrorId | Should -Not -Match '^ActiveDirectoryServer:'
+                Assert-Tier1StoredValues -Expected $negativeSeed
+                Get-Tier1DrinkVersion | Should -Be $beforeVersion -Because 'local length rejection must not advance drink metadata or partially replace either namespace'
+
+                Reset-Tier1Drink -Values @('T1Keep-Stable', 'T1Peer-Old', ($exactPrefix + 'Old'))
+                $beforeVersion = Get-Tier1DrinkVersion
+                $parameters.AttributeMap = @{ $exactPrefix = @($AttributeName); 'T1Peer-' = @('samAccountName') }
+                $result = & $CommandName @parameters
+                $result.Status | Should -Be 'Written'
+                $expected = @('T1Keep-Stable', $peerExpected, $exact)
+                Assert-Tier1OrdinalSet -Actual @($result.FinalDrinkValues) -Expected $expected
+                Assert-Tier1StoredValues -Expected $expected
+                Get-Tier1DrinkVersion | Should -BeGreaterThan $beforeVersion -Because 'the exact-limit replacement must advance drink metadata on the pinned DC'
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
             }
         }
     }

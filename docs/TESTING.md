@@ -107,9 +107,12 @@ After separately authorizing the bounded Tier 1 scope, set
 `DRUNKENAD_RUN_TIER1=1` as well as the existing integration variables. Tier 1
 also requires `DRUNKENAD_TEST_USER_OU` to name a pre-existing lab OU. The suite
 uses the same one disabled temporary account, records its GUID, and verifies
-cleanup. The seven extra tests probe stale Remove, duplicate/case-variant Add,
-live length boundaries, Unicode across write paths, 1,600-plus values, and
-no-op replication metadata. Each test independently resets only that account.
+cleanup. Fifteen extra cases probe stale Remove, duplicate/case-variant Add,
+live length boundaries, Unicode across write paths, 1,600-plus values, no-op
+replication metadata, and eight native projection-boundary combinations.
+The latter cover both public projection commands, en-US/de-DE, and typed dates
+or distinguished names against the actual schema limit. Each case independently
+resets only that account; the complete opt-in suite discovers 27 cases.
 They remain excluded from default CI and from an ordinary twelve-case run.
 
 Do not count a skipped boundary test or an unknown AD error as a pass. The

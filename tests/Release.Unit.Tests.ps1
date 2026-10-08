@@ -470,8 +470,8 @@ $configuration.Run.SkipRun = $true
 $configuration.Run.PassThru = $true
 $configuration.Output.Verbosity = 'None'
 $discovery = Invoke-Pester -Configuration $configuration
-if ($discovery.TotalCount -ne 19 -or @($discovery.Tests | Where-Object { $_.Path -contains 'Bounded Tier1 live regressions' }).Count -ne 7) {
-    throw 'Expected unchanged coverage of 12 base and 7 Tier1 integration cases.'
+if ($discovery.TotalCount -ne 27 -or @($discovery.Tests | Where-Object { $_.Path -contains 'Bounded Tier1 live regressions' }).Count -ne 15) {
+    throw 'Expected coverage of 12 base and 15 Tier1 integration cases.'
 }
 if ($global:offlineImportCalls -ne 0 -or $global:offlineReadinessCalls -ne 0) { throw 'Integration discovery attempted directory initialization.' }
 $include = $Mode -ne 'Excluded'
@@ -483,7 +483,7 @@ $expectedOu = if ($Mode -eq 'Tier1Integration') { 1 } else { 0 }
 if ($global:offlineImportCalls -ne $expectedImports -or $global:offlineReadinessCalls -ne $expectedReadiness -or $global:offlineOuReads -ne $expectedOu -or $global:offlineUnexpectedCalls -ne 0) {
     throw "Unexpected initialization counts: imports=$global:offlineImportCalls readiness=$global:offlineReadinessCalls OU=$global:offlineOuReads directory=$global:offlineUnexpectedCalls"
 }
-"Integration selection verified: $Mode; base=12; tier1=7."
+"Integration selection verified: $Mode; base=12; tier1=15."
 '@
         $pesterPath = (Get-Module Pester).Path -replace 'Pester\.psm1$', 'Pester.psd1'
         $processPath = (Get-Process -Id $PID).Path
@@ -495,7 +495,7 @@ if ($global:offlineImportCalls -ne $expectedImports -or $global:offlineReadiness
         }
         finally { $ErrorActionPreference = $savedErrorPreference }
         $processExitCode | Should -Be 0 -Because ($output | Out-String)
-        ($output | Out-String) | Should -Match "Integration selection verified: $Mode; base=12; tier1=7\."
+        ($output | Out-String) | Should -Match "Integration selection verified: $Mode; base=12; tier1=15\."
     }
 }
 
