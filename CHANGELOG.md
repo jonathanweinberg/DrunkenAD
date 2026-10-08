@@ -2,6 +2,8 @@
 
 ## 0.13.2
 
+- Restored imagegen illustrations and README thumbnails with corrected workflow
+  content, retaining editable Mermaid details and historical artwork references.
 - Fail closed on malformed CSV byte sequences before AD access, preserving
   UTF-8 and BOM-marked UTF-16/UTF-32 without silently replacing damaged text.
 - Replaced whole-attribute writes with prefix-scoped Remove/Add deltas on one

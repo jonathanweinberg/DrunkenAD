@@ -21,12 +21,16 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
-| Module layout | [Current Mermaid flow](docs/DIAGRAMS.md#module-layout) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Write model | [Current Mermaid flow](docs/DIAGRAMS.md#namespace-write-model) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| CSV ingestion | [Current Mermaid flow](docs/DIAGRAMS.md#csv-ingestion-flow) | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
-| Schema readiness | [Current Mermaid flow](docs/DIAGRAMS.md#schema-readiness-flow) | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
-| Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
-| Release readiness | [Current Mermaid flow](docs/DIAGRAMS.md#release-readiness) | [docs/TESTING.md](docs/TESTING.md) |
+| Module layout | <img src="docs/images/documentation-suite-2026-10-08/module-layout.png" alt="Illustrated module layout with shared helpers and 12 public commands" width="260"> | [Architecture](docs/ARCHITECTURE.md) / [Mermaid](docs/DIAGRAMS.md#module-layout) |
+| Write model | <img src="docs/images/documentation-suite-2026-10-08/namespace-write-model.png" alt="Illustrated scoped Remove/Add update preserving unrelated values" width="260"> | [Architecture](docs/ARCHITECTURE.md) / [Mermaid](docs/DIAGRAMS.md#namespace-write-model) |
+| CSV ingestion | <img src="docs/images/documentation-suite-2026-10-08/csv-ingestion-flow.png" alt="Illustrated CSV validation, confirmation, scoped writes, and explicit outcomes" width="260"> | [CSV guide](docs/HOW-TO-INGEST-CSV.md) / [Mermaid](docs/DIAGRAMS.md#csv-ingestion-flow) |
+| Schema readiness | <img src="docs/images/documentation-suite-2026-10-08/schema-readiness-flow.png" alt="Illustrated schema checks separated from authorized schema changes" width="260"> | [Schema guide](docs/SCHEMA-ENABLEMENT.md) / [Mermaid](docs/DIAGRAMS.md#schema-readiness-flow) |
+| Live validation | <img src="docs/images/documentation-suite-2026-10-08/live-validation-ladder.png" alt="Illustrated approval, isolated testing, read-back, and cleanup gates" width="260"> | [Live guide](docs/LIVE-VALIDATION.md) |
+| Release readiness | <img src="docs/images/documentation-suite-2026-10-08/release-readiness.png" alt="Illustrated source checks, CI platforms, opt-in live evidence, and separate publication approval" width="260"> | [Testing](docs/TESTING.md) / [Mermaid](docs/DIAGRAMS.md#release-readiness) |
+
+The refreshed illustrations explain the workflows; dated test receipts establish
+what actually passed. Detailed [Mermaid diagrams](docs/DIAGRAMS.md) remain
+available alongside the artwork.
 
 ## Design Goals
 

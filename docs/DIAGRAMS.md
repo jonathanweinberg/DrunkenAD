@@ -1,10 +1,11 @@
 # DrunkenAD Diagrams
 
 This page keeps the Mermaid diagrams and their generated infographic plates
-together. The Mermaid files under `docs/diagrams/` are the editable source of
-truth. The PNG images under `docs/images/documentation-suite-2026-05-07/` and
-`docs/images/documentation-suite-2026-05-11/` are dated historical illustrations, not current write or release contracts.
-The Mermaid diagrams below and the interactive atlas describe current behavior.
+together. The Mermaid files under `docs/diagrams/` are the editable flow sources.
+The October 2026 imagegen suite restores the original illustrated style with
+updated technical content. Older suites remain historical references. Neither
+an illustration nor a diagram establishes a live test result or release status;
+use the dated validation receipts for those claims.
 
 ## Product Overview
 
@@ -16,7 +17,9 @@ around the same `drink` attribute model.
 
 ## Module Layout
 
-Historical plate: [Module layout image](images/documentation-suite-2026-05-11/module-layout.png). The Mermaid diagram below is current.
+![Illustrated module layout](images/documentation-suite-2026-10-08/module-layout.png)
+
+The editable Mermaid flow follows the illustrated overview.
 
 ```mermaid
 flowchart LR
@@ -78,7 +81,9 @@ Source file: [diagrams/use-case-map.mmd](diagrams/use-case-map.mmd)
 
 ## Namespace Write Model
 
-Historical plate: [Namespace write model image](images/documentation-suite-2026-05-07/namespace-write-model.png). The Mermaid diagram below is current.
+![Illustrated namespace write model](images/documentation-suite-2026-10-08/namespace-write-model.png)
+
+The Mermaid flow details the scoped write operation.
 
 ```mermaid
 flowchart TD
@@ -97,7 +102,9 @@ Source file: [diagrams/namespace-write-model.mmd](diagrams/namespace-write-model
 
 ## CSV Ingestion Flow
 
-Historical plate: [CSV ingestion flow image](images/documentation-suite-2026-05-07/csv-ingestion-flow.png). The Mermaid diagram below is current.
+![Illustrated CSV ingestion](images/documentation-suite-2026-10-08/csv-ingestion-flow.png)
+
+The Mermaid flow details validation, approval, and failure paths.
 
 ```mermaid
 flowchart TD
@@ -123,7 +130,12 @@ Source file: [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd)
 
 ## Schema Readiness Flow
 
-Historical plate: [Schema readiness flow image](images/documentation-suite-2026-05-07/schema-readiness-flow.png). The Mermaid diagram below is current.
+![Illustrated schema readiness](images/documentation-suite-2026-10-08/schema-readiness-flow.png)
+
+The illustration abbreviates the allowed-attribute sets: `mayContain`,
+`systemMayContain`, `mustContain`, and `systemMustContain`. Readiness establishes
+schema legality, not the caller's effective write permissions. The Mermaid flow
+details the separate check and authorized-change paths.
 
 ```mermaid
 flowchart TD
@@ -146,7 +158,7 @@ Source file: [diagrams/schema-readiness-flow.mmd](diagrams/schema-readiness-flow
 
 ## Live Validation Ladder
 
-![Live validation ladder image](images/documentation-suite-2026-05-07/live-validation-ladder.png)
+![Live validation ladder image](images/documentation-suite-2026-10-08/live-validation-ladder.png)
 
 ```mermaid
 flowchart TD
@@ -165,7 +177,7 @@ Source file: [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladd
 
 ## Live Campaign Profiles
 
-![Live campaign profiles image](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+![Live campaign profiles image](images/documentation-suite-2026-10-08/live-campaign-profiles.png)
 
 ```mermaid
 flowchart LR
@@ -187,7 +199,9 @@ Source file: [diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profil
 
 ## Release Readiness
 
-Historical plate: [Release readiness image](images/documentation-suite-2026-05-11/release-readiness.png). The Mermaid diagram below is current.
+![Illustrated release readiness](images/documentation-suite-2026-10-08/release-readiness.png)
+
+The artwork describes gates, not current test results or publication status.
 
 ```mermaid
 flowchart LR

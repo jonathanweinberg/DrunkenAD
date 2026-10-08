@@ -119,9 +119,9 @@ for logging only, so a failed log cannot invalidate a completed directory write.
 Use the live campaign when you need end-to-end evidence across schema readiness,
 temporary smoke writes, seeded users, CSV ingestion, projection, and CRUD.
 
-![Live validation ladder](images/documentation-suite-2026-05-07/live-validation-ladder.png)
+![Live validation ladder](images/documentation-suite-2026-10-08/live-validation-ladder.png)
 
-![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+![Live campaign profiles](images/documentation-suite-2026-10-08/live-campaign-profiles.png)
 
 The source diagram for this validation path lives at
 [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladder.mmd).
