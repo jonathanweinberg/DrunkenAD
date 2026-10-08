@@ -25,11 +25,11 @@ These are local source/visual checks, not final-candidate CI or live proof.
 | CSV defect and repair | Actual-byte reproduction confirmed `ren` plus `0xe9` was accepted with replacement at baseline. Current [CSV reader][CSV] uses strict exception-fallback decoding: UTF-8 by default and BOM-selected UTF-8/UTF-16/UTF-32, preserving both byte orders where applicable. Actual-byte positive/negative regressions passed locally and on Windows PowerShell 5.1 at `4d1db9b`. | Final-head CI and actual Excel-exporter case 13 remain separate; live Unicode case 5 passed at `4d1db9b`. |
 | Correct encoding contract | No blanket U+FFFD ban and no broad Encoding parameter. Validly encoded U+FFFD is legitimate input and is included in positive fixtures. Invalid bytes fail before AD access; already-corrupted valid Unicode cannot reliably be detected or repaired. | Document exact supported encodings and verify no legacy-codepage guessing. |
 | Projection adjudication | Six regressions passed on PowerShell 7.6.3 and Windows PowerShell 5.1 at `4d1db9b`: helper string casts give equal en-US/de-DE dates/numbers while a `.ToString()` control changes with culture; multivalue/DN strings and blank-source clearing are covered. Production projection code is unchanged. Preserve existing invariant general-format dates, not an unsolicited ISO change. | Actual AD/native/compatibility source case 14 remains distinct. |
-| Tier 1 implementation and first execution | At `4d1db9b`, the 19-case run passed all 12 baseline cases plus five Tier1 cases. Two Tier1 cases failed: stale Remove was accepted rather than rejected, and the server rejected the 1,602-value fixture before retrieval. Cleanup verified zero temporary accounts. | The corrected stale-Remove complete-outcome assertion and explicit capacity Evidence Gap require a new run. No claim that all Tier1 cases passed. |
+| Tier 1 execution | First run at `4d1db9b`: 17 passed, two failed. Corrected run at `038013b`: all 12 baseline plus six Tier1 cases passed, zero failed, one explicit large-set capacity skip. Cleanup verified zero temporary accounts after both runs. | Partial coverage: the large-set case and the other unexecuted scenarios remain Evidence Gaps, not passes. |
 | Documentation/endpoint corrections | About-topic and DATA-STORE blank retention, alias-pinning prose, and CSV endpoint wording are corrected. A help regression and explicit NetBIOS pass-through testcase were added; no production endpoint rewrite. | Included in the passing local gate; remote matrix and live endpoint evidence remain separate. |
-| Expanded live approval | User directly authorized up to six disabled temporary users, one group and two OUs inside the existing lab test OU; only owned-object attributes, renames, moves and temporary permissions. The first run used one disabled temporary user, verified rollback beforehand and absence afterward. No schema, DNS, infrastructure, existing-user or campaign mutation. | Continue only inside this allowance; each changed candidate needs an exact receipt. |
+| Expanded live approval | User directly authorized up to six disabled temporary users, one group and two OUs inside the existing lab test OU; only owned-object attributes, renames, moves and temporary permissions. Two runs each used one disabled temporary user, verified rollback beforehand and absence afterward. No group or OU was created; no schema, DNS, infrastructure, existing-user or campaign mutation. | Continue only inside this allowance; each changed candidate needs an exact receipt. |
 | Published release / owner hold | Reported release-state verification identifies latest GitHub release `v0.13.1`, published 2026-05-15. Owner explicitly declined release/tagging for now, pending review of homepage imagegen artwork versus Mermaid presentation. This is an owner hold, not an unanswered approval question. | No tag/release until owner explicitly lifts the hold after review. Live authorization does not authorize publication or issue closure. |
-| Artwork refresh, separate scope | Commit `1fdc4df` adds seven inspected imagegen illustrations with exact prompt records, restores six README thumbnails, and updates the documentation index/detail guides. Original artwork is preserved and Mermaid retained. Desktop/mobile checks passed. | Owner review of the restored presentation; artwork approval does not lift the separate release hold. |
+| Artwork refresh, separate scope | Commit `1fdc4df` adds seven inspected imagegen illustrations with exact prompt records, restores six README thumbnails, and updates the documentation index/detail guides. Original artwork is preserved and Mermaid retained. After owner review, `13e2080` makes overview link labels consistently show file paths. Desktop/mobile checks passed again. | Artwork approval does not lift the separate release hold. |
 
 ### First Candidate-Bound Windows Receipt
 
@@ -65,6 +65,42 @@ not proof of a concurrency lock or of the exact wire control in every runtime.
 [Nonlinked-value capacity](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/active-directory-domain-services-maximum-limits#maximum-number-of-nonlinked-attribute-values)
 depends on directory configuration, separately from per-value `rangeUpper`.
 No forest configuration was changed or inferred from the OS version.
+
+### Corrected Candidate Receipt
+
+Source: `038013b804305bc2292b96c7f76b2a51059ca4b6`; archive SHA-256
+`06fd6c4298fea88c1562ab01da54944fb96f8a043627f65670c41beb735510f3`.
+Runtime and bounded fixture scope are the same as above. Subsequent file-path
+label and receipt edits change documentation only, not module/test code.
+
+- Local full gate: 379 passed, zero failed, 19 integration cases excluded.
+- Windows units: 378 passed, zero failures/errors, one platform-specific skip;
+  integration excluded. The first combined launcher then stopped at preflight
+  because a unit-test stub shadowed an AD command; no live mutation occurred.
+  Live validation used a fresh process with real native AD command provenance
+  verified, not a session that had just executed unit stubs.
+- Live: 19 discovered, 18 passed, zero failed, one skipped, zero not-run and
+  zero failed containers. All twelve baseline and six Tier1 cases passed.
+  The wrapper deliberately returned `Partial - Evidence Gap` and exit 2 even
+  though Pester's aggregate result was Passed.
+- Stale Remove: missing value ignored, exact complete Remove/Add state verified.
+  Duplicate Add and case-equivalent collision also produced complete updates
+  with no unrelated loss; the latter retained the existing spelling.
+- Large set: skipped only after the recognized capacity rejection and an exact
+  unchanged-state assertion. Range retrieval beyond 1,600 values remains
+  unproven; no server limits were changed.
+- Cleanup: one disabled temporary account created and removed; exact fixture
+  absence checked in teardown and zero temporary accounts in the post-run scan.
+- CI for `038013b`: all four platform lanes and documentation check passed.
+  [PowerShell run](https://github.com/jonathanweinberg/DrunkenAD/actions/runs/37843920639)
+  and [documentation run](https://github.com/jonathanweinberg/DrunkenAD/actions/runs/37843920687)
+  identify this candidate. Three nonempty Core test-result artifacts were
+  retained. Final-head CI status is tracked in
+  [PR #17](https://github.com/jonathanweinberg/DrunkenAD/pull/17).
+
+The owner-approved overview-label refinement is documentation-only. It does
+not authorize release/tagging, issue closure, broader live mutations, or a
+claim that all 26 proposed scenarios have been exercised.
 
 Cases requiring schema changes, multi-DC infrastructure preparation, enterprise
 profile changes or a 3,000-user campaign are not authorized by the expanded
@@ -136,7 +172,7 @@ All rows below are inspected implementation/coverage, not fresh test passes.
 | --- | --- | --- | --- |
 | F1: Non-UTF-8 CSV corruption | Confirmed by reported actual-byte testing of `ren` plus `0xe9`. Strict Unicode decoding and byte-level fixtures are now present in [CSV]/[UT]; UTF-8 default, BOM-marked UTF-16/32 retained. No blanket U+FFFD ban or broad Encoding option. | Require final-candidate rejection-before-AD and valid Unicode receipts (cases 5/13). Do not label every plain Excel CSV Windows-1252: exporter version, locale, format, BOM, and actual bytes must be recorded. | Source repair inspected; release still gated on validation. |
 | F2a: Fixes not released | 0.13.2 is declared in [manifest][MANIFEST] and [changelog][CHANGELOG]; reported release-state verification identifies latest GitHub release as v0.13.1 (2026-05-15). These are different evidence classes. | Assemble evidence without publishing. Owner explicitly holds release/tagging pending homepage artwork review; only a later explicit owner decision can lift that hold. | Owner-held, not an unanswered approval request. |
-| F2b: Current code not live validated | The first fixed candidate `4d1db9b` passed twelve baseline and five Tier1 cases; two Tier1 failures are adjudicated in the receipt above. Expanded bounded authorization remains limited to owned fixtures. | Rerun corrected complete-state assertions; preserve the explicit large-set capacity gap and other unexecuted cases. Old 55906b1 evidence alone cannot close this gap. | Release remains held; partial live coverage is not release completion. |
+| F2b: Current code not live validated | Corrected candidate `038013b` passed twelve baseline and six Tier1 cases with verified cleanup; one capacity prerequisite was explicitly skipped. Expanded authorization remains limited to owned fixtures. | Preserve the explicit large-set capacity gap and other unexecuted cases. Old 55906b1 evidence alone cannot close this gap. | Release remains held; partial live coverage is not release completion. |
 | M1: NetBIOS domain / aliases not pinned | Pass-through is confirmed by resolver structure; it does not query a domain's NetBIOS name. A single-label input can also be an explicit short DC hostname. Blanket classification would break the preserved-endpoint contract. | Keep explicit short host behavior. Cases 12/15 separately establish known domain, short host, and alias behavior; any future classification needs authoritative metadata and ambiguity handling. | Document limitation now; classifier redesign can defer. |
 | M2: Three user reads per changed CSV row | [write tests][WT], `uses one schema check, one preflight resolve and two fresh reads per changed CSV row`, explicitly asserts the design. Reads serve different consistency boundaries; see tradeoff table. | Case 26 measures cost; case 10/11 regression receipts are mandatory before any optimization. 9,000 is a modeled count for 3,000 approved changed rows, not measured latency. | Preserve safety now; optimization deferred. |
 | M3: Logger complexity and legacy-only automatic path | Automatic default-path opt-in is on `Update-ADUserDrinkAttribute -EnableLogging`; other supported writers expose explicit `LogPath`. [LOGT] tests retention, ownership, reparse rejection, preview, and error isolation. Reviewer line/test-block counts are not a defect measurement. | Retain protections and existing switch; case 25 checks normal enterprise profiles. Refactoring needs equal safety coverage and an explicit performance/maintenance benefit. | No simplification prerequisite for release. |
@@ -324,7 +360,7 @@ the corresponding rows. They do not supersede the required live receipts.
 
 | Numbered Case | Newly Inspected Tier1 Coverage In Existing Integration File | Still Needed |
 | --- | --- | --- |
-| 1 | Stale planned Remove after out-of-band removal; complete-state assertion and directory-error validation. | First run accepted the removal; corrected complete-success-state assertion needs rerun. Missing Remove is not a lock. |
+| 1 | Stale planned Remove after out-of-band removal; complete-state assertion and directory-error validation. | Passed at `038013b`: missing removal ignored, complete expected Remove/Add state and unrelated preservation verified. Missing Remove is not a lock. |
 | 2 | Duplicate Add permits a recognized clean error/unchanged state or complete duplicate-ignored update; rejects half-applied state. | Passed at `4d1db9b`: duplicate ignored, complete Remove/Add applied. |
 | 3 | Case-variant collision checks ordinal state, existing spelling and whole-update outcome; baseline case-only replacement retained. | Passed at `4d1db9b`: collision ignored, existing spelling retained and complete update verified; baseline case-only replacement also passed. |
 | 4 | Actual rangeUpper, exact/overlong and supplementary-character boundaries with local rejection and direct-server comparison. | Passed at `4d1db9b` with observed rangeUpper 256, including BMP and supplementary-character cases. This is not all Unicode/runtime combinations. |
@@ -390,8 +426,8 @@ must record deferred scope rather than claiming it passed.
 
 | Gate | Evidence Required Before Recommending 0.13.2 | Current Disposition |
 | --- | --- | --- |
-| G0: Exact candidate and local safety | Strict Unicode repair and regression receipts, projection no-bug adjudication plus six regressions, documentation reconciliation, fresh [release gate][GATE], pinned Pester 5.7.1, all four runtime/OS CI results and docs check, manifest/export/FileList/help parity. Record final counts, not an immutable target of 349. | Local gate: 379 passed; Windows units at `4d1db9b`: 378 passed, one platform-specific skip. Final-head CI receipt still required. |
-| G1: Authorized baseline and expanded live | Baseline twelve cases plus selected opt-in Tier1 and authorized expanded cases, with required assertions executed, zero failed/unexplained skipped/container errors, read-back and cleanup proof on final fixed candidate, not old 55906b1. | First run at `4d1db9b`: 17/19 passed, cleanup verified. Corrected stale-Remove assertion needs rerun; large-set capacity and unexecuted cases remain explicit gaps. |
+| G0: Exact candidate and local safety | Strict Unicode repair and regression receipts, projection no-bug adjudication plus six regressions, documentation reconciliation, fresh [release gate][GATE], pinned Pester 5.7.1, all four runtime/OS CI results and docs check, manifest/export/FileList/help parity. Record final counts, not an immutable target of 349. | At `038013b`: local gate 379 passed; Windows units 378 passed with one platform-specific skip; all five CI checks passed. Final documentation-head CI tracked by PR #17. |
+| G1: Authorized baseline and expanded live | Baseline twelve cases plus selected opt-in Tier1 and authorized expanded cases, with required assertions executed, zero failed/unexplained skipped/container errors, read-back and cleanup proof on final fixed candidate, not old 55906b1. | At `038013b`: 18 passed, zero failed, one explicit capacity skip, cleanup verified. Large-set retrieval and unexecuted scenarios remain gaps; not a full release pass. |
 | G2: Data integrity and operator behavior | Cases 1-13 and 22-23; single-DC parts of 12 now, multi-DC limitation explicitly retained. Case 24 on Windows PowerShell 5.1/RSAT. Failures in data preservation, invalid-input rejection, approval accuracy or failure accounting block recommendation. | Pending. Stub coverage is insufficient. |
 | G3: Conditional support surface | Case 14 real-source evidence after no-bug projection adjudication; case 24 claimed PS7 modes; case 25 enterprise logging; case 26 if making current throughput claims. Confirmed defects cannot be relabeled deferred without an explicit supported-scope decision. | Projection local adjudication reported; live/environment evidence or owner-approved restrictions pending. |
 | G4: Pre-1.0 program | Cases 15-21 and 26 by default, plus conditional cases deferred with a restricted 0.13.2 claim. Track owner, setup requirement, receipt ID, revisit milestone and whether any discovery promotes a release blocker. | Deferred proposal only, not accepted risk or task authorization. |
