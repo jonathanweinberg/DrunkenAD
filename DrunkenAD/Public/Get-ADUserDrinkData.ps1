@@ -41,9 +41,9 @@ Get-ADUserDrinkData -SamAccountName 'TesterAccount' -DomainController 'dc01.cont
 Returns all values currently stored in the user's `drink` attribute.
 
 .EXAMPLE
-Get-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefix 'Profile-' -DomainController 'dc01.contoso.com'
+Get-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefix 'AppProfile-' -DomainController 'dc01.contoso.com'
 
-Returns only the `drink` values that start with the literal prefix `Profile-`.
+Returns only the `drink` values that start with the literal prefix `AppProfile-`.
 
 .LINK
 about_DrunkenAD
@@ -91,20 +91,11 @@ function Get-ADUserDrinkData {
         throw 'Prefix cannot be null, empty, or blank when supplied.'
     }
 
-    Assert-ADDrinkAttributeEnabled -Server $DomainController
+    $schemaStatus = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru
 
-    $resolveUserParams = @{
-        Server     = $DomainController
-        Properties = @('drink')
-    }
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName'    { $resolveUserParams['SamAccountName'] = $SamAccountName }
-        'UserPrincipalName' { $resolveUserParams['UserPrincipalName'] = $UserPrincipalName }
-        'EmployeeID'        { $resolveUserParams['EmployeeID'] = $EmployeeID }
-        'Mail'              { $resolveUserParams['Mail'] = $Mail }
-        'Pager'             { $resolveUserParams['Pager'] = $Pager }
-    }
+    $resolveUserParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+    $resolveUserParams.Server = $schemaStatus.Server
+    $resolveUserParams.Properties = @('drink')
 
     $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
 

@@ -167,7 +167,7 @@ function Get-OwnedPrefixList {
     [CmdletBinding()]
     param()
 
-    @('Profile-', 'Flags-', 'Routing-', 'Tenant-', 'Sync-', 'Identity-', 'Meta-', 'Notify-', 'Org-', 'Keep-', 'Scenario-', 'Literal[01]-')
+    @('CsvProfile-', 'CsvRouting-', 'Profile-', 'Flags-', 'Routing-', 'Tenant-', 'Sync-', 'Identity-', 'Meta-', 'Notify-', 'Org-', 'Keep-', 'Scenario-', 'Literal[01]-')
 }
 
 function Get-FilteredDrinkValues {
@@ -554,6 +554,23 @@ function New-SmokeValidationPassword {
     -join ($passwordChars | Get-Random -Count $Length)
 }
 
+function Test-DrinkValuesMatch {
+    [CmdletBinding()]
+    param([string[]]$Actual, [string[]]$Expected)
+
+    [string[]]$actualNormalized = @($Actual)
+    [string[]]$expectedNormalized = @($Expected)
+    if ($actualNormalized.Count -ne $expectedNormalized.Count) { return $false }
+    [Array]::Sort($actualNormalized, [StringComparer]::Ordinal)
+    [Array]::Sort($expectedNormalized, [StringComparer]::Ordinal)
+    for ($index = 0; $index -lt $actualNormalized.Count; $index++) {
+        if (-not [string]::Equals($actualNormalized[$index], $expectedNormalized[$index], [StringComparison]::Ordinal)) {
+            return $false
+        }
+    }
+    return $true
+}
+
 function Assert-DrinkValuesMatch {
     [CmdletBinding()]
     param(
@@ -569,8 +586,30 @@ function Assert-DrinkValuesMatch {
 
     $actualNormalized = @($Actual | Sort-Object)
     $expectedNormalized = @($Expected | Sort-Object)
-    if ((@($actualNormalized) -join '|') -ne (@($expectedNormalized) -join '|')) {
+    if (-not (Test-DrinkValuesMatch -Actual $Actual -Expected $Expected)) {
         throw ('{0} Expected: {1}. Actual: {2}.' -f $Message, ($expectedNormalized -join ', '), ($actualNormalized -join ', '))
+    }
+}
+
+function Remove-DrunkenADSmokeAccount {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DistinguishedName,
+        [Parameter(Mandatory = $true)]
+        [string]$Server
+    )
+
+    try {
+        Remove-ADUser -Identity $DistinguishedName -Server $Server -Confirm:$false -ErrorAction Stop
+        $escapedDn = ConvertTo-DrunkenADLdapFilterValue -Value $DistinguishedName
+        $remaining = @(Get-ADUser -LDAPFilter "(distinguishedName=$escapedDn)" -Server $Server -ErrorAction Stop)
+        if ($remaining.Count -ne 0) {
+            throw 'The isolated smoke account is still present after removal.'
+        }
+    }
+    catch {
+        throw ('Smoke account cleanup failed; verify the isolated account manually. {0}' -f $_.Exception.Message)
     }
 }
 
@@ -610,7 +649,7 @@ function Invoke-DrunkenADSmokeValidation {
 
     try {
         $logLines.Add(('Creating smoke-test user {0} in {1}.' -f $samAccountName, $TestOuDn))
-        New-ADUser @newUserParams
+        $smokeUser = New-ADUser @newUserParams -PassThru
         $createdUser = $true
 
         $logLines.Add('Validating drink write readiness.')
@@ -637,18 +676,19 @@ function Invoke-DrunkenADSmokeValidation {
         Assert-DrinkValuesMatch -Actual $remainingValues -Expected @('Keep-Stable') -Message 'Smoke remove did not leave the Keep namespace behind.'
         Assert-DrinkValuesMatch -Actual $removedValues -Expected @() -Message 'Smoke namespace was not fully removed.'
 
-        $logLines.Add('Inline smoke validation completed successfully.')
-        [pscustomobject]@{
-            Runner      = 'InlineSmokeFallback'
-            TotalCount  = 4
-            FailedCount = 0
-            Lines       = @($logLines)
-        }
     }
     finally {
         if ($createdUser) {
-            Remove-ADUser -Identity $samAccountName -Server $DomainController -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-DrunkenADSmokeAccount -DistinguishedName $smokeUser.DistinguishedName -Server $DomainController
         }
+    }
+
+    $logLines.Add('Inline smoke validation completed successfully; isolated account removal was verified.')
+    [pscustomobject]@{
+        Runner      = 'InlineSmokeFallback'
+        TotalCount  = 4
+        FailedCount = 0
+        Lines       = @($logLines)
     }
 }
 
@@ -1053,8 +1093,9 @@ try {
         }
 
         $expectedValues = ConvertTo-ExpectedDrinkValues -DataMap (ConvertTo-CsvExpectedDataMap -CsvRow $csvRowsBySam[$seedUser.SamAccountName] -ConfigObject $configObject)
-        $actualValues = Get-FilteredDrinkValues -Values @($csvResult.FinalDrinkValues) -Prefixes @('Profile-', 'Flags-', 'Routing-', 'Tenant-', 'Sync-')
-        $matches = ((@($expectedValues) -join '|') -eq (@($actualValues) -join '|'))
+        $currentValues = @(Get-ADUserDrinkData -SamAccountName $seedUser.SamAccountName -DomainController $DomainController -ErrorAction Stop)
+        $actualValues = Get-FilteredDrinkValues -Values $currentValues -Prefixes @($configObject.PSObject.Properties.Name)
+        $matches = Test-DrinkValuesMatch -Actual $actualValues -Expected $expectedValues
 
         $csvSampleValidation.Add([pscustomobject]@{
             SamAccountName = $seedUser.SamAccountName
@@ -1125,9 +1166,12 @@ try {
             continue
         }
 
-        $expectedValues = ConvertTo-ExpectedDrinkValues -DataMap (ConvertTo-ProjectionExpectedDataMap -SeedUser $seedUser)
-        $actualValues = Get-FilteredDrinkValues -Values @($projectionResult.FinalDrinkValues) -Prefixes @('Profile-', 'Identity-', 'Meta-', 'Routing-', 'Notify-', 'Org-')
-        $matches = ((@($expectedValues) -join '|') -eq (@($actualValues) -join '|'))
+        $projectionMap = ConvertTo-ProjectionExpectedDataMap -SeedUser $seedUser
+        $csvMap = ConvertTo-CsvExpectedDataMap -CsvRow $csvRowsBySam[$seedUser.SamAccountName] -ConfigObject $configObject
+        $expectedValues = @((ConvertTo-ExpectedDrinkValues -DataMap $projectionMap) + (ConvertTo-ExpectedDrinkValues -DataMap $csvMap) | Sort-Object)
+        $currentValues = @(Get-ADUserDrinkData -SamAccountName $seedUser.SamAccountName -DomainController $DomainController -ErrorAction Stop)
+        $actualValues = Get-FilteredDrinkValues -Values $currentValues -Prefixes @(@($projectionMap.Keys) + @($csvMap.Keys))
+        $matches = Test-DrinkValuesMatch -Actual $actualValues -Expected $expectedValues
 
         $projectionSampleValidation.Add([pscustomobject]@{
             SamAccountName = $seedUser.SamAccountName

@@ -35,14 +35,14 @@ None. This command does not accept pipeline input.
 System.String[]. Returns `drink` values that begin with the requested prefix.
 
 .EXAMPLE
-Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'Profile-' -DomainController 'dc01.contoso.com'
+Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'AppProfile-' -DomainController 'dc01.contoso.com'
 
-Returns all `drink` values on the user that start with `Profile-`.
+Returns all `drink` values on the user that start with `AppProfile-`.
 
 .EXAMPLE
-Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValuePrefix 'Profile-'
+Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValuePrefix 'AppProfile-'
 
-Returns all `drink` values for that exact UPN whose prefix is `Profile-`.
+Returns all `drink` values for that exact UPN whose prefix is `AppProfile-`.
 
 .NOTES
 Compatibility wrapper around `Get-ADUserDrinkData`. It remains fully documented
@@ -91,18 +91,9 @@ function Get-AdUserDrinkPrefixedData {
         [string]$DomainController
     )
 
-    $getParams = @{
-        Prefix           = $DrinkValuePrefix
-        DomainController = $DomainController
-    }
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName'    { $getParams['SamAccountName'] = $SamAccountName }
-        'UserPrincipalName' { $getParams['UserPrincipalName'] = $UserPrincipalName }
-        'EmployeeID'        { $getParams['EmployeeID'] = $EmployeeID }
-        'Mail'              { $getParams['Mail'] = $Mail }
-        'Pager'             { $getParams['Pager'] = $Pager }
-    }
+    $getParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+    $getParams.Prefix = $DrinkValuePrefix
+    $getParams.DomainController = $DomainController
 
     Get-ADUserDrinkData @getParams
 }

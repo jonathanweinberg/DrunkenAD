@@ -59,13 +59,11 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-DrunkenADSyntax.ps1
 
-      - name: Run unit tests
-        shell: pwsh
-        run: ./tests/Invoke-DrunkenADTests.ps1 -Output Detailed -TestResultPath $env:PESTER_RESULT_PATH
-
       - name: Run release-readiness checks
         shell: pwsh
-        run: ./scripts/Test-DrunkenADRelease.ps1
+        run: |
+          $PSDefaultParameterValues['Invoke-DrunkenADTests.ps1:TestResultPath'] = $env:PESTER_RESULT_PATH
+          ./scripts/Test-DrunkenADRelease.ps1
 
       - name: Upload Pester results
         if: always()

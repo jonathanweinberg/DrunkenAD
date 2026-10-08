@@ -85,10 +85,18 @@ $trustedTestNames = @(
     'DrunkenAD.Unit.Tests.ps1'
     'Help.Unit.Tests.ps1'
     'LiveCampaign.Unit.Tests.ps1'
+    'Logging.Unit.Tests.ps1'
     'Release.Unit.Tests.ps1'
+    'SampleOwnership.Unit.Tests.ps1'
     'SchemaEnablement.Unit.Tests.ps1'
+    'SchemaStatus.Unit.Tests.ps1'
+    'WriteOperation.Unit.Tests.ps1'
     'DrunkenAD.Integration.Tests.ps1'
 )
+$availableTestNames = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.Tests.ps1' -File | Select-Object -ExpandProperty Name)
+if (@(Compare-Object -ReferenceObject @($trustedTestNames | Sort-Object) -DifferenceObject @($availableTestNames | Sort-Object)).Count -ne 0) {
+    throw 'The trusted test allowlist must exactly match all top-level test files, including the release guard.'
+}
 $trustedTestPaths = @(
     foreach ($trustedTestName in $trustedTestNames) {
         $trustedTestPath = Join-Path -Path $PSScriptRoot -ChildPath $trustedTestName
@@ -117,6 +125,6 @@ if ($TestResultPath) {
 
 $result = Invoke-Pester -Configuration $configuration
 
-if ($result.FailedCount -gt 0) {
-    throw "Pester completed with $($result.FailedCount) failing test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester result was $($result.Result), with $($result.FailedCount) failing test(s). Inspect discovery and container errors as well as test failures."
 }

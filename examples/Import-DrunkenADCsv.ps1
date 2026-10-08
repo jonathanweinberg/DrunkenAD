@@ -11,7 +11,9 @@ param(
     [Parameter(ParameterSetName = 'ConfigPath')]
     [string]$ConfigPath = (Join-Path -Path $PSScriptRoot -ChildPath 'data/drink-ingestion-config.json'),
 
-    [string]$LogPath
+    [string]$LogPath,
+
+    [switch]$ClearBlankNamespaces
 )
 
 $modulePath = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath '..') -ChildPath 'DrunkenAD/DrunkenAD.psd1'
@@ -20,6 +22,7 @@ Import-Module $modulePath -Force -ErrorAction Stop
 $importParams = @{
     CsvPath          = $CsvPath
     DomainController = $DomainController
+    ClearBlankNamespaces = $ClearBlankNamespaces
 }
 
 if ($PSBoundParameters.ContainsKey('LogPath')) {

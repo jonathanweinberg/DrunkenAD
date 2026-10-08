@@ -107,7 +107,12 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         }
 
         if ($script:createdUser) {
-            Remove-ADUser -Identity $script:userName -Server $script:domainController -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-ADUser -Identity $script:userName -Server $script:domainController -Confirm:$false -ErrorAction Stop
+            $remaining = @(Get-ADUser -Filter "SamAccountName -eq '$($script:userName)'" -Server $script:domainController -ErrorAction Stop)
+            if ($remaining.Count -ne 0) {
+                throw 'The isolated integration account was not removed.'
+            }
+            $script:createdUser = $false
         }
     }
 
@@ -219,7 +224,28 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         $flagValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Flags-' -DomainController $script:domainController
 
         $profileValues | Should -Be @('Profile-Tier=Gold')
-        $flagValues | Should -Be @('Flags-Enabled', 'Flags-Audited')
+        ($flagValues | Sort-Object) | Should -Be @('Flags-Audited', 'Flags-Enabled')
+    }
+
+    It 'handles empty CSV namespaces with ClearBlankNamespaces=<ClearBlank> on a real directory' -TestCases @(
+        @{ ClearBlank = $false },
+        @{ ClearBlank = $true }
+    ) {
+        param($ClearBlank)
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'CsvBlankTier-' = @('Old'); 'CsvBlankFlag-' = @('Retain') } -DomainController $script:domainController -Confirm:$false
+        $csvPath = Join-Path $TestDrive 'blank-namespaces.csv'
+        @('SamAccountName,Tier,Flag', ('{0},Gold,' -f $script:userName)) | Set-Content -LiteralPath $csvPath -Encoding utf8
+        $result = Import-ADUserDrinkCsvData -CsvPath $csvPath -NamespaceMap @{ 'CsvBlankTier-' = @(@{ Column = 'Tier' }); 'CsvBlankFlag-' = @(@{ Column = 'Flag' }) } -DomainController $script:domainController -ClearBlankNamespaces:$ClearBlank -Confirm:$false
+        $result.Status | Should -Be 'Written'
+        @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'CsvBlankTier-' -DomainController $script:domainController) | Should -Be @('CsvBlankTier-Gold')
+        $flagValues = @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'CsvBlankFlag-' -DomainController $script:domainController)
+        if ($ClearBlank) { $flagValues.Count | Should -Be 0 }
+        else { $flagValues | Should -Be @('CsvBlankFlag-Retain') }
+        @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Keep-' -DomainController $script:domainController) | Should -Be @('Keep-Stable')
     }
 
     It 'projects AD attributes into drink namespaces' {
@@ -249,5 +275,77 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             Sort-Object
 
         $actualValues | Should -Be ($expectedValues | Sort-Object)
+    }
+
+    It 'preserves shipped CSV and default projection values in <Order> order' -ForEach @(
+        @{ Order = 'CSV then projection' },
+        @{ Order = 'projection then CSV' }
+    ) {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        $csvPath = Join-Path $TestDrive 'sample-coexistence.csv'
+        @(
+            'SamAccountName,ProfileTier,ProfileRegion,Flags,RoutingMailbox,TenantId,SyncState'
+            ('{0},Gold,NA,Enabled;Audited,Queue,Example,Synced' -f $script:userName)
+        ) | Set-Content -LiteralPath $csvPath -Encoding utf8
+        $configPath = Join-Path $PSScriptRoot '../examples/data/drink-ingestion-config.json'
+        Remove-ADUserDrinkData -SamAccountName $script:userName -Prefixes @('CsvProfile-', 'CsvRouting-', 'Flags-', 'Tenant-', 'Sync-', 'Profile-', 'Identity-', 'Meta-', 'Routing-', 'Notify-') -DomainController $script:domainController -Confirm:$false
+        if ($Order -eq 'CSV then projection') {
+            Import-ADUserDrinkCsvData -CsvPath $csvPath -ConfigPath $configPath -DomainController $script:domainController -Confirm:$false | Out-Null
+            Set-ADUserDrinkProjection -SamAccountName $script:userName -DomainController $script:domainController -Confirm:$false
+        }
+        else {
+            Set-ADUserDrinkProjection -SamAccountName $script:userName -DomainController $script:domainController -Confirm:$false
+            Import-ADUserDrinkCsvData -CsvPath $csvPath -ConfigPath $configPath -DomainController $script:domainController -Confirm:$false | Out-Null
+        }
+
+        $values = @(Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController)
+        $expected = @(
+            'CsvProfile-Tier=Gold', 'CsvProfile-Region=NA', 'CsvRouting-Mailbox=Queue'
+            'Flags-Enabled', 'Flags-Audited', 'Tenant-Id=Example', 'Sync-State=Synced'
+            ('Profile-samAccountName={0}' -f $script:userName)
+            ('Identity-userPrincipalName={0}' -f $script:userPrincipalName)
+            ('Meta-employeeID={0}' -f $script:employeeId)
+            ('Routing-mail={0}' -f $script:mail)
+            ('Notify-pager={0}' -f $script:mail)
+        )
+        $owned = @($values | Where-Object { $_ -match '^(CsvProfile|CsvRouting|Flags|Tenant|Sync|Profile|Identity|Meta|Routing|Notify)-' } | Sort-Object)
+        $owned | Should -Be ($expected | Sort-Object)
+        $values | Should -Contain 'Keep-Stable'
+    }
+
+    It 'applies case-only replacements on a real directory' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Case-' = @('first') } -DomainController $script:domainController -Confirm:$false
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Case-' = @('FIRST') } -DomainController $script:domainController -Confirm:$false
+        $values = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Case-' -DomainController $script:domainController
+        $values | Should -BeExactly @('Case-FIRST')
+    }
+
+    It 'preserves an unrelated value added after the writer reads its snapshot' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Stale-' = @('Old') } -DomainController $script:domainController -Confirm:$false
+        $snapshot = Get-ADUser -Identity $script:userName -Properties drink -Server $script:domainController -ErrorAction Stop
+        Set-ADUser -Identity $script:userName -Add @{ drink = @('Concurrent-Preserved') } -Server $script:domainController -ErrorAction Stop
+
+        & (Get-Module DrunkenAD) {
+            param($User, $Server)
+            $context = New-DrunkenADWriteContext -Server $Server
+            Invoke-DrunkenADPrefixWrite -User $User -PrefixMap @{ 'Stale-' = @('New') } -Context $context -Confirm:$false
+        } $snapshot $script:domainController
+
+        Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Concurrent-' -DomainController $script:domainController | Should -Be @('Concurrent-Preserved')
+        Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Stale-' -DomainController $script:domainController | Should -Be @('Stale-New')
     }
 }

@@ -40,7 +40,9 @@ Optional log file path for appended activity records.
 
 .PARAMETER PassThru
 Returns a summary object containing the effective attribute map, the generated
-data map, and the final `drink` values after the projection write.
+data map, Status (Written, NoChange, Declined, or WhatIf), and computed `drink`
+values, including with `WhatIf`. These values are
+based on the initial read; concurrent directory changes require a fresh read.
 
 .INPUTS
 None. This command does not accept pipeline input.
@@ -136,72 +138,33 @@ function Set-ADUserDrinkProjection {
     }
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($effectiveAttributeMap.Keys | ForEach-Object { [string]$_ })
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
+    $context = New-DrunkenADWriteContext -Server $DomainController
     $attributeNames = @(
         foreach ($prefix in $effectiveAttributeMap.Keys) {
-            foreach ($attributeName in @($effectiveAttributeMap[$prefix])) {
-                $attributeName
-            }
+            foreach ($attributeName in @($effectiveAttributeMap[$prefix])) { $attributeName }
         }
     ) | Select-Object -Unique
-
-    $resolveUserParams = @{
-        Server     = $DomainController
-        Properties = $attributeNames
-    }
-
-    $identityParams = @{}
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName' {
-            $resolveUserParams['SamAccountName'] = $SamAccountName
-            $identityParams['SamAccountName'] = $SamAccountName
-        }
-        'UserPrincipalName' {
-            $resolveUserParams['UserPrincipalName'] = $UserPrincipalName
-            $identityParams['UserPrincipalName'] = $UserPrincipalName
-        }
-        'EmployeeID' {
-            $resolveUserParams['EmployeeID'] = $EmployeeID
-            $identityParams['EmployeeID'] = $EmployeeID
-        }
-        'Mail' {
-            $resolveUserParams['Mail'] = $Mail
-            $identityParams['Mail'] = $Mail
-        }
-        'Pager' {
-            $resolveUserParams['Pager'] = $Pager
-            $identityParams['Pager'] = $Pager
-        }
-    }
-
-    $user = Resolve-DrunkenADUser @resolveUserParams
+    $identity = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+    $user = Resolve-DrunkenADUser @identity -Server $context.Server -Properties $attributeNames
     $dataMap = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap $effectiveAttributeMap
-
-    if ($dataMap.Count -eq 0) {
-        Write-Verbose "No populated projection data was found for $($user.SamAccountName)."
-        if ($PassThru) {
-            return [pscustomobject]@{
-                SamAccountName      = $user.SamAccountName
-                EffectiveAttributeMap = $effectiveAttributeMap
-                DataMap             = $dataMap
-                FinalDrinkValues    = @()
-            }
-        }
-
-        return
+    $writeParams = @{
+        User = $user
+        PrefixMap = $dataMap
+        Context = $context
+        LogPath = $LogPath
+        ResultObject = $true
     }
-
-    if ($PSCmdlet.ShouldProcess($user.SamAccountName, 'Project drink data')) {
-        $finalDrinkValues = Set-ADUserDrinkData -SamAccountName $user.SamAccountName -DataMap $dataMap -DomainController $DomainController -LogPath $LogPath -Confirm:$false -PassThru
-
-        if ($PassThru) {
-            return [pscustomobject]@{
-                SamAccountName        = $user.SamAccountName
-                EffectiveAttributeMap = $effectiveAttributeMap
-                DataMap               = $dataMap
-                FinalDrinkValues      = @($finalDrinkValues)
-            }
+    foreach ($name in @('WhatIf', 'Confirm')) {
+        if ($PSBoundParameters.ContainsKey($name)) { $writeParams[$name] = $PSBoundParameters[$name] }
+    }
+    $writeResult = Invoke-DrunkenADPrefixWrite @writeParams
+    if ($PassThru) {
+        [pscustomobject]@{
+            SamAccountName = $user.SamAccountName
+            EffectiveAttributeMap = $effectiveAttributeMap
+            DataMap = $dataMap
+            FinalDrinkValues = @($writeResult.FinalDrinkValues)
+            Status = $writeResult.Status
         }
     }
 }

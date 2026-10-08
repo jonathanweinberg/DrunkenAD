@@ -18,7 +18,9 @@ Those tests focus on the safety-critical behavior:
 - literal prefix matching
 - prefix map construction
 - no-op detection when nothing changed
-- correct use of `Clear` vs `Replace`
+- prefix-scoped additions/removals, including a concurrent unrelated addition
+- one pinned DC and schema context per write or CSV operation
+- inherited and auxiliary schema classes and schema value limits
 - `-WhatIf` handling
 - the difference between schema presence and actual user-write readiness
 - the admin-only schema enablement script guards
@@ -41,7 +43,8 @@ pwsh -NoLogo -NoProfile `
 ```
 
 The runner prints the resolved Pester version and manifest path, and discovers
-only its explicit top-level test allowlist.
+only its explicit top-level test allowlist. Discovery or container failures fail
+the process even when Pester reports zero individual failing tests.
 
 If you only want the parser gate:
 
@@ -143,10 +146,8 @@ copied PowerShell modules, or wrapper logs from a live run.
 
 ## Release Readiness Gate
 
-![Release readiness](images/documentation-suite-2026-05-11/release-readiness.png)
-
-The source diagram for the release gate lives at
-[diagrams/release-readiness-flow.mmd](diagrams/release-readiness-flow.mmd).
+See the current [release-readiness diagram](DIAGRAMS.md#release-readiness) and
+its [Mermaid source](diagrams/release-readiness-flow.mmd).
 
 Run the release-readiness gate before tagging or asking CI to prove the branch:
 

@@ -25,16 +25,63 @@ before schema checks or user writes, which prevents row order from deciding the
 final namespace value. Blank identities retain the documented warning-and-skip
 behavior.
 
+Every record must contain the same number of fields as the header. Missing
+trailing fields, extra fields, or malformed quoting fail before directory
+access. Empty cells may be quoted or unquoted; embedded commas and newlines
+must be quoted. Record numbers count CSV records, not physical text lines.
+
+Each import checks schema readiness once and pins one domain controller. It
+resolves every usable row and validates all prefixed value lengths before any
+write. A missing or ambiguous user therefore prevents the whole import from
+starting. The CSV identity contract remains `SamAccountName`.
+
+The importer reads the resolved object again before showing the row's
+confirmation counts. After approval it rereads the same GUID (or resolved DN)
+and verifies that the exact Remove/Add delta still matches. Changed owned
+values stop that row without a write; unrelated namespace changes do not.
+This is not a lock or transaction. A concurrent write after the final read can
+still conflict.
+
+Directory errors during execution still stop the import. Already completed
+writes are not rolled back. The terminating error's `TargetObject` exposes
+`CompletedRowCount`, `FailedRowNumber` (including the header), `PendingRowCount`,
+and `PreparedRowCount`, plus per-status row counts. Completed means processed,
+not necessarily written. Each result's `Status` distinguishes `Written`,
+`NoChange`, `Declined`, and `WhatIf`. Capture streamed results when an audit of
+partial progress is required. `FinalDrinkValues` is the computed desired
+snapshot, not proof that a declined or previewed operation changed AD and not
+a post-write read-back.
+
 The sample import script maps those columns into namespaces like this:
 
-- `ProfileTier` -> `Profile-Tier=<value>`
-- `ProfileRegion` -> `Profile-Region=<value>`
+- `ProfileTier` -> `CsvProfile-Tier=<value>`
+- `ProfileRegion` -> `CsvProfile-Region=<value>`
 - `Flags` -> one `Flags-<value>` record per semicolon-delimited item
-- `RoutingMailbox` -> `Routing-Mailbox=<value>`
+- `RoutingMailbox` -> `CsvRouting-Mailbox=<value>`
 - `TenantId` -> `Tenant-Id=<value>`
 - `SyncState` -> `Sync-State=<value>`
 
 The JSON mapping format uses namespace prefixes as top-level keys. Each entry points at a CSV column and can optionally add a `Label` or split multivalue fields with `SplitOn`.
+
+## Blank Cells And Existing Imports
+
+Blank or whitespace-only cells contribute no records. By default, a namespace
+whose mapped fields are all blank is left unchanged, preserving existing import
+behavior. Rows with no nonblank mapped data are skipped with a warning and do
+not produce a result. If any mapped field in a namespace has data, that whole
+namespace is replaced with the resulting nonblank records.
+
+Use `-ClearBlankNamespaces` to opt into clearing namespaces whose mapped fields
+are all blank. With this switch, an all-blank data row clears every mapped
+namespace. Unmapped prefixes remain untouched in both modes. Preview with
+`-ClearBlankNamespaces -WhatIf` before applying a clearing import. The example
+wrapper accepts the same switch. No minor-version or default-deletion migration
+is required; the unmerged candidate's earlier default-clearing change is withdrawn.
+
+The sample config now
+uses `CsvProfile-` and `CsvRouting-` to avoid the default projection's `Profile-`
+and `Routing-`. Existing stored values are not automatically renamed or removed;
+review ownership and migrate old sample data explicitly.
 
 ## Multivalue Fields
 
@@ -107,7 +154,7 @@ Import-ADUserDrinkCsvData `
     -DomainController 'dc01.contoso.com'
 ```
 
-Each row produces a namespaced `DataMap` and writes it through `Set-ADUserDrinkData`.
+Each row produces a namespaced `DataMap` and uses the shared prefix-scoped writer.
 
 ## Use A Different JSON Mapping
 
@@ -126,7 +173,7 @@ For ad hoc runs, you can pass a hashtable directly:
 
 ```powershell
 $namespaceMap = @{
-    'Profile-' = @(
+    'CsvProfile-' = @(
         @{ Column = 'ProfileTier'; Label = 'Tier' }
         @{ Column = 'ProfileRegion'; Label = 'Region' }
     )

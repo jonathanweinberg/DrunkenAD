@@ -21,12 +21,12 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
-| Module layout | <img src="docs/images/documentation-suite-2026-05-11/module-layout.png" alt="DrunkenAD module layout" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Write model | <img src="docs/images/documentation-suite-2026-05-07/namespace-write-model.png" alt="Namespace write model" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| CSV ingestion | <img src="docs/images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
-| Schema readiness | <img src="docs/images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
+| Module layout | [Current Mermaid flow](docs/DIAGRAMS.md#module-layout) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Write model | [Current Mermaid flow](docs/DIAGRAMS.md#namespace-write-model) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| CSV ingestion | [Current Mermaid flow](docs/DIAGRAMS.md#csv-ingestion-flow) | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
+| Schema readiness | [Current Mermaid flow](docs/DIAGRAMS.md#schema-readiness-flow) | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
 | Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
-| Release readiness | <img src="docs/images/documentation-suite-2026-05-11/release-readiness.png" alt="Release readiness" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
+| Release readiness | [Current Mermaid flow](docs/DIAGRAMS.md#release-readiness) | [docs/TESTING.md](docs/TESTING.md) |
 
 ## Design Goals
 
@@ -55,6 +55,9 @@ DrunkenAD is opinionated about the edges that matter when writing application da
 - Prefix matching is literal, not regex-driven, so special characters like `[` or `+` cannot accidentally match the wrong value.
 - The module distinguishes between schema presence and actual user-write readiness, so `drink` must both exist and be allowed on the Active Directory `user` class.
 - Updates use PowerShell `ShouldProcess`, so `-WhatIf` and `-Confirm` work naturally.
+- Writes apply only owned value deltas on one selected DC, never a whole-attribute
+  replacement. Same-prefix writers and cross-DC replication still need external
+  coordination; see [concurrency limits](docs/DATA-STORE.md).
 - The integration validation workflow creates unique test objects and only removes the ones it created.
 
 ## Data Store Model
@@ -67,11 +70,16 @@ The storage model is simple:
 
 Examples:
 
-- `Profile-Tier=Gold`
+- `AppProfile-Tier=Gold`
 - `Flags-Audited`
-- `Routing-MailEnabled`
+- `AppRouting-MailEnabled`
 
 In practice, the `drink` attribute functions as a tiny multivalued namespace store attached to a user object.
+
+These generic examples use application-owned prefixes, separate from the built-in
+projection's `Profile-`, `Identity-`, `Meta-`, `Routing-`, and `Notify-` namespaces.
+Keep all workflows on the same user in distinct, non-overlapping namespaces;
+custom projection maps also replace every value under their supplied prefixes.
 
 Command examples below assume the repository has been checked out at
 `/temp/DrunkenAD`. Adjust that root for your own workstation or automation
@@ -152,7 +160,7 @@ Write one generic namespace:
 ```powershell
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -DataMap @{ 'Profile-' = @('Tier=Gold') } `
+    -DataMap @{ 'AppProfile-' = @('Tier=Gold') } `
     -DomainController 'dc01.contoso.com' `
     -Confirm:$false
 ```
@@ -163,8 +171,8 @@ Write multiple namespaces at once:
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
     -DataMap @{
-        'Profile-' = @('Tier=Gold')
-        'Flags-'   = @('Audited', 'Enabled')
+        'AppProfile-' = @('Tier=Gold')
+        'Flags-'      = @('Audited', 'Enabled')
     } `
     -DomainController 'dc01.contoso.com' `
     -Confirm:$false
@@ -183,7 +191,7 @@ Read one namespace back:
 ```powershell
 Get-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -Prefix 'Profile-' `
+    -Prefix 'AppProfile-' `
     -DomainController 'dc01.contoso.com'
 ```
 
@@ -192,7 +200,7 @@ Preview a namespace update without writing:
 ```powershell
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -DataMap @{ 'Profile-' = @('Tier=Platinum') } `
+    -DataMap @{ 'AppProfile-' = @('Tier=Platinum') } `
     -DomainController 'dc01.contoso.com' `
     -WhatIf
 ```
@@ -334,10 +342,23 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 
 - It expects target users to already exist in Active Directory.
 - It expects `Test-ADDrinkAttributeReadyForUserWrite` to succeed before any import is attempted.
-- It turns fixed CSV columns into namespace records such as `Profile-`, `Flags-`, `Routing-`, `Tenant-`, and `Sync-`.
+- It uses `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and `Sync-`, separate from the built-in projection namespaces.
+- Nonblank mapped namespaces are replaced. By default, a namespace whose mapped
+  cells are all blank retains its existing records; a row with all mapped data
+  blank is skipped with a warning.
+- `-ClearBlankNamespaces` explicitly clears mapped namespaces whose cells are
+  all blank, including rows with no nonblank mapped data. Preview clearing with
+  `-WhatIf` before applying it to an existing import.
+- CSV rows must have the same number of fields as the header. Missing or extra
+  fields are rejected from a single input snapshot before any AD access; valid
+  unquoted empty fields are accepted.
 - It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
 - It uses the same domain controller for validation, lookup, and write operations.
+- Each prepared row is re-read before confirmation, so the prompt describes its
+  current delta. If that delta changes after approval, the import stops without
+  applying the changed delta. Earlier writes are not rolled back; concurrent
+  same-prefix writers still need external coordination.
 - It can be previewed safely with `-WhatIf`.
 
 Run the module command directly with the sample CSV and config:
@@ -359,11 +380,22 @@ Import-ADUserDrinkCsvData `
     -WhatIf
 ```
 
+Preview explicit clearing of blank mapped namespaces:
+
+```powershell
+Import-ADUserDrinkCsvData `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
+    -DomainController 'dc01.contoso.com' `
+    -ClearBlankNamespaces `
+    -WhatIf
+```
+
 Use an in-memory namespace map instead of a config file:
 
 ```powershell
 $namespaceMap = @{
-    'Profile-' = @(
+    'CsvProfile-' = @(
         @{ Column = 'ProfileTier'; Label = 'Tier' }
         @{ Column = 'ProfileRegion'; Label = 'Region' }
     )

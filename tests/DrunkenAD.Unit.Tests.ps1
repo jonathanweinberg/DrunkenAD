@@ -54,7 +54,10 @@ Describe 'DrunkenAD unit tests' {
                     $ErrorAction,
                     $Server,
                     $Clear,
-                    $Replace
+                    $Replace,
+                    $Add,
+                    $Remove,
+                    $Confirm
                 )
 
                 $global:DrunkenADTest_SetADUserCalls += ,(@{} + $PSBoundParameters)
@@ -243,7 +246,7 @@ Describe 'DrunkenAD unit tests' {
                 Mock Import-Module {}
                 $global:DrunkenADTest_GetADRootDSECalls = @()
                 $global:DrunkenADTest_GetADObjectCalls = @()
-                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com'; dnsHostName = 'dc01.contoso.com' } }
             }
 
             It 'returns true when the drink attribute exists and is active' {
@@ -266,11 +269,10 @@ Describe 'DrunkenAD unit tests' {
                 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' | Should -BeTrue
 
                 $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 1
-                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 2
+                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 1
                 $global:DrunkenADTest_GetADObjectCalls[0]['SearchBase'] | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
                 $global:DrunkenADTest_GetADObjectCalls[0]['LDAPFilter'] | Should -Be '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))'
                 $global:DrunkenADTest_GetADObjectCalls[0]['Server'] | Should -Be 'dc01.contoso.com'
-                $global:DrunkenADTest_GetADObjectCalls[1]['LDAPFilter'] | Should -Be '(&(objectClass=classSchema)(lDAPDisplayName=user))'
             }
 
             It 'returns false when the drink attribute is missing' {
@@ -293,7 +295,7 @@ Describe 'DrunkenAD unit tests' {
                 Test-ADDrinkAttributeEnabled | Should -BeFalse
             }
 
-            It 'returns write-readiness details through PassThru without changing the Boolean meaning' {
+            It 'returns presence details through PassThru without evaluating write readiness' {
                 $global:DrunkenADTest_GetADObjectHandler = {
                     param($SearchBase, $LDAPFilter)
 
@@ -313,11 +315,13 @@ Describe 'DrunkenAD unit tests' {
                 $result = Test-ADDrinkAttributeEnabled -PassThru
 
                 $result.Enabled | Should -BeTrue
-                $result.AllowedOnUserClass | Should -BeFalse
-                $result.ReadyForUserWrite | Should -BeFalse
-                $result.BlockingReason | Should -Be 'NotAllowedOnUserClass'
+                $result.AllowedOnUserClass | Should -BeNullOrEmpty
+                $result.ReadyForUserWrite | Should -BeNullOrEmpty
+                $result.ReadinessEvaluated | Should -BeFalse
+                $result.BlockingReason | Should -BeNullOrEmpty
                 $result.SchemaNamingContext | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
-                $result.UserClassDistinguishedName | Should -Be 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'
+                $result.UserClassDistinguishedName | Should -BeNullOrEmpty
+                @($global:DrunkenADTest_GetADObjectCalls | Where-Object { $_.LDAPFilter -like '*classSchema*' }).Count | Should -Be 0
             }
         }
 
@@ -327,7 +331,7 @@ Describe 'DrunkenAD unit tests' {
                 Mock Import-Module {}
                 $global:DrunkenADTest_GetADRootDSECalls = @()
                 $global:DrunkenADTest_GetADObjectCalls = @()
-                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com' } }
+                $global:DrunkenADTest_GetADRootDSEHandler = { [pscustomobject]@{ SchemaNamingContext = 'CN=Schema,CN=Configuration,DC=contoso,DC=com'; dnsHostName = 'dc01.contoso.com' } }
             }
 
             It 'returns true when drink is allowed on the user class' {
@@ -400,7 +404,7 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Get-AdUserDrinkPrefixedData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Assert-ADDrinkAttributeEnabled { [pscustomobject]@{ Server = 'dc01.example.test' } }
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
                         drink = @('Prefix[01]-Old', 'Prefix01-Other', 'Keep-Me')
@@ -423,7 +427,7 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Get-ADUserDrinkData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeEnabled {}
+                Mock Assert-ADDrinkAttributeEnabled { [pscustomobject]@{ Server = 'dc01.example.test' } }
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
                         drink = @('Profile-Tier=Gold', 'Flags-Audited', 'Flags-Enabled')
@@ -477,7 +481,9 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Set-ADUserDrinkPrefixedData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
                 Mock Write-DrunkenADLog {}
                 $global:DrunkenADTest_SetADUserCalls = @()
             }
@@ -490,7 +496,7 @@ Describe 'DrunkenAD unit tests' {
                     } -Confirm:$false
                 } | Should -Throw '*overlap*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
             }
 
@@ -512,10 +518,12 @@ Describe 'DrunkenAD unit tests' {
 
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
                 $global:DrunkenADTest_SetADUserCalls[0]['Identity'] | Should -Be 'CN=Demo User,DC=contoso,DC=com'
-                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Test[1]-new'
-                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Test1-old'
-                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Contain 'Keep-me'
-                $global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'] | Should -Not -Contain 'Test[1]-old'
+                $global:DrunkenADTest_SetADUserCalls[0]['Add']['drink'] | Should -Be @('Test[1]-new')
+                $global:DrunkenADTest_SetADUserCalls[0]['Remove']['drink'] | Should -Be @('Test[1]-old')
+                $global:DrunkenADTest_SetADUserCalls[0].ContainsKey('Replace') | Should -BeFalse
+                $global:DrunkenADTest_SetADUserCalls[0].ContainsKey('Clear') | Should -BeFalse
+                $global:DrunkenADTest_SetADUserCalls[0]['Server'] | Should -Be 'dc01.contoso.com'
+                $global:DrunkenADTest_SetADUserCalls[0]['Confirm'] | Should -BeFalse
             }
 
             It 'replaces prefix ownership ordinally under Turkish culture' {
@@ -537,6 +545,9 @@ Describe 'DrunkenAD unit tests' {
                     $result | Should -Contain 'file-New'
                     $result | Should -Contain 'Keep-Stable'
                     $result | Should -Not -Contain 'FILE-Old'
+                    $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
+                    $global:DrunkenADTest_SetADUserCalls[0]['Remove']['drink'] | Should -Be @('FILE-Old')
+                    $global:DrunkenADTest_SetADUserCalls[0]['Add']['drink'] | Should -Be @('file-New')
                 }
                 finally {
                     [System.Threading.Thread]::CurrentThread.CurrentCulture = $previousCulture
@@ -544,7 +555,7 @@ Describe 'DrunkenAD unit tests' {
                 }
             }
 
-            It 'clears the attribute when all values are removed' {
+            It 'removes all owned values without clearing the whole attribute' {
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
                         SamAccountName    = 'demo'
@@ -557,7 +568,10 @@ Describe 'DrunkenAD unit tests' {
 
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
                 $global:DrunkenADTest_SetADUserCalls[0]['Identity'] | Should -Be 'CN=Demo User,DC=contoso,DC=com'
-                $global:DrunkenADTest_SetADUserCalls[0]['Clear'] | Should -Be 'drink'
+                $global:DrunkenADTest_SetADUserCalls[0]['Remove']['drink'] | Should -Be @('OnlyPrefix-old')
+                $global:DrunkenADTest_SetADUserCalls[0].ContainsKey('Add') | Should -BeFalse
+                $global:DrunkenADTest_SetADUserCalls[0].ContainsKey('Clear') | Should -BeFalse
+                $global:DrunkenADTest_SetADUserCalls[0].ContainsKey('Replace') | Should -BeFalse
             }
 
             It 'does not write when the attribute is already in the desired state' {
@@ -586,10 +600,11 @@ Describe 'DrunkenAD unit tests' {
                 Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Target-' = @('a', 'b') } -Confirm:$false
 
                 $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
-                @($global:DrunkenADTest_SetADUserCalls[0].Replace.drink).Count | Should -Be 3
+                $global:DrunkenADTest_SetADUserCalls[0]['Remove']['drink'] | Should -Be @("Target-a`nTarget-b")
+                $global:DrunkenADTest_SetADUserCalls[0]['Add']['drink'] | Should -Be @('Target-a', 'Target-b')
             }
 
-            It 'normalizes preserved values to strings before calling Set-ADUser Replace' {
+            It 'normalizes preserved values to strings without including them in the write delta' {
                 $preservedValue = New-Object psobject
                 $preservedValue | Add-Member -MemberType ScriptMethod -Name ToString -Value { 'Keep-me' } -Force
 
@@ -601,12 +616,13 @@ Describe 'DrunkenAD unit tests' {
                     }
                 }
 
-                Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Test[1]-' = @('new') } -Confirm:$false
+                $result = @(Set-ADUserDrinkPrefixedData -SamAccountName 'demo' -PrefixMap @{ 'Test[1]-' = @('new') } -Confirm:$false -PassThru)
 
-                $replaceValues = @($global:DrunkenADTest_SetADUserCalls[0]['Replace']['drink'])
-
-                $replaceValues | Should -Be @('Keep-me', 'Test[1]-new')
-                ($replaceValues | ForEach-Object { $_.GetType().FullName } | Sort-Object -Unique) | Should -Be @('System.String')
+                $result | Should -Be @('Keep-me', 'Test[1]-new')
+                ($result | ForEach-Object { $_.GetType().FullName } | Sort-Object -Unique) | Should -Be @('System.String')
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 1
+                $global:DrunkenADTest_SetADUserCalls[0]['Add']['drink'] | Should -Be @('Test[1]-new')
+                $global:DrunkenADTest_SetADUserCalls[0]['Remove']['drink'] | Should -Be @('Test[1]-old')
             }
 
             It 'respects WhatIf and skips the underlying write' {
@@ -624,7 +640,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'throws the readiness error when user writes are not supported' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw "The 'drink' attribute exists in the target Active Directory schema but is not allowed on the Active Directory user class."
                 }
 
@@ -636,7 +652,9 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Set-ADUserDrinkData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
                 Mock Set-ADUserDrinkPrefixedData {}
             }
 
@@ -653,11 +671,15 @@ Describe 'DrunkenAD unit tests' {
             It 'honors WhatIf at the generic writer layer' {
                 Set-ADUserDrinkData -SamAccountName 'demo' -DataMap @{ 'Profile-' = @('Tier=Gold') } -WhatIf
 
-                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and $WhatIf -and
+                    (@($PrefixMap['Profile-']) -join ',') -eq 'Tier=Gold'
+                }
             }
 
             It 'rejects an overlapping DataMap before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock Set-ADUserDrinkPrefixedData { Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($PrefixMap.Keys) }
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
 
@@ -668,37 +690,42 @@ Describe 'DrunkenAD unit tests' {
                     } -Confirm:$false
                 } | Should -Throw '*overlap*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1
             }
         }
 
         Context 'Remove-ADUserDrinkData' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
-                Mock Set-ADUserDrinkData {}
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
+                Mock Set-ADUserDrinkPrefixedData {}
             }
 
             It 'builds an empty namespace map for the prefixes being removed' {
                 Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes 'Profile-', 'Flags-'
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
-                    $DataMap.Contains('Profile-') -and
-                    $DataMap.Contains('Flags-') -and
-                    (@($DataMap['Profile-']).Count -eq 0) -and
-                    (@($DataMap['Flags-']).Count -eq 0)
+                    $PrefixMap.Contains('Profile-') -and
+                    $PrefixMap.Contains('Flags-') -and
+                    (@($PrefixMap['Profile-']).Count -eq 0) -and
+                    (@($PrefixMap['Flags-']).Count -eq 0)
                 }
             }
 
             It 'honors WhatIf at the generic remover layer' {
                 Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes 'Profile-' -WhatIf
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and $WhatIf -and
+                    $PrefixMap.Contains('Profile-') -and @($PrefixMap['Profile-']).Count -eq 0
+                }
             }
 
             It 'rejects a blank prefix before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
 
@@ -706,14 +733,16 @@ Describe 'DrunkenAD unit tests' {
                     Remove-ADUserDrinkData -SamAccountName 'demo' -Prefixes '   ' -Confirm:$false
                 } | Should -Throw '*cannot be null, empty, or whitespace*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
             }
         }
 
         Context 'Set-ADUserDrinkProjection' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{
                         SamAccountName    = 'demo'
@@ -726,11 +755,17 @@ Describe 'DrunkenAD unit tests' {
                         title             = 'Engineer'
                         company           = 'Contoso'
                         description       = 'Demo account'
+                        drink             = @('Keep-Stable')
                     }
                 }
-                Mock Set-ADUserDrinkData {
-                    @('Profile-samAccountName=demo')
+                Mock Invoke-DrunkenADPrefixWrite {
+                    [pscustomobject]@{ Status = 'Written'; FinalDrinkValues = @('Profile-samAccountName=demo') }
                 }
+                Mock Set-ADUserDrinkData { throw 'Projection must use the resolved user and write context directly.' }
+            }
+
+            AfterEach {
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
 
             It 'uses the built-in default attribute map when none is supplied' {
@@ -738,6 +773,7 @@ Describe 'DrunkenAD unit tests' {
 
                 Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
+                    $Server -eq 'dc01.contoso.com' -and
                     (@($Properties) -contains 'samAccountName') -and
                     (@($Properties) -contains 'userPrincipalName') -and
                     (@($Properties) -contains 'employeeID') -and
@@ -745,17 +781,23 @@ Describe 'DrunkenAD unit tests' {
                     (@($Properties) -contains 'pager')
                 }
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    $SamAccountName -eq 'demo' -and
-                    ((@($DataMap['Profile-']) -join ',') -eq 'samAccountName=demo') -and
-                    ((@($DataMap['Identity-']) -join ',') -eq 'userPrincipalName=demo@contoso.com') -and
-                    ((@($DataMap['Meta-']) -join ',') -eq 'employeeID=123456') -and
-                    ((@($DataMap['Routing-']) -join ',') -eq 'mail=demo@contoso.com') -and
-                    ((@($DataMap['Notify-']) -join ',') -eq 'pager=555-0100')
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'demo' -and
+                    $User.DistinguishedName -eq 'CN=Demo User,DC=contoso,DC=com' -and
+                    (@($User.drink) -join ',') -eq 'Keep-Stable' -and
+                    $Context.Server -eq 'dc01.contoso.com' -and
+                    $Context.RangeUpper -eq 256 -and $Context.ReadyForUserWrite -and
+                    $ResultObject -and ($Confirm -eq $false) -and
+                    ((@($PrefixMap['Profile-']) -join ',') -eq 'samAccountName=demo') -and
+                    ((@($PrefixMap['Identity-']) -join ',') -eq 'userPrincipalName=demo@contoso.com') -and
+                    ((@($PrefixMap['Meta-']) -join ',') -eq 'employeeID=123456') -and
+                    ((@($PrefixMap['Routing-']) -join ',') -eq 'mail=demo@contoso.com') -and
+                    ((@($PrefixMap['Notify-']) -join ',') -eq 'pager=555-0100')
                 }
 
                 $result.SamAccountName | Should -Be 'demo'
                 $result.DataMap.Contains('Profile-') | Should -BeTrue
+                $result.FinalDrinkValues | Should -Be @('Profile-samAccountName=demo')
             }
 
             It 'replaces the default projection map when a custom map is supplied' {
@@ -768,10 +810,11 @@ Describe 'DrunkenAD unit tests' {
                     (@($Properties) -contains 'title')
                 }
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    $SamAccountName -eq 'demo' -and
-                    $DataMap.Count -eq 1 -and
-                    ((@($DataMap['Org-']) | Sort-Object) -join ',') -eq 'department=Identity,title=Engineer'
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'demo' -and
+                    $Context.Server -eq 'dc01.contoso.com' -and
+                    $PrefixMap.Count -eq 1 -and
+                    ((@($PrefixMap['Org-']) | Sort-Object) -join ',') -eq 'department=Identity,title=Engineer'
                 }
             }
 
@@ -782,20 +825,22 @@ Describe 'DrunkenAD unit tests' {
                         DistinguishedName = 'CN=Demo User,DC=contoso,DC=com'
                         department        = $null
                         title             = '   '
+                        drink             = @('Org-department=Old', 'Keep-Stable')
                     }
                 }
 
                 Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('department', 'title') } -Confirm:$false | Out-Null
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    $SamAccountName -eq 'demo' -and
-                    $DataMap.Contains('Org-') -and
-                    @($DataMap['Org-']).Count -eq 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'demo' -and
+                    (@($User.drink) -contains 'Org-department=Old') -and
+                    $PrefixMap.Contains('Org-') -and
+                    @($PrefixMap['Org-']).Count -eq 0
                 }
             }
 
             It 'rejects an invalid projection map before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
 
@@ -803,9 +848,9 @@ Describe 'DrunkenAD unit tests' {
                     Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{ 'Org-' = @('   ') } -Confirm:$false
                 } | Should -Throw '*must include at least one attribute name*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
                 Assert-MockCalled Resolve-DrunkenADUser -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
 
             It 'merges a custom map with the default projection map when requested' {
@@ -817,25 +862,80 @@ Describe 'DrunkenAD unit tests' {
                     (@($Properties) -contains 'samAccountName')
                 }
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    $DataMap.Contains('Org-') -and
-                    $DataMap.Contains('Profile-') -and
-                    ((@($DataMap['Org-']) -join ',') -eq 'company=Contoso')
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $PrefixMap.Contains('Org-') -and
+                    $PrefixMap.Contains('Profile-') -and
+                    ((@($PrefixMap['Org-']) -join ',') -eq 'company=Contoso')
                 }
             }
 
             It 'honors WhatIf at the projection layer' {
-                Set-ADUserDrinkProjection -SamAccountName 'demo' -WhatIf
+                $result = Set-ADUserDrinkProjection -SamAccountName 'demo' -WhatIf -PassThru
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'demo' -and $WhatIf -and $ResultObject -and
+                    $Context.Server -eq 'dc01.contoso.com' -and $PrefixMap.Contains('Profile-')
+                }
+                $result.FinalDrinkValues | Should -Be @('Profile-samAccountName=demo')
+            }
+        }
+
+        Context 'CSV record structure' {
+            It 'accepts complete empty cells and multiline quoted records' {
+                $path = Join-Path $TestDrive 'complete.csv'
+                @('SamAccountName,Tier,Flag', 'unquoted,Gold,', 'quoted,Gold,""', 'multiline,"Gold,', 'Silver",Enabled') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 3
+                [string]$rows[0].Flag | Should -Be ''
+                [string]$rows[1].Flag | Should -Be ''
+                $rows[2].Tier | Should -Match 'Gold,\r?\nSilver'
+            }
+
+            It 'rejects a <Kind> record before any directory access' -TestCases @(
+                @{ Kind = 'short'; Record = 'alice,Gold' }
+                @{ Kind = 'hash-prefixed short'; Record = '#bob,Gold' }
+                @{ Kind = 'long'; Record = 'alice,Gold,Enabled,Unexpected' }
+            ) {
+                param($Kind, $Record)
+                $path = Join-Path $TestDrive 'malformed.csv'
+                @('SamAccountName,Tier,Flag', 'valid,Gold,Enabled', $Record) | Set-Content -LiteralPath $path -Encoding UTF8
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Flag-' = @(@{ Column = 'Flag' }) } -ClearBlankNamespaces } | Should -Throw '*record 3*fields*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+            }
+
+            It 'accepts an Export-Csv type comment without losing the header' {
+                $path = Join-Path $TestDrive 'type.csv'
+                @('#TYPE System.Management.Automation.PSCustomObject', 'SamAccountName,Tier', 'alice,Gold') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 1
+                $rows[0].SamAccountName | Should -Be 'alice'
+            }
+
+            It 'accepts hash-prefixed identities as data after the header' {
+                $path = Join-Path $TestDrive 'hash-identity.csv'
+                @('#TYPE System.Management.Automation.PSCustomObject', 'SamAccountName,Tier', 'alice,Gold', '#bob,Silver') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 2
+                $rows[1].SamAccountName | Should -Be '#bob'
+                $rows[1].Tier | Should -Be 'Silver'
             }
         }
 
         Context 'Import-ADUserDrinkCsvData' {
             BeforeEach {
                 Mock Test-Path { $true }
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
-                Mock Import-Csv {
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName = $SamAccountName
+                        DistinguishedName = "CN=$SamAccountName,DC=contoso,DC=com"
+                        drink = @('Keep-Stable')
+                    }
+                }
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -844,9 +944,17 @@ Describe 'DrunkenAD unit tests' {
                         }
                     )
                 }
-                Mock Set-ADUserDrinkData {
-                    @('Profile-Tier=Gold', 'Flags-Enabled', 'Flags-Audited')
+                Mock Invoke-DrunkenADPrefixWrite {
+                    [pscustomobject]@{ Status = 'Written'; FinalDrinkValues = @('Profile-Tier=Gold', 'Flags-Enabled', 'Flags-Audited') }
                 }
+                Mock Get-ADUser {
+                    [pscustomobject]@{ SamAccountName = 'alice'; DistinguishedName = 'CN=alice,DC=contoso,DC=com'; drink = @('Keep-Stable') }
+                }
+                Mock Set-ADUserDrinkData { throw 'CSV imports must reuse the resolved user and write context.' }
+            }
+
+            AfterEach {
+                Assert-MockCalled Set-ADUserDrinkData -Times 0
             }
 
             It 'imports a CSV row using an in-memory namespace map' {
@@ -859,17 +967,25 @@ Describe 'DrunkenAD unit tests' {
                     )
                 }
 
-                $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
+                $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' -Confirm:$false
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 1 -Exactly -ParameterFilter {
+                Assert-MockCalled New-DrunkenADWriteContext -Times 1 -Exactly -ParameterFilter {
                     $Server -eq 'dc01.contoso.com'
                 }
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'alice' -and
-                    $DomainController -eq 'dc01.contoso.com' -and
-                    ((@($DataMap['Profile-']) -join ',') -eq 'Tier=Gold') -and
-                    ((@($DataMap['Flags-']) | Sort-Object) -join ',') -eq 'Audited,Enabled' -and
+                    $Server -eq 'dc01.contoso.com' -and (@($Properties) -contains 'drink')
+                }
+
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'alice' -and
+                    $User.DistinguishedName -eq 'CN=alice,DC=contoso,DC=com' -and
+                    (@($User.drink) -join ',') -eq 'Keep-Stable' -and
+                    $Context.Server -eq 'dc01.contoso.com' -and
+                    $Context.RangeUpper -eq 256 -and $Context.ReadyForUserWrite -and
+                    ((@($PrefixMap['Profile-']) -join ',') -eq 'Tier=Gold') -and
+                    ((@($PrefixMap['Flags-']) | Sort-Object) -join ',') -eq 'Audited,Enabled' -and
                     $PassThru -and
                     ($Confirm -eq $false)
                 }
@@ -880,7 +996,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'does not create label-only records from blank CSV fields' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -901,14 +1017,14 @@ Describe 'DrunkenAD unit tests' {
 
                 Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' | Out-Null
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    -not $DataMap.Contains('Profile-') -and
-                    ((@($DataMap['Flags-']) -join ',') -eq 'Enabled')
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    -not $PrefixMap.Contains('Profile-') -and
+                    ((@($PrefixMap['Flags-']) -join ',') -eq 'Enabled')
                 }
             }
 
             It 'rejects duplicate normalized CSV identities before checking AD readiness' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = 'Alice'; ProfileTier = 'Gold' }
                         [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Silver' }
@@ -924,12 +1040,13 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw '*duplicate*SamAccountName*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
 
             It 'trims a unique CSV identity before writing and reporting it' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Gold' }
                     )
@@ -943,8 +1060,11 @@ Describe 'DrunkenAD unit tests' {
                 $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
 
                 $result.SamAccountName | Should -Be 'alice'
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
+                Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'alice'
+                }
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'alice'
                 }
             }
 
@@ -962,7 +1082,7 @@ Describe 'DrunkenAD unit tests' {
 '@
                 }
 
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -978,13 +1098,13 @@ Describe 'DrunkenAD unit tests' {
                     $Raw
                 }
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 1 -Exactly -ParameterFilter {
-                    $SamAccountName -eq 'alice' -and
-                    ((@($DataMap['Tenant-']) -join ',') -eq 'Id=TEN-001')
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
+                    $User.SamAccountName -eq 'alice' -and
+                    ((@($PrefixMap['Tenant-']) -join ',') -eq 'Id=TEN-001')
                 }
             }
 
-            It 'honors WhatIf and skips the underlying write during CSV import' {
+            It 'returns planned values without invoking the writer during CSV WhatIf' {
                 $namespaceMap = @{
                     'Profile-' = @(
                         @{ Column = 'ProfileTier'; Label = 'Tier' }
@@ -993,12 +1113,12 @@ Describe 'DrunkenAD unit tests' {
 
                 $result = Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' -WhatIf
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
-                @($result.FinalDrinkValues).Count | Should -Be 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
+                $result.FinalDrinkValues | Should -Be @('Keep-Stable', 'Profile-Tier=Gold')
             }
 
             It 'throws a deterministic error when the CSV is missing SamAccountName' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             ProfileTier = 'Gold'
@@ -1016,14 +1136,14 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw "*missing required column 'SamAccountName'*"
 
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
 
             It 'validates CSV columns before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             Department = 'Engineering'
@@ -1041,15 +1161,16 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw "*missing required column 'SamAccountName'*"
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
 
             It 'rejects a CSV with no data rows before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv { @() }
+                Mock Read-DrunkenADCsvRows { @() }
 
                 $namespaceMap = @{
                     'Profile-' = @(
@@ -1061,15 +1182,16 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw '*does not contain any data rows*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
 
             It 'rejects overlapping CSV namespaces before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -1087,8 +1209,9 @@ Describe 'DrunkenAD unit tests' {
                     Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com'
                 } | Should -Throw '*overlap*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
-                Assert-MockCalled Set-ADUserDrinkData -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 0
             }
         }
 
@@ -1111,7 +1234,9 @@ Describe 'DrunkenAD unit tests' {
 
         Context 'Update-ADUserDrinkAttribute' {
             BeforeEach {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {}
+                Mock New-DrunkenADWriteContext {
+                    [pscustomobject]@{ Server = 'dc01.contoso.com'; RangeUpper = 256; ReadyForUserWrite = $true }
+                }
                 Mock Set-ADUserDrinkPrefixedData {}
             }
 
@@ -1128,11 +1253,14 @@ Describe 'DrunkenAD unit tests' {
             It 'honors WhatIf at the wrapper layer' {
                 Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-' -DrinkValues 'A' -WhatIf
 
-                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
+                Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
+                    $SamAccountName -eq 'demo' -and $WhatIf -and
+                    (@($PrefixMap['One-']) -join ',') -eq 'A'
+                }
             }
 
             It 'rejects mismatched arrays before checking AD readiness' {
-                Mock Assert-ADDrinkAttributeReadyForUserWrite {
+                Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
 
@@ -1140,7 +1268,7 @@ Describe 'DrunkenAD unit tests' {
                     Update-ADUserDrinkAttribute -SamAccountName 'demo' -Prefixes 'One-', 'Two-', 'Three-' -DrinkValues 'A', 'B' -Confirm:$false
                 } | Should -Throw '*counts must match*'
 
-                Assert-MockCalled Assert-ADDrinkAttributeReadyForUserWrite -Times 0
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
                 Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 0
             }
 
@@ -1156,7 +1284,8 @@ Describe 'DrunkenAD unit tests' {
 
                 Assert-MockCalled Set-ADUserDrinkPrefixedData -Times 1 -Exactly -ParameterFilter {
                     $SamAccountName -eq 'demo' -and
-                    ((@($PrefixMap['One-']) -join ',') -eq 'A')
+                    ((@($PrefixMap['One-']) -join ',') -eq 'A') -and
+                    ($Confirm -eq $false)
                 }
             }
         }

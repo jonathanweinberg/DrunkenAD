@@ -7,9 +7,9 @@ namespaced data store for user-attached operational metadata.
   <img src="images/documentation-suite-2026-05-07/drunkenad-overview.png" alt="DrunkenAD overview">
 </p>
 
-The generated infographic plates are intentionally part of the reading path.
-They are not replacements for the Mermaid sources; they are fast, visual
-introductions to the same flows that the docs describe in detail.
+The generated infographic plates are dated illustrations. Current behavior is
+shown by the Mermaid flows and interactive atlas; historical plates are not
+write or release contracts.
 The 2026-05-11 image suite adds the 0.11.0 module split, campaign profiles, and
 release-readiness gate to the same visual style.
 The 0.12.1 docs keep the seeded live campaign flow host-method neutral. Use the
@@ -32,6 +32,8 @@ Start with the path that matches your job:
   [WinServer live validation run](WINSERVER-LIVE-VALIDATION-2026-05-07.md).
 - Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md), then open the
   [interactive architecture atlas](drunkenad-architecture-map.html).
+- Reviewing the October changes: read the
+  [external-review adjudication](issues/013-october-review-hardening.md).
 
 ## Document Map
 
@@ -56,12 +58,12 @@ Start with the path that matches your job:
 | Question | Infographic | Documentation |
 | --- | --- | --- |
 | What is this for? | <img src="images/documentation-suite-2026-05-07/use-case-map.png" alt="Use-case map" width="260"> | [USE-CASES.md](USE-CASES.md) |
-| How is the module organized? | <img src="images/documentation-suite-2026-05-11/module-layout.png" alt="Module layout" width="260"> | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| How are writes kept scoped? | <img src="images/documentation-suite-2026-05-07/namespace-write-model.png" alt="Namespace write model" width="260"> | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| How does flat-file data get into AD? | <img src="images/documentation-suite-2026-05-07/csv-ingestion-flow.png" alt="CSV ingestion flow" width="260"> | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) |
-| What must be true before writes? | <img src="images/documentation-suite-2026-05-07/schema-readiness-flow.png" alt="Schema readiness flow" width="260"> | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) |
+| How is the module organized? | [Current Mermaid flow](DIAGRAMS.md#module-layout) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How are writes kept scoped? | [Current Mermaid flow](DIAGRAMS.md#namespace-write-model) | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How does flat-file data get into AD? | [Current Mermaid flow](DIAGRAMS.md#csv-ingestion-flow) | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) |
+| What must be true before writes? | [Current Mermaid flow](DIAGRAMS.md#schema-readiness-flow) | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) |
 | How do we pick live validation scale? | <img src="images/documentation-suite-2026-05-11/live-campaign-profiles.png" alt="Live campaign profiles" width="260"> | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) |
-| How do we prove release readiness? | <img src="images/documentation-suite-2026-05-11/release-readiness.png" alt="Release readiness" width="260"> | [TESTING.md](TESTING.md) |
+| How do we prove release readiness? | [Current Mermaid flow](DIAGRAMS.md#release-readiness) | [TESTING.md](TESTING.md) |
 
 ## PowerShell Help
 

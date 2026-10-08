@@ -181,3 +181,100 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
         @($manifest | Where-Object Region -eq 'APAC').Count | Should -Be 10
     }
 }
+
+Describe 'Isolated smoke account cleanup behavior' {
+    BeforeAll {
+        $path = Join-Path $PSScriptRoot 'Live/Invoke-DrunkenADGuestCampaign.ps1'
+        $tokens = $null
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
+        if ($errors.Count -gt 0) { throw 'Guest campaign failed to parse.' }
+        foreach ($name in @('ConvertTo-DrunkenADLdapFilterValue', 'Remove-DrunkenADSmokeAccount', 'Test-DrinkValuesMatch', 'Assert-DrinkValuesMatch')) {
+            $definition = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true) | Select-Object -First 1
+            . ([scriptblock]::Create($definition.Extent.Text))
+        }
+        $script:cleanupOriginalFunctions = @{}
+        foreach ($name in @('Remove-ADUser', 'Get-ADUser')) {
+            $script:cleanupOriginalFunctions[$name] = Get-Item "Function:\global:$name" -ErrorAction SilentlyContinue
+        }
+        function global:Remove-ADUser { param($Identity, $Server, $Confirm, $ErrorAction) throw 'Unmocked removal is forbidden.' }
+        function global:Get-ADUser { param($LDAPFilter, $Server, $ErrorAction) throw 'Unmocked lookup is forbidden.' }
+    }
+    AfterAll {
+        foreach ($name in @('Remove-ADUser', 'Get-ADUser')) {
+            if ($script:cleanupOriginalFunctions[$name]) {
+                Set-Item "Function:\global:$name" $script:cleanupOriginalFunctions[$name].ScriptBlock
+            }
+            else { Remove-Item "Function:\global:$name" -ErrorAction SilentlyContinue }
+        }
+    }
+    BeforeEach {
+        Mock Remove-ADUser {}
+        Mock Get-ADUser { @() }
+    }
+    It 'removes only the captured identity and verifies absence on the same server' {
+        Remove-DrunkenADSmokeAccount -DistinguishedName 'CN=isolated,OU=Tests,DC=example,DC=test' -Server 'dc.example.test'
+        Should -Invoke Remove-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq 'CN=isolated,OU=Tests,DC=example,DC=test' -and $Server -eq 'dc.example.test' }
+        Should -Invoke Get-ADUser -Times 1 -Exactly -ParameterFilter { $LDAPFilter -eq '(distinguishedName=CN=isolated,OU=Tests,DC=example,DC=test)' -and $Server -eq 'dc.example.test' }
+    }
+    It 'reports a removal failure without attempting broader deletion' {
+        Mock Remove-ADUser { throw 'Access denied' }
+        { Remove-DrunkenADSmokeAccount -DistinguishedName 'CN=isolated,DC=example,DC=test' -Server 'dc.example.test' } | Should -Throw '*Smoke account cleanup failed*Access denied*'
+        Should -Invoke Remove-ADUser -Times 1 -Exactly
+        Should -Invoke Get-ADUser -Times 0 -Exactly
+    }
+    It 'executes the real script-local LDAP escaping helper during cleanup' {
+        $dn = 'CN=isolated*(test)\name,DC=example,DC=test'
+        Remove-DrunkenADSmokeAccount -DistinguishedName $dn -Server 'dc.example.test'
+        Should -Invoke Get-ADUser -Times 1 -Exactly -ParameterFilter {
+            $LDAPFilter -eq '(distinguishedName=CN=isolated\2a\28test\29\5cname,DC=example,DC=test)'
+        }
+        ConvertTo-DrunkenADLdapFilterValue -Value ([string][char]0) | Should -BeExactly '\00'
+    }
+    It 'compares individual values without delimiter collisions' {
+        { Assert-DrinkValuesMatch -Actual @('A|B', 'C') -Expected @('A', 'B|C') -Message 'Mismatch' } | Should -Throw '*Mismatch*'
+        { Assert-DrinkValuesMatch -Actual @('C', 'A|B') -Expected @('A|B', 'C') -Message 'Mismatch' } | Should -Not -Throw
+        { Assert-DrinkValuesMatch -Actual @() -Expected @() -Message 'Mismatch' } | Should -Not -Throw
+        { Assert-DrinkValuesMatch -Actual @('Case') -Expected @('case') -Message 'Mismatch' } | Should -Throw '*Mismatch*'
+    }
+    It 'runs the inline smoke path with script-local helpers in a fresh scope' {
+        $definitions = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in @('ConvertTo-DrunkenADLdapFilterValue', 'Remove-DrunkenADSmokeAccount', 'Test-DrinkValuesMatch', 'Assert-DrinkValuesMatch', 'New-SmokeValidationPassword', 'Invoke-DrunkenADSmokeValidation') }, $true) | ForEach-Object { $_.Extent.Text }) -join [Environment]::NewLine
+        $isolated = New-Module -ScriptBlock {
+            param($Definitions)
+            . ([scriptblock]::Create($Definitions))
+            $script:DomainController = 'dc.example.test'
+            $script:writeCount = 0
+            $script:removed = $false
+            function New-ADUser { param($Name, $SamAccountName, $UserPrincipalName, $AccountPassword, $Enabled, $EmployeeID, $OtherAttributes, $Path, $Server, $ErrorAction, [switch]$PassThru) [pscustomobject]@{ DistinguishedName = 'CN=isolated,OU=Tests,DC=example,DC=test' } }
+            function Test-ADDrinkAttributeReadyForUserWrite { param($Server) $true }
+            function Set-ADUserDrinkData { param($SamAccountName, $DataMap, $DomainController, $Confirm, $ErrorAction) $script:writeCount++ }
+            function Remove-ADUserDrinkData { param($SamAccountName, $Prefixes, $DomainController, $Confirm, $ErrorAction) }
+            function Get-ADUserDrinkData {
+                param($SamAccountName, $Prefix, $DomainController)
+                if ($Prefix -eq 'Keep-' -or -not $Prefix) { return 'Keep-Stable' }
+                if ($script:writeCount -eq 1) { return 'Smoke[01]-First' }
+                if ($script:writeCount -eq 2 -and $Prefix -eq 'Smoke[01]-') {
+                    $script:writeCount++
+                    return 'Smoke[01]-Second'
+                }
+            }
+            function Remove-ADUser { param($Identity, $Server, $Confirm, $ErrorAction) $script:removed = $true }
+            function Get-ADUser { param($LDAPFilter, $Server, $ErrorAction) if (-not $script:removed) { throw 'Absence checked before removal.' } }
+        } -ArgumentList $definitions
+        try {
+            $result = & $isolated { Invoke-DrunkenADSmokeValidation -TestOuDn 'OU=Tests,DC=example,DC=test' -DnsRoot 'example.test' }
+            $result.FailedCount | Should -Be 0
+            $result.Lines[-1] | Should -Match 'removal was verified'
+        }
+        finally { Remove-Module $isolated -ErrorAction SilentlyContinue }
+    }
+    It 'reports an account still present after removal' {
+        Mock Get-ADUser { [pscustomobject]@{ DistinguishedName = 'CN=isolated,DC=example,DC=test' } }
+        { Remove-DrunkenADSmokeAccount -DistinguishedName 'CN=isolated,DC=example,DC=test' -Server 'dc.example.test' } | Should -Throw '*still present*'
+        Should -Invoke Remove-ADUser -Times 1 -Exactly
+    }
+    It 'reports failure to verify absence rather than claiming cleanup succeeded' {
+        Mock Get-ADUser { throw 'Directory unavailable' }
+        { Remove-DrunkenADSmokeAccount -DistinguishedName 'CN=isolated,DC=example,DC=test' -Server 'dc.example.test' } | Should -Throw '*Smoke account cleanup failed*Directory unavailable*'
+    }
+}
