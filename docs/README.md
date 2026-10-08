@@ -50,6 +50,7 @@ Start with the path that matches your job:
 | [POST-MERGE-VALIDATION.md](POST-MERGE-VALIDATION.md) | Post-merge review decisions and all 26 proposed live evidence gates. |
 | [EXCEL-CSV-VALIDATION.md](EXCEL-CSV-VALIDATION.md) | Synthetic source cells, authentic Excel export intake, and separate offline/live acceptance. |
 | [SINGLE-DC-ACCEPTANCE-PROPOSAL.md](SINGLE-DC-ACCEPTANCE-PROPOSAL.md) | Proposed single-DC evidence envelope, acceptance conditions and explicit environment deferrals. |
+| [SINGLE-DC-VALIDATION-2026-10-08.md](SINGLE-DC-VALIDATION-2026-10-08.md) | Interrupted one-user attempt, offline/CI evidence and independently verified cleanup. |
 | [POST-MERGE-LIVE-EXPANSION.md](POST-MERGE-LIVE-EXPANSION.md) | Bounded single-controller receipts, cleanup, three review methods, and remaining evidence gaps. |
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
 | [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |

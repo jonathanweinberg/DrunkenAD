@@ -11,6 +11,19 @@ acceptance; the candidate-bound receipts below record the later evidence.
 
 ### Current Evidence Summary
 
+The later [single-user attempt](SINGLE-DC-VALIDATION-2026-10-08.md) used exact
+candidate `07d26b9`: 393 local passes, 27 live cases excluded, and all five CI
+checks passed. Its native run was interrupted in Pester's capacity-skip handler
+because of a private launcher variable collision, reproduced without AD on
+both PowerShell runtimes. No completed live aggregate exists and the eight
+new native projection-boundary cases were not executed. The single fixture
+was removed and independent exact-GUID/parent checks passed; this new approval
+is consumed, in addition to the earlier six-user allowance. No retry occurred.
+The owner requested the [restricted single-DC proposal](SINGLE-DC-ACCEPTANCE-PROPOSAL.md),
+not acceptance of it. Harness correction and a fresh authorized completed
+receipt remain required; the interruption cannot be waived as an environment
+deferral. Earlier dated receipts below retain their own scope.
+
 The [expanded live receipt](POST-MERGE-LIVE-EXPANSION.md) adds the later
 single-controller identity, literal-lookup, confirmation, rename/move, denial,
 deletion, endpoint and native-projection results with verified final cleanup.
@@ -36,8 +49,8 @@ The refreshed README also rendered on desktop and mobile: all six new
 thumbnails loaded at 1536 x 1024, with no page overflow or browser errors.
 These are local source/visual checks, not final-candidate CI or live proof.
 
-The subsequent combined test/documentation update passed the local release
-gate on PowerShell 7.6.3 with Pester 5.7.1: 393 passed, zero failed/skipped,
+The subsequent combined test/documentation update at `cc76446` passed the local
+release gate on PowerShell 7.6.3 with Pester 5.7.1: 393 passed, zero failed/skipped,
 19 integration cases excluded and exit 0. This includes eight new offline
 public projection length tests. The historical `53e2986` receipt remains
 separate; this local result is not a Windows, CI, native projection-boundary
@@ -51,7 +64,7 @@ Final commit and CI receipts are retained in issue #16 and PR #17.
 | Projection adjudication | Six unit regressions and the later eight real native-AD projection checks passed: typed dates, multivalues, separator-bearing membership DNs and blank-source clearing agree under en-US/de-DE. Native checks verified that complete projected records fit the live limit. Eight additional offline public-command tests passed for exact-limit success and overlimit rejection without writes or partial removal, including the combined local gate. Production projection code is unchanged. | Native projection boundary rejection and PowerShell 7 native/compatibility case 14 evidence remain unproven. Preserve invariant general-format dates, not an unsolicited ISO change. |
 | Tier 1 execution | First run at `4d1db9b`: 17 passed, two failed. Corrected run at `038013b`: all 12 baseline plus six Tier1 cases passed, zero failed, one explicit large-set capacity skip. Cleanup verified zero temporary accounts after both runs. | Partial coverage: the large-set case and the other unexecuted scenarios remain Evidence Gaps, not passes. |
 | Documentation/endpoint corrections | About-topic and DATA-STORE blank retention, alias-pinning prose, and CSV endpoint wording are corrected. A help regression and explicit NetBIOS pass-through testcase were added; no production endpoint rewrite. | Included in the passing local gate; remote matrix and live endpoint evidence remain separate. |
-| Expanded live approval | Two earlier one-user runs plus the later four-user/group/two-OU run exhausted the conservative six-user allowance. Each verified rollback beforehand and cleanup afterward; the final independent check found all seven expanded fixture GUIDs absent and the original parent intact. No schema, DNS, infrastructure, existing-user or campaign mutation. | No remaining creation allowance; no automatic integration rerun. The expanded receipt records passes and gaps separately. |
+| Live approval accounting | Two earlier one-user runs plus the four-user/group/two-OU run exhausted the prior six-user allowance. A separately authorized one-user attempt at `07d26b9` was interrupted, then cleaned up with independent absence and parent checks. No schema, DNS, infrastructure, existing-user or campaign mutation. | Both allowances are consumed; no automatic retry. Historical passes, the interrupted attempt and remaining gaps are separate evidence. |
 | Read-only schema follow-up / case 21 | The executing reviewer verified all 20 module files hash-equal to `038013b`, successful native readiness, and an independently enumerated existing user-class graph with nine classes and 13 edges reaching `posixAccount` and `shadowAccount`. The Exchange version-marker count was zero and `msExchBaseClass` absent. All seven expanded fixture GUIDs remained absent. No write occurred in this follow-up. | Partial proof for the existing RFC-containing graph only; not Exchange certification, auxiliary-only readiness under case 20, or schema-mutation evidence. The separate documentation reviewer inspected the receipt but did not rerun the probe. |
 | Published release / owner hold | Reported release-state verification identifies latest GitHub release `v0.13.1`, published 2026-05-15. Owner explicitly declined release/tagging for now, pending review of homepage imagegen artwork versus Mermaid presentation. This is an owner hold, not an unanswered approval question. | No tag/release until owner explicitly lifts the hold after review. Live authorization does not authorize publication or issue closure. |
 | Artwork refresh, separate scope | Commit `1fdc4df` adds seven inspected imagegen illustrations with exact prompt records, restores six README thumbnails, and updates the documentation index/detail guides. Original artwork is preserved and Mermaid retained. After owner review, `13e2080` makes overview link labels consistently show file paths. Desktop/mobile checks passed again. | Artwork approval does not lift the separate release hold. |
@@ -205,7 +218,7 @@ All rows below are inspected implementation/coverage, not fresh test passes.
 | --- | --- | --- | --- |
 | F1: Non-UTF-8 CSV corruption | Confirmed by reported actual-byte testing of `ren` plus `0xe9`. Strict Unicode decoding and byte-level fixtures are now present in [CSV]/[UT]; UTF-8 default, BOM-marked UTF-16/32 retained. No blanket U+FFFD ban or broad Encoding option. | Require final-candidate rejection-before-AD and valid Unicode receipts (cases 5/13). Do not label every plain Excel CSV Windows-1252: exporter version, locale, format, BOM, and actual bytes must be recorded. | Source repair inspected; release still gated on validation. |
 | F2a: Fixes not released | 0.13.2 is declared in [manifest][MANIFEST] and [changelog][CHANGELOG]; reported release-state verification identifies latest GitHub release as v0.13.1 (2026-05-15). These are different evidence classes. | Assemble evidence without publishing. Owner explicitly holds release/tagging pending homepage artwork review; only a later explicit owner decision can lift that hold. | Owner-held, not an unanswered approval request. |
-| F2b: Current code not live validated | Corrected candidate `038013b` passed twelve baseline and six Tier1 cases with verified cleanup; one capacity prerequisite was explicitly skipped. Later expanded protocols tested the same module bytes. The six-user allowance is exhausted and all fixtures are gone. | Preserve the capacity and unexecuted-case gaps. Later test-isolation changes have their own offline receipts, not a live integration rerun. Further fixture use requires fresh authorization. | Release remains held; partial live coverage is not release completion. |
+| F2b: Current code not live validated | Corrected candidate `038013b` passed twelve baseline and six Tier1 cases with verified cleanup; one capacity prerequisite was explicitly skipped. Later expanded protocols tested the same module bytes. The six-user allowance and later isolated one-user approval are consumed; all fixtures are gone. | Preserve the capacity and unexecuted-case gaps. Later test changes passed units/CI, but the `07d26b9` integration attempt was interrupted without a completed live result. Further fixture use requires fresh authorization. | Release remains held; partial or interrupted live coverage is not release completion. |
 | M1: NetBIOS domain / aliases not pinned | Pass-through is confirmed by resolver structure; it does not query a domain's NetBIOS name. A single-label input can also be an explicit short DC hostname. Blanket classification would break the preserved-endpoint contract. | Keep explicit short host behavior. Cases 12/15 separately establish known domain, short host, and alias behavior; any future classification needs authoritative metadata and ambiguity handling. | Document limitation now; classifier redesign can defer. |
 | M2: Three user reads per changed CSV row | [write tests][WT], `uses one schema check, one preflight resolve and two fresh reads per changed CSV row`, explicitly asserts the design. Reads serve different consistency boundaries; see tradeoff table. | Case 26 measures cost; case 10/11 regression receipts are mandatory before any optimization. 9,000 is a modeled count for 3,000 approved changed rows, not measured latency. | Preserve safety now; optimization deferred. |
 | M3: Logger complexity and legacy-only automatic path | Automatic default-path opt-in is on `Update-ADUserDrinkAttribute -EnableLogging`; other supported writers expose explicit `LogPath`. [LOGT] tests retention, ownership, reparse rejection, preview, and error isolation. Reviewer line/test-block counts are not a defect measurement. | Retain protections and existing switch; case 25 checks normal enterprise profiles. Refactoring needs equal safety coverage and an explicit performance/maintenance benefit. | No simplification prerequisite for release. |
@@ -403,6 +416,7 @@ the corresponding rows. They do not supersede the required live receipts.
 | 5 | Unicode through generic, prefixed, legacy, CSV and projection paths, with fresh exact reads. | Passed at `4d1db9b`; the expanded `038013b` receipt adds demo-wrapper, prefixed-reader and removal checks. Native typed-source evidence is recorded separately under case 14. |
 | 8 | Attempts complete 1,600-plus-value retrieval and replacements retaining a large unrelated namespace. | Evidence Gap: the server rejected the 1,602-value fixture before retrieval. No retrieval pass or infrastructure change. |
 | 9 | CSV and projection reruns assert NoChange and unchanged same-DC replication metadata. | Passed at `4d1db9b` with actual metadata access, stable versions and controlled fixture. |
+| 14 | Eight native projection length combinations across two commands, two cultures and two scalar sources, sharing the same owned fixture. | Added at `07d26b9`, but unexecuted: that run was interrupted while handling the earlier capacity skip. Local and CI discovery are not live proof. |
 
 These tests use only the one captured, owned disabled integration user and
 require both environment opt-ins. They do not create a campaign, broaden the
@@ -475,7 +489,7 @@ must record deferred scope rather than claiming it passed.
 
 | Gate | Evidence Required Before Recommending 0.13.2 | Current Disposition |
 | --- | --- | --- |
-| G0: Exact candidate and local safety | Strict Unicode repair and regression receipts, projection no-bug adjudication and offline regressions, documentation reconciliation, fresh [release gate][GATE], pinned Pester 5.7.1, all four runtime/OS CI results and docs check, manifest/export/FileList/help parity. Record final counts, not an immutable target of 349. | Historical `53e2986` local gate: 385 passed. The combined projection-test/documentation update passed 393, zero failed/skipped, 19 integration excluded and exit 0. Earlier Windows/CI receipts retain their candidate identities; final-head CI and commit association are tracked by PR #17 and issue #16. |
+| G0: Exact candidate and local safety | Strict Unicode repair and regression receipts, projection no-bug adjudication and offline regressions, documentation reconciliation, fresh [release gate][GATE], pinned Pester 5.7.1, all four runtime/OS CI results and docs check, manifest/export/FileList/help parity. Record final counts, not an immutable target of 349. | `07d26b9`: 393 local passes, zero failed/skipped, 27 integration excluded and all five CI checks passed. Older receipts retain their candidate identities. Final-head CI is tracked by PR #17 and issue #16. The separate native interruption does not invalidate unit counts or establish live success. |
 | G1: Authorized baseline and expanded live | Baseline twelve cases plus selected opt-in Tier1 and authorized expanded cases, with required assertions executed, zero failed/unexplained skipped/container errors, read-back and cleanup proof on final fixed candidate, not old 55906b1. | At `038013b`: 18 passed, zero failed, one explicit capacity skip, cleanup verified. Large-set retrieval and unexecuted scenarios remain gaps; not a full release pass. |
 | G2: Data integrity and operator behavior | Cases 1-13 and 22-23; single-DC parts of 12 now, multi-DC limitation explicitly retained. Case 24 on Windows PowerShell 5.1/RSAT. Failures in data preservation, invalid-input rejection, approval accuracy or failure accounting block recommendation. | Substantial real single-controller evidence now recorded, including cases 6/7/10/11 and seven endpoint forms. Capacity, alias, exporter, actor and member-host gaps remain; not a complete pass. |
 | G3: Conditional support surface | Case 14 real-source evidence after no-bug projection adjudication; case 24 claimed PS7 modes; case 25 enterprise logging; case 26 if making current throughput claims. Confirmed defects cannot be relabeled deferred without an explicit supported-scope decision. | Native case 14 passed eight positive checks across two cultures; new public length tests are offline. Native projection-boundary, compatibility/runtime/profile/scale evidence or owner-approved restrictions remain pending. |
@@ -514,10 +528,12 @@ Issue #16 tracks acceptance and execution receipts. Projection unit tests found
 no production defect; six earlier regressions and eight additional offline public
 length tests preserve its behavior. Native positive-source checks are recorded
 separately from unproven native boundary and PS7 compatibility cases. The prior
-six-user allowance is exhausted; further live fixture use requires fresh
-authorization and common plus per-case receipts. The owner also approved an
-illustrated artwork refresh, with current technical text and Mermaid retained in detailed
-docs. Release/tagging remains held, and no automatic schedule is created.
+six-user allowance and the later isolated one-user approval are both consumed;
+further live fixture use requires fresh authorization and common plus per-case
+receipts. The restricted single-DC proposal is prepared, not accepted. The
+owner also approved an illustrated artwork refresh, with current technical
+text and Mermaid retained in detailed docs. Release/tagging remains held,
+and no automatic schedule is created.
 Reported external counts are not promoted to tests performed by this review.
 
 [CONTRIB]: ../CONTRIBUTING.md

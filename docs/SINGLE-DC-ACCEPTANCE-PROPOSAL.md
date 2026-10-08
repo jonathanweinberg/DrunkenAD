@@ -13,13 +13,17 @@ Tracking: [PR #17](https://github.com/jonathanweinberg/DrunkenAD/pull/17),
 ## Proposed Decision
 
 Accept the inspected fixes and recorded evidence for **controlled single-DC
-evaluation** within the envelope below, after the newly approved final
-one-user run passes its executable assertions and cleanup. Explicitly retain
+evaluation** within the envelope below, only after a fresh authorized final
+one-user run completes its required assertions and cleanup. The latest attempt
+was interrupted by a private harness/Pester skip-handling stall; its fixture
+was removed and cleanup independently verified. See the
+[interrupted-run receipt](SINGLE-DC-VALIDATION-2026-10-08.md). Explicitly retain
 the gaps in this proposal as unproven, with the listed revisit triggers.
 This is not an unrestricted production-readiness recommendation.
 
-The owner has authorized that one-user run and requested this proposal.
-Neither action accepts the proposed deferrals. A later explicit acceptance
+The owner authorized that one-user attempt and requested this proposal. That
+attempt's approval is consumed, not reusable for a retry. Neither action
+accepts the proposed deferrals. A later explicit acceptance
 decision should name the final candidate and this scope. Merge and release
 remain separate decisions.
 
@@ -40,12 +44,12 @@ remain separate decisions.
 
 | Requirement | Available Evidence / Remaining Action |
 | --- | --- |
-| Source identity | Record exact candidate SHA, archive and individual file hashes. The prior live-validated module source is `038013b`; later test changes need their own execution receipt. |
-| Offline gate | `cc76446` passed 393 local tests and all five CI checks. Revalidate the added live-test source and selection regression on its final candidate; do not reuse an older green check as that proof. |
-| Revised integration setup | The prior issue #18 setup repair passed offline selection/isolation tests. The newly approved one-user run must prove actual selected initialization, original baseline cases and cleanup. |
-| Projection boundaries | Run the eight added native command/culture/source combinations on the same fixture. Exact-limit records must round-trip; overlimit attempts must report the local validation error and leave the entire value set and metadata unchanged. |
+| Source identity | Candidate `07d26b9`, its archive and all 22 bundled file hashes were verified before execution. Production module source remains equivalent to `038013b`; see the [candidate receipt](SINGLE-DC-VALIDATION-2026-10-08.md). |
+| Offline gate | `07d26b9` passed 393 local tests with 27 live cases excluded, plus all five exact-candidate CI checks. The receipt distinguishes Core and Windows PowerShell 5.1 counts and platform skips from live evidence. |
+| Revised integration setup | The issue #18 repair passed offline selection/isolation tests. The latest native attempt created its single fixture but did not complete its result receipt. Resolve the private launcher collision, verify synthetic skip handling and bound runtime before any newly authorized integration attempt. |
+| Projection boundaries | All eight added native command/culture/source cases remain unexecuted. A fresh authorized run must prove exact-limit round-trip and local overlimit rejection with complete value-set and metadata preservation. Offline controls are not substitutes. |
 | Capacity gap | Keep any recognized 1,602-value setup rejection visible as a skipped prerequisite with unchanged-state proof. It is not a range-retrieval pass; do not reduce the fixture to claim success. |
-| Final cleanup | Require zero failed tests/containers, no unexplained skips/not-run cases, owned fixture absence and preservation of the pre-existing parent. A capacity-only skip leaves the overall suite partial, even if the proposed restricted claim is later accepted. |
+| Final cleanup | The interrupted attempt's fixture absence and parent preservation were independently verified. A later acceptance run still requires zero failed tests/containers, no unexplained skips/not-run cases and its own cleanup receipt. A completed capacity-only skip leaves that suite partial, even if the restricted claim is later accepted. |
 | Owner decision | Explicitly accept or revise this proposal after reviewing the final receipt. This document alone changes no acceptance or publication status. |
 
 ## Explicit Deferrals
@@ -60,7 +64,8 @@ proposal is accepted; none is invented here.
 | 8 | Greater-than-1,600-value retrieval/replacement after successful seed setup. Current environment rejects the prerequisite at its capacity limit. | Suitable separately authorized capacity environment, before large-value-set claims. |
 | 12, 15-18 | Working DNS alias, multi-DC locator stability, lag/conflict convergence and RODC behavior. | Approved topology and trace plan, before multi-DC or alias stability claims. |
 | 13 | Original Excel UTF-8/plain CSV provenance and exact cell/AD round-trip. The [intake protocol](EXCEL-CSV-VALIDATION.md) and synthetic source workbook are prepared, not exporter evidence. | Original exports with version/locale, followed by offline intake and separately authorized live fixtures, before promising that Excel workflow. |
-| 19-21 | Schema enablement/cache refresh/peer propagation, custom auxiliary-only readiness and Exchange extensions. Existing RFC graph evidence covers only its observed graph. | Disposable schema authority and appropriate recovery, before those environment claims. |
+| 19-20 | Schema enablement/cache refresh/peer propagation and custom auxiliary-only readiness. | Disposable schema authority and appropriate recovery, before those environment claims. |
+| 21 | Existing extended-schema compatibility, including Exchange. The observed RFC graph/readiness evidence remains partial, not an Exchange or representative-write pass. | An existing authorized extended-schema environment and read permissions for graph/readiness inspection; separate fixture/write authority for a representative write. No extension installation is implied. |
 | 22-23 | True delegated-write and read-only principals. A privileged actor with an object-specific deny does not substitute for either. | Pre-provisioned least-rights actors and explicit fixture/ACL scope, before least-privilege claims. |
 | 14, 24 | PowerShell 7 native/compatibility AD objects and member-server RSAT runtime lanes. Native 5.1 projection results do not certify deserialized objects. | Approved existing hosts/runtime modes, before deployment guidance asserts those lanes were live-validated. |
 | 25 | Redirected, OneDrive and junction-backed enterprise profiles. | Approved representative profiles and log-path expectations, before environment-specific logging claims. |
@@ -69,8 +74,12 @@ proposal is accepted; none is invented here.
 ## Decision Record
 
 - Proposal requested: yes.
-- Additional isolated one-user run authorized: yes, for this validation pass only.
-- Final run and cleanup: pending; receipt will be linked after execution.
+- Additional isolated one-user run: authorized, attempted once and consumed.
+- Latest run: interrupted in private harness/Pester skip handling; no completed
+  test aggregate and none of the eight new boundary cases executed.
+- Cleanup: independently verified; zero owned fixtures remain and parent intact.
+- Any retry: fresh authority required; the completed live acceptance receipt is
+  still missing. The harness problem is not an accepted deferral.
 - Restricted acceptance: pending owner review of this proposal and receipt.
 - Release/tagging: explicitly held.
 - Merge and issue closure: not performed or authorized by this proposal.

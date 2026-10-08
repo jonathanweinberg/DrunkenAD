@@ -163,9 +163,12 @@ are unchanged from the live-validated `038013b` tree.
   internal hard timeout. No stuck child remained after verification; a future
   timeout improvement would be a separate runner design change.
 
-The live suite was not rerun after this test-harness change: the authorized
-fixture allowance is exhausted. Module equivalence supports the bounded
-behavior evidence, not a claim that the changed integration setup ran live.
+At this historical checkpoint, the live suite was not rerun after this
+test-harness change: the authorized fixture allowance was exhausted. Module
+equivalence supports the bounded behavior evidence, not a claim that the
+changed integration setup ran live. A separately authorized later attempt
+was interrupted; its [receipt and cleanup](SINGLE-DC-VALIDATION-2026-10-08.md)
+do not supply a completed new integration result.
 
 ### Unproven Environments
 
