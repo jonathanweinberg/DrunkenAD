@@ -100,6 +100,12 @@ function Invoke-DrunkenADPrefixWrite {
         throw 'A validated write context with a pinned domain controller is required.'
     }
     $plan = Get-DrunkenADPrefixWritePlan -CurrentValues $User.drink -PrefixMap $PrefixMap -RangeUpper $Context.RangeUpper
+    $objectGuid = [guid]::Empty
+    $guidProperty = $User.PSObject.Properties['ObjectGUID']
+    $accountCorrelation = 'unavailable'
+    if ($null -ne $guidProperty -and [guid]::TryParse([string]$guidProperty.Value, [ref]$objectGuid) -and $objectGuid -ne [guid]::Empty) {
+        $accountCorrelation = $objectGuid.ToString('D')
+    }
     $status = 'NoChange'
     if ($plan.Remove.Count -gt 0 -or $plan.Add.Count -gt 0) {
         $reason = [System.Management.Automation.ShouldProcessReason]::None
@@ -115,13 +121,13 @@ function Invoke-DrunkenADPrefixWrite {
             if ($plan.Add.Count -gt 0) { $parameters['Add'] = @{ drink = $plan.Add } }
             Set-ADUser @parameters
             $status = 'Written'
-            Write-DrunkenADLog -LogPath $LogPath -Message "Updated drink attribute: removed $($plan.Remove.Count), added $($plan.Add.Count) value(s)."
+            Write-DrunkenADLog -LogPath $LogPath -Message "objectGUID=$accountCorrelation Updated drink attribute: removed $($plan.Remove.Count), added $($plan.Add.Count) value(s)."
         }
         else { $status = if ($reason -eq [System.Management.Automation.ShouldProcessReason]::WhatIf) { 'WhatIf' } else { 'Declined' } }
     }
     else {
         Write-Verbose 'No drink attribute changes are required.'
-        Write-DrunkenADLog -LogPath $LogPath -Message 'No drink attribute changes were required.'
+        Write-DrunkenADLog -LogPath $LogPath -Message "objectGUID=$accountCorrelation No drink attribute changes were required: removed 0, added 0 value(s)."
     }
     if ($ResultObject) { [pscustomobject]@{ Status = $status; FinalDrinkValues = $plan.FinalDrinkValues } }
     elseif ($PassThru) { $plan.FinalDrinkValues }

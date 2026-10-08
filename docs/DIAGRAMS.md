@@ -49,8 +49,8 @@ flowchart LR
 
     subgraph Drink["User drink namespace store"]
         FLAGS["Flags-"]
-        PROFILE["Profile-"]
-        ROUTING["Routing-"]
+        PROFILE["AppProfile-"]
+        ROUTING["AppRouting-"]
         TENANT["Tenant-"]
         SYNCNS["Sync-"]
     end
@@ -101,20 +101,22 @@ Historical plate: [CSV ingestion flow image](images/documentation-suite-2026-05-
 
 ```mermaid
 flowchart TD
-    CSV["CSV rows"] --> LOCAL["Local preflight<br/>paths + required columns"]
+    CSV["CSV rows"] --> LOCAL["Local preflight<br/>complete records + required columns"]
     MAP["JSON or hashtable namespace map"] --> LOCAL
     LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
     OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
     IDENTITIES --> READY["One readiness context<br/>pin effective DC"]
     READY --> ROW["Preflight every usable row<br/>resolve identity + validate value lengths"]
-    ROW --> APPROVE["CSV-wide ShouldProcess<br/>Yes / No to All"]
-    APPROVE --> FRESH["Refresh approved resolved object<br/>recompute delta on pinned DC"]
-    FRESH --> WRITE["Shared private writer<br/>prefix-scoped Remove/Add<br/>blank cells clear mapped namespaces"]
+    ROW --> FRESH["Refresh resolved object<br/>plan current delta on same endpoint"]
+    FRESH --> APPROVE["CSV-wide ShouldProcess<br/>fresh counts + Yes / No to All"]
+    APPROVE --> VERIFY["Refresh again<br/>require unchanged approved delta"]
+    VERIFY --> WRITE["Shared private writer<br/>prefix-scoped Remove/Add<br/>blank clearing is opt-in"]
     WRITE --> AD["Active Directory user drink"]
     AD --> REPORT["Computed values + explicit Status<br/>Written / NoChange / Declined / WhatIf"]
     APPROVE -->|Declined or preview| REPORT
     WRITE -->|Runtime failure| FAILURE["Stop with progress and status counts<br/>earlier rows are not rolled back"]
     FRESH -->|Read failure| FAILURE
+    VERIFY -->|Read failure or changed delta| FAILURE
 ```
 
 Source file: [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd)

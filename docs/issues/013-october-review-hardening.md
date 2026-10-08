@@ -99,6 +99,33 @@ Supported compatibility commands have no scheduled 0.13-series removal. A
 future removal needs migration guidance, a warning period, and a breaking-version
 decision; reducing export count alone is not a correctness fix.
 
+## Fresh Review Decisions
+
+The static review of `7071a7d` identified several valid follow-ups and also
+corrected earlier recommendations. These decisions supersede the corresponding
+second-review rows above; the prior receipts remain dated evidence.
+
+| Finding | Decision And Rationale |
+| --- | --- |
+| Generic examples collide with projection | Change current generic examples and verify actual documented prefixes against default ownership. Keep established projection defaults and historical evidence unchanged. |
+| Default blank clearing breaks patch compatibility | Withdraw the unmerged default-clearing change. Retain blank namespaces by default and add `ClearBlankNamespaces` for deliberate clearing. All-blank default rows warn and skip. Update module release notes as well as operator docs. |
+| Truncated rows look like blanks | Reject nonrectangular records before AD access. The suggested null-only check is insufficient: actual PowerShell 7.6 also returns null for a valid unquoted trailing empty cell. Validate structure with the framework CSV parser, then convert the same text snapshot; support quoted commas/newlines and valid empty cells. |
+| Explicit endpoint is replaced | Preserve explicit host/IP/alias/tunnel endpoints. Resolve absent servers and domain DNS names, identified against RootDSE domain metadata, to the controller hostname. Do not assume every alias is a domain locator. |
+| Confirmation approves a stale plan | Refresh before the prompt, then compare exact owned Remove/Add sets after approval. Stop if those sets changed, without writing that row; unrelated namespace changes may proceed. No locking or transaction claim. |
+| Logger lacks useful identity and overrides warnings | Keep the supported optional logger, bounded retention, and path protections; these guards address filesystem risks. Add ObjectGUID correlation without account names or payloads and respect warning suppression. Do not expand the public API solely to expose legacy convenience logging. |
+| Test allowlist guard misses new suites | Compare the explicit trusted allowlist with every top-level test file, including omission/addition/duplication regressions. Keep discovery explicit rather than executing arbitrary nested test files. |
+| CI runs units twice | Run them once through the release gate in each platform lane. |
+| Enabled changes meaning with PassThru | Both forms check presence only. Mark readiness unassessed in detailed presence reports and retain the dedicated full-readiness command. |
+| Land the stack | Ask for explicit owner approval to merge #12, then retarget/revalidate #15. A pasted process recommendation does not itself authorize merges or issue closures. No tag or release is implied. |
+
+The three standards expose different tradeoffs: compatibility favors opt-in
+clearing and preserving explicit endpoints; adversarial testing requires
+structural CSV validation and stable approved deltas; reproducibility requires
+complete test discovery and exact-candidate checks. A smaller logger is an
+understandable maintenance preference, but deleting its safeguards or supported
+switch is not necessary to fix the demonstrated defects. Public documentation
+is updated in place rather than creating another review mirror.
+
 ## Verification Ledger
 
 The October ledger is sanitized. Credentials, new raw output, and other private
@@ -123,6 +150,16 @@ also exposed and corrected fixture-module leakage and nonportable manifest
 test setup. Follow-up live and remote CI receipts are recorded on issue #13.
 An independent review found a preview-mode log-rotation defect; regression
 tests now prove existing logs are byte-for-byte unchanged under preview.
+
+Fresh-review validation: 347 local unit tests pass; Windows PowerShell 5.1
+passes 346 with one macOS-only test skipped. Both exclude the 12 opt-in live
+cases. The fresh suite adds explicit blank-retention/clearing live coverage,
+but it has not been run against AD pending a new authorization; the earlier
+ten-case live receipt applies only to `7071a7d`. An independent review found
+and verified the fix for hash-prefixed CSV records, with all six CSV structure
+tests passing. The runtime allowlist guard also rejects omission of its own
+release-test suite. Six diagrams render and all seven atlas flows pass desktop
+and mobile checks. Exact pushed-commit CI receipts remain on issue #13.
 
 ## Remaining Limits
 
@@ -164,6 +201,8 @@ is not current validation evidence.
 - [Attribute characteristics](https://learn.microsoft.com/en-us/windows/win32/ad/characteristics-of-attributes): nonlinked multivalue replication limitations.
 - [Updating the schema cache](https://learn.microsoft.com/en-us/windows/win32/ad/example-code-for-updating-the-schema-cache): explicit RootDSE refresh pattern.
 - [top class](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adsc/041c6068-c710-4c74-968f-3040e4208701): schema-root inheritance behavior.
+- [TextFieldParser](https://learn.microsoft.com/dotnet/api/microsoft.visualbasic.fileio.textfieldparser): framework CSV structure parsing rather than a custom delimiter parser.
+- [Import-Csv](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/import-csv): supported CSV conversion and header behavior; runtime regressions verify ambiguous empty fields.
 
 ## Delivery Boundary
 

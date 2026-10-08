@@ -34,9 +34,11 @@ Compatibility commands remain available for older call sites, but new code
 should use the `DrinkData` and projection names.
 
 Reads check only that the attribute exists and is enabled, then use the same
-RootDSE-resolved controller for the user lookup. They do not traverse the class
-graph or depend on write readiness. Explicit server aliases are resolved to
-the actual controller for both read and write operations.
+selected endpoint for the user lookup. They do not traverse the class graph or
+depend on write readiness. Explicit hosts, IPs, aliases, and tunnel endpoints
+are preserved. Only absent servers or DNS names matching RootDSE's default
+domain are pinned to its controller hostname; explicit ports are retained.
+An alias remains the operator's responsibility if it can route to multiple DCs.
 
 ## Write Semantics
 
@@ -109,4 +111,5 @@ Those failures are intentional. The module should not silently skip ambiguous
 identity resolution or continue after schema-readiness failure.
 
 See [DATA-STORE.md](DATA-STORE.md) for same-prefix and cross-DC concurrency
-limits. Activity logs contain counts, not attribute payloads or user identifiers.
+limits. Activity logs contain ObjectGUID correlation and counts, not account
+names or attribute payloads. Protect these persistent identifiers as operational data.

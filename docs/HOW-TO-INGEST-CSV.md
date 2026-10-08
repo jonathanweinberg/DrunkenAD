@@ -25,15 +25,22 @@ before schema checks or user writes, which prevents row order from deciding the
 final namespace value. Blank identities retain the documented warning-and-skip
 behavior.
 
+Every record must contain the same number of fields as the header. Missing
+trailing fields, extra fields, or malformed quoting fail before directory
+access. Empty cells may be quoted or unquoted; embedded commas and newlines
+must be quoted. Record numbers count CSV records, not physical text lines.
+
 Each import checks schema readiness once and pins one domain controller. It
 resolves every usable row and validates all prefixed value lengths before any
 write. A missing or ambiguous user therefore prevents the whole import from
 starting. The CSV identity contract remains `SamAccountName`.
 
-Immediately before applying each approved row, the importer reads `drink` again
-from the same resolved object on the pinned controller. This reduces the stale
-snapshot window; it is not a lock or a transaction. A concurrent write after
-that read can still conflict.
+The importer reads the resolved object again before showing the row's
+confirmation counts. After approval it rereads the same GUID (or resolved DN)
+and verifies that the exact Remove/Add delta still matches. Changed owned
+values stop that row without a write; unrelated namespace changes do not.
+This is not a lock or transaction. A concurrent write after the final read can
+still conflict.
 
 Directory errors during execution still stop the import. Already completed
 writes are not rolled back. The terminating error's `TargetObject` exposes
@@ -58,15 +65,20 @@ The JSON mapping format uses namespace prefixes as top-level keys. Each entry po
 
 ## Blank Cells And Existing Imports
 
-Every row replaces all namespaces declared by its mapping. Blank or
-whitespace-only cells contribute no records; if all columns for a namespace
-are blank, existing values in that namespace are removed. A row with a valid
-identity and all mapped cells blank clears all mapped namespaces. Unmapped
-prefixes remain untouched. To leave a namespace unchanged, omit it from the
-mapping used for that import, rather than supplying blank cells.
+Blank or whitespace-only cells contribute no records. By default, a namespace
+whose mapped fields are all blank is left unchanged, preserving existing import
+behavior. Rows with no nonblank mapped data are skipped with a warning and do
+not produce a result. If any mapped field in a namespace has data, that whole
+namespace is replaced with the resulting nonblank records.
 
-This corrects the previous skip-blank behavior and matches projection semantics.
-Preview existing import files before adopting the change. The sample config now
+Use `-ClearBlankNamespaces` to opt into clearing namespaces whose mapped fields
+are all blank. With this switch, an all-blank data row clears every mapped
+namespace. Unmapped prefixes remain untouched in both modes. Preview with
+`-ClearBlankNamespaces -WhatIf` before applying a clearing import. The example
+wrapper accepts the same switch. No minor-version or default-deletion migration
+is required; the unmerged candidate's earlier default-clearing change is withdrawn.
+
+The sample config now
 uses `CsvProfile-` and `CsvRouting-` to avoid the default projection's `Profile-`
 and `Routing-`. Existing stored values are not automatically renamed or removed;
 review ownership and migrate old sample data explicitly.

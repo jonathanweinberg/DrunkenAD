@@ -15,11 +15,15 @@ Each record is made of:
 
 Examples:
 
-- `Profile-Tier=Gold`
-- `Profile-Department=Security`
+- `AppProfile-Tier=Gold`
+- `AppProfile-Department=Security`
 - `Flags-Audited`
 - `Flags-RemoteEligible`
-- `Routing-MailEnabled`
+- `AppRouting-MailEnabled`
+
+Application-owned examples use prefixes separate from the built-in projection's
+`Profile-`, `Identity-`, `Meta-`, `Routing-`, and `Notify-` namespaces. Custom
+projection maps also require an ownership review before combining workflows.
 
 ## How The Module Thinks About It
 
@@ -75,7 +79,7 @@ That matters because prefixes like these are allowed and safe:
 
 The module compares prefixes with `OrdinalIgnoreCase`. Overlapping prefixes in
 one operation are rejected. Across separate calls, a broad prefix such as
-`Meta-` owns every value starting with it, including `Meta-Extra-...`. Stored
+`AppMeta-` owns every value starting with it, including `AppMeta-Extra-...`. Stored
 strings do not contain a namespace registry, so the module cannot infer that
 these belong to different applications. Choose mutually exclusive prefixes
 across all producers; adding another delimiter does not establish ownership.
@@ -95,15 +99,15 @@ If you write:
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
     -DataMap @{
-        'Profile-' = @('Tier=Gold')
-        'Flags-'   = @('Audited')
+        'AppProfile-' = @('Tier=Gold')
+        'Flags-'      = @('Audited')
     } `
     -Confirm:$false
 ```
 
 then:
 
-- all existing `Profile-` values are replaced
+- all existing `AppProfile-` values are replaced
 - all existing `Flags-` values are replaced
 - everything else remains untouched
 
@@ -136,7 +140,7 @@ whole-input preflight; it still needs external same-prefix coordination.
 
 `Remove-ADUserDrinkData` works by replacing a namespace with an empty set.
 
-If you remove `Flags-`, all `Flags-...` values disappear, but `Profile-...` and any unrelated values remain.
+If you remove `Flags-`, all `Flags-...` values disappear, but `AppProfile-...` and any unrelated values remain.
 
 ## Why This Works Well
 
@@ -154,9 +158,9 @@ The model is intentionally narrow. It is designed for concise strings, not large
 
 Teams usually get the most value from a few well-defined namespaces with clear overwrite semantics:
 
-- `Profile-` for compact user-facing metadata such as tier, region, or role
+- `AppProfile-` for compact user-facing metadata such as tier, region, or role
 - `Flags-` for discrete state markers such as `Enabled` or `Audited`
-- `Routing-` for downstream processing hints such as mailbox or workflow targets
+- `AppRouting-` for downstream processing hints such as mailbox or workflow targets
 - `Tenant-` for tenant, environment, or business-unit identifiers
 - `Sync-` for integration state such as import status or checkpoint markers
 

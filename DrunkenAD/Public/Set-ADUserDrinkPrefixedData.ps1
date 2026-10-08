@@ -44,9 +44,10 @@ None. This command does not accept pipeline input.
 System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
-Set-ADUserDrinkPrefixedData -SamAccountName 'TesterAccount' -PrefixMap @{ 'Profile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
+Set-ADUserDrinkPrefixedData -SamAccountName 'TesterAccount' -PrefixMap @{ 'AppProfile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
 
-Replaces the user's `Profile-` values with `Profile-Tier=Gold`.
+Replaces the user's `AppProfile-` values with `AppProfile-Tier=Gold`, leaving the
+built-in projection's `Profile-` namespace untouched.
 
 .EXAMPLE
 Set-ADUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -PrefixMap @{ 'App[01]-' = @('Second') } -WhatIf

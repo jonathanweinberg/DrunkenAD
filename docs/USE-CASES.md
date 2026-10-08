@@ -40,11 +40,12 @@ store an identifier and let the consumer resolve the richer data elsewhere.
 
 ### Application Routing Hints
 
-Use `Routing-` records for compact delivery hints:
+Use `AppRouting-` records for compact delivery hints, separate from the built-in
+projection's `Routing-` namespace:
 
 ```text
-Routing-Mailbox=alice.bennett.na0001@lab.contoso.com
-Routing-Queue=identity-review
+AppRouting-Mailbox=alice.bennett.na0001@lab.contoso.com
+AppRouting-Queue=identity-review
 ```
 
 Routing records work best when they are inputs to another system, not a full
@@ -93,13 +94,14 @@ Examples that should live somewhere else:
 ## Namespace Ownership
 
 Before a workflow writes data, decide which prefixes it owns. A workflow that
-owns `Profile-` can replace all `Profile-...` records, so another workflow
+owns `AppProfile-` can replace all `AppProfile-...` records, so another workflow
 should not also treat that same prefix as its private space.
 
 Good ownership boundaries:
 
 | Owner | Prefixes |
 | --- | --- |
+| Application metadata | `AppProfile-`, `AppRouting-`, `AppMeta-` |
 | Sample CSV ingestion | `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, `Sync-` |
 | Default AD projection | `Profile-`, `Identity-`, `Meta-`, `Routing-`, `Notify-` |
 | CRUD validation | `Keep-`, `Scenario-`, `Literal[01]-` |

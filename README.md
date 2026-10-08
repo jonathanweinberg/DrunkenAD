@@ -70,11 +70,16 @@ The storage model is simple:
 
 Examples:
 
-- `Profile-Tier=Gold`
+- `AppProfile-Tier=Gold`
 - `Flags-Audited`
-- `Routing-MailEnabled`
+- `AppRouting-MailEnabled`
 
 In practice, the `drink` attribute functions as a tiny multivalued namespace store attached to a user object.
+
+These generic examples use application-owned prefixes, separate from the built-in
+projection's `Profile-`, `Identity-`, `Meta-`, `Routing-`, and `Notify-` namespaces.
+Keep all workflows on the same user in distinct, non-overlapping namespaces;
+custom projection maps also replace every value under their supplied prefixes.
 
 Command examples below assume the repository has been checked out at
 `/temp/DrunkenAD`. Adjust that root for your own workstation or automation
@@ -155,7 +160,7 @@ Write one generic namespace:
 ```powershell
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -DataMap @{ 'Profile-' = @('Tier=Gold') } `
+    -DataMap @{ 'AppProfile-' = @('Tier=Gold') } `
     -DomainController 'dc01.contoso.com' `
     -Confirm:$false
 ```
@@ -166,8 +171,8 @@ Write multiple namespaces at once:
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
     -DataMap @{
-        'Profile-' = @('Tier=Gold')
-        'Flags-'   = @('Audited', 'Enabled')
+        'AppProfile-' = @('Tier=Gold')
+        'Flags-'      = @('Audited', 'Enabled')
     } `
     -DomainController 'dc01.contoso.com' `
     -Confirm:$false
@@ -186,7 +191,7 @@ Read one namespace back:
 ```powershell
 Get-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -Prefix 'Profile-' `
+    -Prefix 'AppProfile-' `
     -DomainController 'dc01.contoso.com'
 ```
 
@@ -195,7 +200,7 @@ Preview a namespace update without writing:
 ```powershell
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
-    -DataMap @{ 'Profile-' = @('Tier=Platinum') } `
+    -DataMap @{ 'AppProfile-' = @('Tier=Platinum') } `
     -DomainController 'dc01.contoso.com' `
     -WhatIf
 ```
@@ -338,10 +343,22 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 - It expects target users to already exist in Active Directory.
 - It expects `Test-ADDrinkAttributeReadyForUserWrite` to succeed before any import is attempted.
 - It uses `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and `Sync-`, separate from the built-in projection namespaces.
-- Each row replaces every mapped namespace; blank cells remove old mapped records. Review this behavior with `-WhatIf` before updating an existing import.
+- Nonblank mapped namespaces are replaced. By default, a namespace whose mapped
+  cells are all blank retains its existing records; a row with all mapped data
+  blank is skipped with a warning.
+- `-ClearBlankNamespaces` explicitly clears mapped namespaces whose cells are
+  all blank, including rows with no nonblank mapped data. Preview clearing with
+  `-WhatIf` before applying it to an existing import.
+- CSV rows must have the same number of fields as the header. Missing or extra
+  fields are rejected from a single input snapshot before any AD access; valid
+  unquoted empty fields are accepted.
 - It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
 - It uses the same domain controller for validation, lookup, and write operations.
+- Each prepared row is re-read before confirmation, so the prompt describes its
+  current delta. If that delta changes after approval, the import stops without
+  applying the changed delta. Earlier writes are not rolled back; concurrent
+  same-prefix writers still need external coordination.
 - It can be previewed safely with `-WhatIf`.
 
 Run the module command directly with the sample CSV and config:
@@ -360,6 +377,17 @@ Import-ADUserDrinkCsvData `
     -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
     -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
     -DomainController 'dc01.contoso.com' `
+    -WhatIf
+```
+
+Preview explicit clearing of blank mapped namespaces:
+
+```powershell
+Import-ADUserDrinkCsvData `
+    -CsvPath /temp/DrunkenAD/examples/data/drink-ingestion-sample.csv `
+    -ConfigPath /temp/DrunkenAD/examples/data/drink-ingestion-config.json `
+    -DomainController 'dc01.contoso.com' `
+    -ClearBlankNamespaces `
     -WhatIf
 ```
 

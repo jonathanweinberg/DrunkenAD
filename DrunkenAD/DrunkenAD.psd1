@@ -51,7 +51,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.13.2 safety and release-integrity patch: prefix-scoped writes, operation-scoped schema and DC selection, inherited schema readiness, CSV preflight, payload-free logging, and trusted cross-platform tests.'
+            ReleaseNotes = '0.13.2 safety patch: scoped writes, inherited schema readiness, preserved explicit endpoints, payload-minimized logging, and trusted cross-platform tests. CSV blank namespaces remain unchanged by default; ClearBlankNamespaces opts into clearing. Malformed CSV records fail before directory access, and changed deltas stop after confirmation. Sample and generic example prefixes avoid default projection ownership; existing data is not automatically migrated.'
         }
     }
 }

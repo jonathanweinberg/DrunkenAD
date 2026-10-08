@@ -706,14 +706,14 @@
           "id": "schemaStatus",
           "label": "SchemaStatus.ps1",
           "kind": "private",
-          "summary": "Pins the RootDSE controller, including explicit aliases. Reads check attribute presence only; writes validate rangeUpper and traverse inheritance and auxiliary classes.",
+          "summary": "Preserves explicit endpoints; pins absent servers or domain DNS names to RootDSE's controller. Presence reports do not assess readiness; writes validate rangeUpper and class inheritance.",
           "files": ["DrunkenAD/Private/SchemaStatus.ps1"]
         },
         {
           "id": "csvMapping",
           "label": "CsvMapping.ps1",
           "kind": "private",
-          "summary": "Normalizes JSON/hashtable maps, validates columns, handles SplitOn, dedupes records, and emits DataMap objects.",
+          "summary": "Validates complete CSV records using the framework parser, normalizes maps and SplitOn values, and emits DataMaps. Blank namespace clearing is opt-in.",
           "files": ["DrunkenAD/Private/CsvMapping.ps1"]
         },
         {
@@ -869,7 +869,7 @@
       "steps": [
         "Caller chooses one identity parameter and optionally a Prefix.",
         "Get-ADUserDrinkData validates that drink exists and is not defunct without a write-readiness class walk.",
-        "Resolve-DrunkenADUser returns exactly one user with drink loaded from the same RootDSE-resolved controller.",
+        "Resolve-DrunkenADUser returns exactly one user with drink loaded from the same selected endpoint.",
         "Values are normalized to strings and blank entries are dropped.",
         "When Prefix is supplied, blank values are rejected locally and matching uses OrdinalIgnoreCase StartsWith semantics."
       ]
@@ -880,10 +880,10 @@
       "description": "Batch import rows into namespaced drink records using JSON or hashtable maps.",
       "path": ["csvSource", "csvImport", "csvMapping", "splitCsv", "schemaStatus", "coreHelpers", "prefixedWriter", "drinkStore", "examples"],
       "steps": [
-        "Validate CSV paths, mapping shape, columns, non-overlapping prefixes, and unique normalized SamAccountName identities locally.",
+        "Validate complete CSV records, paths, mapping shape, columns, non-overlapping prefixes, and unique normalized identities locally.",
         "Create one readiness context and pin the domain controller.",
-        "Build every mapped namespace, including empty replacements for blank cells; skip only blank identities. Resolve all users and validate lengths before the first write.",
-        "After row approval, refresh the resolved object on the pinned controller and compute the current prefix-scoped Remove/Add delta.",
+        "Retain all-blank namespaces unless ClearBlankNamespaces opts into clearing. Skip blank identities and empty default-mode rows; resolve usable users and validate lengths before writing.",
+        "Refresh the resolved object before confirmation. After approval, refresh again and stop if the exact Remove/Add delta changed; unrelated namespace changes remain safe.",
         "Stream computed FinalDrinkValues with Written, NoChange, Declined, or WhatIf status; results are not a post-write read-back.",
         "On a later failure, stop with processed, failed-row, pending, and per-status counts. Earlier successful rows are not rolled back."
       ]

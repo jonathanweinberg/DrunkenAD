@@ -101,6 +101,15 @@ function Get-DrunkenADLogRoot {
     [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
 }
 
+function Write-DrunkenADLogWarning {
+    [CmdletBinding()]
+    param([string]$Message)
+
+    # Honor suppression, but never interrupt or invalidate a directory operation.
+    $action = if ($WarningPreference -in @('SilentlyContinue', 'Ignore')) { $WarningPreference } else { 'Continue' }
+    Write-Warning $Message -WarningAction $action
+}
+
 function Resolve-DrunkenADLogPath {
     [CmdletBinding()]
     param(
@@ -119,7 +128,7 @@ function Resolve-DrunkenADLogPath {
 
     $logRoot = Get-DrunkenADLogRoot
     if ([string]::IsNullOrWhiteSpace($logRoot)) {
-        Write-Warning 'DrunkenAD automatic logging is unavailable because the personal log directory could not be resolved. Specify -LogPath to enable logging. This does not change the directory operation outcome.' -WarningAction Continue
+        Write-DrunkenADLogWarning 'DrunkenAD automatic logging is unavailable because the personal log directory could not be resolved. Specify -LogPath to enable logging. This does not change the directory operation outcome.'
         return $null
     }
 
@@ -236,7 +245,7 @@ function Write-DrunkenADLog {
     }
     catch {
         # Logging must not turn an already completed directory write into a failure.
-        Write-Warning 'DrunkenAD could not write the activity log. This does not change the directory operation outcome.' -WarningAction Continue
+        Write-DrunkenADLogWarning 'DrunkenAD could not write the activity log. This does not change the directory operation outcome.'
     }
 }
 

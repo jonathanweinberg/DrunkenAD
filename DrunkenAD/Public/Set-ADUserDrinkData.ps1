@@ -44,9 +44,10 @@ None. This command does not accept pipeline input.
 System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
-Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Profile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
+Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'AppProfile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
 
-Stores a generic `Profile-` record in the user's `drink` attribute.
+Stores a generic `AppProfile-` record, separate from the built-in projection's
+`Profile-` namespace, in the user's `drink` attribute.
 
 .EXAMPLE
 Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Flags-' = @('Enabled', 'Audited') } -WhatIf

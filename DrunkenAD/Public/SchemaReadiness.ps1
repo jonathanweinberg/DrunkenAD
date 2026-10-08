@@ -5,19 +5,22 @@ Tests whether the Active Directory `drink` attribute exists and is not defunct.
 .DESCRIPTION
 Queries the schema naming context on the target domain controller and verifies
 that an attribute with the LDAP display name `drink` exists and is not defunct.
-The Boolean result checks only schema presence, without walking user class
-inheritance. PassThru also validates the full class graph for readiness details
-and fails if that graph cannot be resolved safely. Use
+Both the Boolean and PassThru results check only schema presence, without walking
+user class inheritance. In a PassThru report, ReadinessEvaluated is false and
+AllowedOnUserClass, ReadyForUserWrite, RangeUpper, and UserClassDistinguishedName
+are null because write readiness was not assessed. Use
 `Test-ADDrinkAttributeReadyForUserWrite` when you need to know whether the
 attribute is also allowed on the Active Directory `user` class.
 
 .PARAMETER Server
-Optional domain controller to query. When omitted, the default AD connection
-behavior is used.
+Optional host, IP address, alias, or tunnel endpoint, used exactly as supplied.
+When omitted or when the supplied DNS name matches RootDSE's default domain,
+schema queries use RootDSE's domain controller hostname. Explicit ports are retained.
 
 .PARAMETER PassThru
-Returns a richer object describing schema presence and full user write readiness
-instead of a simple Boolean.
+Returns a richer object describing schema presence instead of a simple Boolean.
+Write readiness fields are unassessed; use Test-ADDrinkAttributeReadyForUserWrite
+for a full readiness report.
 
 .INPUTS
 None. This command does not accept pipeline input.
@@ -34,8 +37,7 @@ Returns `$true` when the `drink` attribute is enabled on the target schema.
 .EXAMPLE
 Test-ADDrinkAttributeEnabled -Server 'dc01.contoso.com' -PassThru
 
-Returns detailed schema lookup information, including whether `drink` is allowed
-on the Active Directory `user` class.
+Returns detailed schema presence information without evaluating user write readiness.
 
 .LINK
 about_DrunkenAD
@@ -60,7 +62,7 @@ function Test-ADDrinkAttributeEnabled {
         [switch]$PassThru
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly:(-not $PassThru)
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly
 
     if ($PassThru) {
         $status
@@ -80,8 +82,9 @@ that the `drink` attribute exists, is not defunct, and is allowed on the
 Active Directory `user` class.
 
 .PARAMETER Server
-Optional domain controller to query. When omitted, the default AD connection
-behavior is used.
+Optional host, IP address, alias, or tunnel endpoint, used exactly as supplied.
+When omitted or when the supplied DNS name matches RootDSE's default domain,
+schema queries use RootDSE's domain controller hostname. Explicit ports are retained.
 
 .PARAMETER PassThru
 Returns a richer object describing both schema presence and write readiness.

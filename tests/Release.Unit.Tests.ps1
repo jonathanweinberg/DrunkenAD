@@ -7,6 +7,42 @@ Describe 'DrunkenAD release readiness' {
         $script:architectureMapScriptPath = Join-Path -Path $script:projectRoot -ChildPath 'scripts/Test-DrunkenADArchitectureMap.ps1'
         $script:manifestPath = Join-Path -Path $script:projectRoot -ChildPath 'DrunkenAD/DrunkenAD.psd1'
         $script:manifest = Test-ModuleManifest -Path $script:manifestPath
+
+        function Get-TrustedTestNames {
+            param([string]$RunnerContent)
+
+            $tokens = $null
+            $parseErrors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($RunnerContent, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw 'Test runner must parse without errors.' }
+            $assignments = @($ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    $node.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $node.Left.VariablePath.UserPath -eq 'trustedTestNames'
+            }, $true))
+            if ($assignments.Count -ne 1 -or
+                $assignments[0].Right -isnot [System.Management.Automation.Language.CommandExpressionAst] -or
+                $assignments[0].Right.Expression -isnot [System.Management.Automation.Language.ArrayExpressionAst]) {
+                throw 'Expected one explicit literal trusted test allowlist.'
+            }
+            @($assignments[0].Right.Expression.SafeGetValue())
+        }
+
+        function Assert-TrustedTestCoverage {
+            param([string]$RunnerContent, [string]$TestRoot)
+
+            $names = @(Get-TrustedTestNames $RunnerContent)
+            $unique = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+            foreach ($name in $names) {
+                if (-not $unique.Add($name)) { throw 'Duplicate trusted test entry.' }
+            }
+            $actual = @(Get-ChildItem -LiteralPath $TestRoot -File -Filter '*.Tests.ps1' | Select-Object -ExpandProperty Name)
+            if ($names.Count -eq 0 -or $names.Count -ne $actual.Count -or
+                @(Compare-Object $names $actual -CaseSensitive).Count -gt 0) {
+                throw 'Trusted allowlist must exactly match top-level test files.'
+            }
+        }
     }
 
     Context 'Release gate behavior in an isolated fixture' {
@@ -20,7 +56,7 @@ Describe 'DrunkenAD release readiness' {
             Copy-Item $script:releaseScriptPath $script:fixtureGate
             Set-Content (Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADSyntax.ps1') "'syntax' | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
             Set-Content (Join-Path $script:fixtureRoot 'scripts/Test-DrunkenADDocs.ps1') "'docs' | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
-            Set-Content (Join-Path $script:fixtureRoot 'tests/Invoke-DrunkenADTests.ps1') "param(`$Output, `$PesterManifestPath) ('tests:' + `$PesterManifestPath) | Add-Content (Join-Path `$PSScriptRoot '../calls.txt')"
+            Set-Content (Join-Path $script:fixtureRoot 'tests/Invoke-DrunkenADTests.ps1') "[CmdletBinding()] param(`$Output, `$PesterManifestPath, `$TestResultPath) ('tests:' + `$PesterManifestPath) | Add-Content (Join-Path `$PSScriptRoot '../calls.txt'); if (`$TestResultPath) { Set-Content `$TestResultPath 'test receipt' }"
             Mock Publish-Module { throw 'Publishing is forbidden in release gate tests.' }
         }
 
@@ -50,6 +86,23 @@ Describe 'DrunkenAD release readiness' {
             { & $script:fixtureGate } | Should -Throw '*Synthetic documentation failure*'
             @(Get-Content (Join-Path $script:fixtureRoot 'calls.txt')).Count | Should -Be 1
             Should -Invoke Publish-Module -Times 0 -Exactly
+        }
+
+        It 'retains CI test receipts through script parameter defaults with only the release gate' {
+            $key = 'Invoke-DrunkenADTests.ps1:TestResultPath'
+            $hadDefault = $PSDefaultParameterValues.ContainsKey($key)
+            $savedDefault = $PSDefaultParameterValues[$key]
+            $receiptPath = Join-Path $script:fixtureRoot 'ci-results.xml'
+            try {
+                $PSDefaultParameterValues[$key] = $receiptPath
+                & $script:fixtureGate
+                Get-Content $receiptPath | Should -Be 'test receipt'
+                @(Get-Content (Join-Path $script:fixtureRoot 'calls.txt') | Where-Object { $_ -like 'tests:*' }).Count | Should -Be 1
+            }
+            finally {
+                if ($hadDefault) { $PSDefaultParameterValues[$key] = $savedDefault }
+                else { $PSDefaultParameterValues.Remove($key) }
+            }
         }
 
         It 'uses the manifest version rather than a hard-coded release version' {
@@ -100,17 +153,44 @@ Describe 'DrunkenAD release readiness' {
         $runnerContent | Should -Match "\[version\]'5\.7\.1'"
         $runnerContent | Should -Not -Match '\$configuration\.Run\.Path\s*=\s*\$PSScriptRoot'
 
-        foreach ($trustedTestName in @(
-            'DrunkenAD.Unit.Tests.ps1',
-            'Help.Unit.Tests.ps1',
-            'LiveCampaign.Unit.Tests.ps1',
-            'Logging.Unit.Tests.ps1',
-            'Release.Unit.Tests.ps1',
-            'SampleOwnership.Unit.Tests.ps1',
-            'SchemaEnablement.Unit.Tests.ps1',
-            'DrunkenAD.Integration.Tests.ps1'
-        )) {
-            $runnerContent | Should -Match ([regex]::Escape($trustedTestName))
+        { Assert-TrustedTestCoverage $runnerContent $PSScriptRoot } | Should -Not -Throw
+    }
+
+    Context 'Trusted test allowlist guard regressions' {
+        BeforeEach {
+            $script:allowlistRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+            New-Item $script:allowlistRoot -ItemType Directory | Out-Null
+            Set-Content (Join-Path $script:allowlistRoot 'First.Tests.ps1') ''
+            Set-Content (Join-Path $script:allowlistRoot 'Second.Tests.ps1') ''
+        }
+
+        It 'rejects a missing trusted entry' {
+            { Assert-TrustedTestCoverage "`$trustedTestNames = @('First.Tests.ps1')" $script:allowlistRoot } | Should -Throw '*exactly match*'
+        }
+
+        It 'rejects a newly added top-level test until explicitly trusted' {
+            Set-Content (Join-Path $script:allowlistRoot 'New.Tests.ps1') ''
+            { Assert-TrustedTestCoverage "`$trustedTestNames = @('First.Tests.ps1', 'Second.Tests.ps1')" $script:allowlistRoot } | Should -Throw '*exactly match*'
+        }
+
+        It 'rejects duplicate entries including case variants' {
+            { Assert-TrustedTestCoverage "`$trustedTestNames = @('First.Tests.ps1', 'FIRST.Tests.ps1')" $script:allowlistRoot } | Should -Throw '*Duplicate*'
+        }
+
+        It 'rejects an allowlisted file that does not exist' {
+            { Assert-TrustedTestCoverage "`$trustedTestNames = @('First.Tests.ps1', 'Absent.Tests.ps1')" $script:allowlistRoot } | Should -Throw '*exactly match*'
+        }
+
+        It 'excludes nested result storage from the expected top-level set' {
+            $nested = Join-Path $script:allowlistRoot 'Live/results'
+            New-Item $nested -ItemType Directory -Force | Out-Null
+            Set-Content (Join-Path $nested 'Untrusted.Tests.ps1') "throw 'Must never execute'"
+            { Assert-TrustedTestCoverage "`$trustedTestNames = @('First.Tests.ps1', 'Second.Tests.ps1')" $script:allowlistRoot } | Should -Not -Throw
+        }
+
+        It 'rejects dynamic or multiply assigned allowlists' {
+            { Get-TrustedTestNames '$trustedTestNames = @(Get-ChildItem)' } | Should -Throw
+            { Get-TrustedTestNames "`$trustedTestNames = @('First.Tests.ps1'); `$trustedTestNames = @('Second.Tests.ps1')" } | Should -Throw '*one explicit*'
         }
     }
 
@@ -147,7 +227,11 @@ Describe 'DrunkenAD release readiness' {
         @(Compare-Object $actualFiles @($manifestData.FileList | Sort-Object)) | Should -BeNullOrEmpty
     }
 
-    It 'returns a failing process exit code when Pester discovery fails' {
+    It 'returns a failing process exit code for <FailureMode>' -TestCases @(
+        @{ FailureMode = 'discovery failure'; ExpectedError = 'Pester result was Failed' }
+        @{ FailureMode = 'release guard self-exclusion'; ExpectedError = 'allowlist must exactly match' }
+    ) {
+        param($FailureMode, $ExpectedError)
         $testRoot = Join-Path $TestDrive 'runner/tests'
         New-Item $testRoot -ItemType Directory -Force | Out-Null
         $runnerCopy = Join-Path $testRoot 'Invoke-DrunkenADTests.ps1'
@@ -161,7 +245,16 @@ Describe 'DrunkenAD release readiness' {
         )) {
             Set-Content (Join-Path $testRoot $name) "Describe 'Fixture' { It 'passes' { 1 | Should -Be 1 } }"
         }
-        Set-Content (Join-Path $testRoot 'DrunkenAD.Unit.Tests.ps1') "throw 'Synthetic discovery failure'"
+        if ($FailureMode -eq 'discovery failure') {
+            Set-Content (Join-Path $testRoot 'DrunkenAD.Unit.Tests.ps1') "throw 'Synthetic discovery failure'"
+        }
+        else {
+            $runnerText = Get-Content $runnerCopy -Raw
+            $tokens = $null; $parseErrors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($runnerText, [ref]$tokens, [ref]$parseErrors)
+            $entry = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -eq 'Release.Unit.Tests.ps1' }, $true)
+            Set-Content $runnerCopy $runnerText.Remove($entry.Extent.StartOffset, $entry.Extent.EndOffset - $entry.Extent.StartOffset)
+        }
         $pesterPath = (Get-Module Pester).Path -replace 'Pester\.psm1$', 'Pester.psd1'
         $processPath = (Get-Process -Id $PID).Path
         $savedErrorPreference = $ErrorActionPreference
@@ -175,7 +268,7 @@ Describe 'DrunkenAD release readiness' {
             $ErrorActionPreference = $savedErrorPreference
         }
         $processExitCode | Should -Not -Be 0
-        ($output | Out-String) | Should -Match 'Pester result was Failed'
+        ($output | Out-String) | Should -Match $ExpectedError
     }
 
     It 'runs architecture map validation from documentation hygiene' {

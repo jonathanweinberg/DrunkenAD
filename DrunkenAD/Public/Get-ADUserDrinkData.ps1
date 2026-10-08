@@ -41,9 +41,9 @@ Get-ADUserDrinkData -SamAccountName 'TesterAccount' -DomainController 'dc01.cont
 Returns all values currently stored in the user's `drink` attribute.
 
 .EXAMPLE
-Get-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefix 'Profile-' -DomainController 'dc01.contoso.com'
+Get-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefix 'AppProfile-' -DomainController 'dc01.contoso.com'
 
-Returns only the `drink` values that start with the literal prefix `Profile-`.
+Returns only the `drink` values that start with the literal prefix `AppProfile-`.
 
 .LINK
 about_DrunkenAD

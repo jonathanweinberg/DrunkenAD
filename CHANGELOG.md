@@ -6,20 +6,24 @@
   selected domain controller. Case-only changes are honored, unowned values
   added after the read are preserved, and schema length bounds are validated.
 - Reused one readiness context per operation; CSV preflights all usable rows,
-  refreshes each approved resolved object before writing, and reports progress
+  refreshes plans before confirmation, rejects a changed delta afterward, and reports progress
   and per-outcome counts on failure.
-- Made blank CSV fields replace empty owned namespaces, matching projection.
+- Preserved blank CSV namespace retention by default; `ClearBlankNamespaces`
+  explicitly opts into clearing. Reject nonrectangular CSV records before AD
+  access while accepting quoted and unquoted empty cells.
   The sample config now uses `CsvProfile-` and `CsvRouting-` to coexist with the
   unchanged default projection. Existing imports need a preview and ownership
   review; stored values are not automatically migrated.
 - Added explicit Written, NoChange, Declined, and WhatIf statuses to CSV and
   projection summaries, without changing generic writer string-array output.
-- Kept read checks lightweight and pinned explicit server aliases to the
-  controller reported by RootDSE, preserving explicitly supplied ports.
+- Kept read checks and `Enabled -PassThru` limited to attribute presence.
+  Detailed presence reports mark write readiness as unassessed. Preserve explicit
+  hosts, IPs, aliases, and tunnel endpoints; pin absent servers or domain DNS
+  names to RootDSE's controller, retaining supplied ports.
 - Added inherited and auxiliary-class schema readiness, fail-closed graph
   validation, and explicit schema-cache refresh after guarded enablement.
-- Bounded default optional logs, added session correlation, and limited messages
-  to counts. Explicit log paths remain caller-managed; logging failures warn
+- Bounded default optional logs, added session and ObjectGUID correlation, and
+  excluded account names and attribute payloads. Explicit paths remain caller-managed; logging failures warn
   without misreporting an already completed directory write.
 - Expanded the explicit trusted test allowlist, failed discovery/container
   errors reliably, and checked manifest FileList completeness.

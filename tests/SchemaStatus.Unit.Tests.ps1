@@ -62,6 +62,7 @@ Describe 'Schema readiness inheritance and metadata' {
             $script:SchemaStatusRootDse = [pscustomobject]@{
                 SchemaNamingContext = $script:SchemaStatusNamingContext
                 dnsHostName = 'discovered.contoso.com'
+                defaultNamingContext = 'DC=contoso,DC=com'
             }
             $script:SchemaStatusDrink = [pscustomobject]@{
                 lDAPDisplayName = 'drink'
@@ -303,67 +304,174 @@ Describe 'Schema readiness inheritance and metadata' {
             }
         }
 
-        It 'resolves an explicit domain alias before every schema query' {
-            $status = Get-DrunkenADDrinkAttributeStatus -Server 'contoso.com'
+        It 'pins the authoritative domain endpoint <Endpoint>' -ForEach @(
+            @{ Endpoint = 'contoso.com'; Pinned = 'discovered.contoso.com' }
+            @{ Endpoint = 'CONTOSO.COM'; Pinned = 'discovered.contoso.com' }
+            @{ Endpoint = 'Contoso.Com.'; Pinned = 'discovered.contoso.com' }
+            @{ Endpoint = 'contoso.com:50000'; Pinned = 'discovered.contoso.com:50000' }
+            @{ Endpoint = 'CONTOSO.COM.:050000'; Pinned = 'discovered.contoso.com:050000' }
+        ) {
+            $status = Get-DrunkenADDrinkAttributeStatus -Server $Endpoint
 
-            $status.Server | Should -Be 'discovered.contoso.com'
-            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq 'contoso.com' }
-            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com' }
+            $status.Server | Should -BeExactly $Pinned
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -ceq $Endpoint }
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -ceq $Pinned }
         }
 
-        It 'fails closed for an explicit alias without a resolved hostname' {
+        It 'fails closed for an explicit domain without a resolved hostname' {
             $script:SchemaStatusRootDse.PSObject.Properties.Remove('dnsHostName')
 
             { Get-DrunkenADDrinkAttributeStatus -Server 'contoso.com' } | Should -Throw '*dnsHostName*'
             Assert-MockCalled Get-ADObject -Times 0
         }
 
-        It 'preserves an explicit port while resolving <Endpoint>' -ForEach @(
+        It 'preserves the explicit endpoint <Endpoint> verbatim' -ForEach @(
+            @{ Endpoint = 'explicit.contoso.com' }
+            @{ Endpoint = 'EXPLICIT.Contoso.Com' }
+            @{ Endpoint = 'alias.contoso.com' }
+            @{ Endpoint = 'dc-alias' }
             @{ Endpoint = 'explicit.contoso.com:50000' }
-            @{ Endpoint = 'contoso.com:50000' }
+            @{ Endpoint = 'localhost:50000' }
+            @{ Endpoint = '192.0.2.10' }
+            @{ Endpoint = '192.0.2.10:50000' }
+            @{ Endpoint = '2001:db8::1' }
+            @{ Endpoint = '[2001:db8::1]' }
+            @{ Endpoint = '[2001:db8::1]:50000' }
+            @{ Endpoint = 'localhost:00001' }
+            @{ Endpoint = 'explicit.contoso.com:65535' }
         ) {
             $status = Get-DrunkenADDrinkAttributeStatus -Server $Endpoint
-            $status.Server | Should -Be 'discovered.contoso.com:50000'
-            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq $Endpoint }
-            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com:50000' }
+            $status.Server | Should -BeExactly $Endpoint
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -ceq $Endpoint }
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -ceq $Endpoint }
+        }
+
+        It 'does not infer a domain from hostname suffixes or untrusted domain metadata <NamingContext>' -ForEach @(
+            @{ NamingContext = $null }
+            @{ NamingContext = '' }
+            @{ NamingContext = 'DC=other,DC=com' }
+            @{ NamingContext = 'CN=contoso.com,DC=contoso,DC=com' }
+            @{ NamingContext = 'DC=contoso,DC=com,DC=other' }
+        ) {
+            $script:SchemaStatusRootDse.defaultNamingContext = $NamingContext
+
+            (Get-DrunkenADDrinkAttributeStatus -Server 'contoso.com').Server | Should -BeExactly 'contoso.com'
+        }
+
+        It 'preserves an IP even if domain metadata resembles its labels' {
+            $script:SchemaStatusRootDse.defaultNamingContext = 'DC=192,DC=0,DC=2,DC=10'
+
+            (Get-DrunkenADDrinkAttributeStatus -Server '192.0.2.10').Server | Should -BeExactly '192.0.2.10'
+        }
+
+        It 'recognizes a child domain from defaultNamingContext rather than the DC hostname' {
+            $script:SchemaStatusRootDse.defaultNamingContext = 'DC=Child,DC=Contoso,DC=Com'
+            $script:SchemaStatusRootDse.dnsHostName = 'dc.other.example.test'
+
+            (Get-DrunkenADDrinkAttributeStatus -Server 'child.contoso.com:389').Server | Should -BeExactly 'dc.other.example.test:389'
+        }
+
+        It 'keeps an explicit host usable when dnsHostName is <HostnameState>' -ForEach @(
+            @{ HostnameState = 'missing' }
+            @{ HostnameState = 'null' }
+            @{ HostnameState = 'blank' }
+        ) {
+            switch ($HostnameState) {
+                'missing' { $script:SchemaStatusRootDse.PSObject.Properties.Remove('dnsHostName') }
+                'null' { $script:SchemaStatusRootDse.dnsHostName = $null }
+                'blank' { $script:SchemaStatusRootDse.dnsHostName = ' ' }
+            }
+
+            (Get-DrunkenADDrinkAttributeStatus -Server 'localhost:50000').Server | Should -BeExactly 'localhost:50000'
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -ceq 'localhost:50000' }
         }
 
         It 'rejects invalid explicit port <Endpoint> before discovery' -ForEach @(
             @{ Endpoint = 'contoso.com:0' }
             @{ Endpoint = 'contoso.com:65536' }
             @{ Endpoint = 'contoso.com:abc' }
+            @{ Endpoint = 'localhost:' }
+            @{ Endpoint = 'localhost:-1' }
+            @{ Endpoint = 'localhost:2147483648' }
+            @{ Endpoint = '[2001:db8::1]:0' }
+            @{ Endpoint = '[2001:db8::1]:65536' }
+            @{ Endpoint = '[2001:db8::1]:abc' }
         ) {
             { Get-DrunkenADDrinkAttributeStatus -Server $Endpoint } | Should -Throw '*valid port*'
             Assert-MockCalled Get-ADRootDSE -Times 0
         }
 
-        It 'preserves bare IPv6 discovery compatibility' {
-            $status = Get-DrunkenADDrinkAttributeStatus -Server '2001:db8::1'
-
-            $status.Server | Should -Be 'discovered.contoso.com'
-            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { $Server -eq '2001:db8::1' }
-            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $Server -eq 'discovered.contoso.com' }
+        It 'rejects an invalid bracketed address <Endpoint> before discovery' -ForEach @(
+            @{ Endpoint = '[localhost]:389' }
+            @{ Endpoint = '[192.0.2.10]:389' }
+            @{ Endpoint = '[invalid::address]' }
+        ) {
+            { Get-DrunkenADDrinkAttributeStatus -Server $Endpoint } | Should -Throw '*valid IPv6*'
+            Assert-MockCalled Get-ADRootDSE -Times 0
         }
 
-        It 'keeps boolean presence independent of an ambiguous class graph while PassThru fails closed' {
+        It 'pins an explicitly empty Server through RootDSE' {
+            (Get-DrunkenADDrinkAttributeStatus -Server '').Server | Should -BeExactly 'discovered.contoso.com'
+            Assert-MockCalled Get-ADRootDSE -Times 1 -Exactly -ParameterFilter { [string]::IsNullOrEmpty($Server) }
+        }
+
+        It 'keeps both public presence results independent of an ambiguous class graph' {
             $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ auxiliaryClass = @('duplicate') }
             $first = New-SchemaStatusTestClass -Name 'first'
             $second = New-SchemaStatusTestClass -Name 'second'
             $script:SchemaStatusReferences['(&(objectClass=classSchema)(|(lDAPDisplayName=duplicate)(cn=duplicate)))'] = @($first, $second)
 
             Test-ADDrinkAttributeEnabled -Server 'contoso.com' | Should -BeTrue
-            Assert-MockCalled Get-ADObject -Times 1 -Exactly
-            { Test-ADDrinkAttributeEnabled -Server 'contoso.com' -PassThru } | Should -Throw '*ambiguous*'
+            (Test-ADDrinkAttributeEnabled -Server 'contoso.com' -PassThru).Enabled | Should -BeTrue
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly -ParameterFilter { $LDAPFilter -eq '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' }
+            Assert-MockCalled Get-ADObject -Times 0 -ParameterFilter { $LDAPFilter -like '*classSchema*' }
+            { Test-ADDrinkAttributeReadyForUserWrite -Server 'contoso.com' -PassThru } | Should -Throw '*ambiguous*'
         }
 
-        It 'returns full readiness details from the public presence PassThru path' {
+        It 'returns truthful unassessed readiness fields from the public presence PassThru path' {
             $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ mustContain = @('drink') }
 
             $status = Test-ADDrinkAttributeEnabled -PassThru
             $status.Enabled | Should -BeTrue
-            $status.ReadyForUserWrite | Should -BeTrue
-            $status.RangeUpper | Should -Be 777
-            $status.UserClassDistinguishedName | Should -Be $script:SchemaStatusUser.DistinguishedName
+            $status.ReadinessEvaluated | Should -BeFalse
+            $status.AllowedOnUserClass | Should -BeNullOrEmpty
+            $status.ReadyForUserWrite | Should -BeNullOrEmpty
+            $status.RangeUpper | Should -BeNullOrEmpty
+            $status.UserClassDistinguishedName | Should -BeNullOrEmpty
+            $status.BlockingReason | Should -BeNullOrEmpty
+            Assert-MockCalled Get-ADObject -Times 1 -Exactly
+
+            $ready = Test-ADDrinkAttributeReadyForUserWrite -PassThru
+            $ready.ReadinessEvaluated | Should -BeTrue
+            $ready.ReadyForUserWrite | Should -BeTrue
+            $ready.RangeUpper | Should -Be 777
+            $ready.UserClassDistinguishedName | Should -Be $script:SchemaStatusUser.DistinguishedName
+        }
+
+        It 'does not inspect invalid range metadata during either presence check' {
+            $script:SchemaStatusDrink.rangeUpper = 'invalid'
+
+            Test-ADDrinkAttributeEnabled | Should -BeTrue
+            (Test-ADDrinkAttributeEnabled -PassThru).Enabled | Should -BeTrue
+            Assert-MockCalled Get-ADObject -Times 2 -Exactly
+            { Test-ADDrinkAttributeReadyForUserWrite } | Should -Throw '*invalid rangeUpper*'
+        }
+
+        It 'reports missing or defunct presence consistently without assessing readiness <AttributeState>' -ForEach @(
+            @{ AttributeState = 'missing'; BlockingReason = 'AttributeMissing' }
+            @{ AttributeState = 'defunct'; BlockingReason = 'AttributeDefunct' }
+        ) {
+            if ($AttributeState -eq 'missing') { $script:SchemaStatusDrink = $null }
+            else { $script:SchemaStatusDrink.isDefunct = $true }
+
+            Test-ADDrinkAttributeEnabled | Should -BeFalse
+            $status = Test-ADDrinkAttributeEnabled -PassThru
+            $status.Enabled | Should -BeFalse
+            $status.BlockingReason | Should -Be $BlockingReason
+            $status.ReadinessEvaluated | Should -BeFalse
+            $status.AllowedOnUserClass | Should -BeNullOrEmpty
+            $status.ReadyForUserWrite | Should -BeNullOrEmpty
+            Assert-MockCalled Get-ADObject -Times 0 -ParameterFilter { $LDAPFilter -like '*classSchema*' }
         }
 
         It 'fails before schema queries when discovered dnsHostName is <HostnameState>' -ForEach @(
@@ -530,7 +638,7 @@ Describe 'Schema readiness inheritance and metadata' {
             $script:SchemaStatusUser = New-SchemaStatusTestClass -Name 'user' -Properties @{ mustContain = @('drink') }
 
             @(Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com').Count | Should -Be 0
-            (Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com' -PassThru).Server | Should -Be 'discovered.contoso.com'
+            (Assert-ADDrinkAttributeEnabled -Server 'explicit.contoso.com' -PassThru).Server | Should -BeExactly 'explicit.contoso.com'
         }
 
         It 'keeps the private presence assertion distinct from write readiness' {

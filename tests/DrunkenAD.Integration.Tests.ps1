@@ -227,6 +227,27 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         ($flagValues | Sort-Object) | Should -Be @('Flags-Audited', 'Flags-Enabled')
     }
 
+    It 'handles empty CSV namespaces with ClearBlankNamespaces=<ClearBlank> on a real directory' -TestCases @(
+        @{ ClearBlank = $false },
+        @{ ClearBlank = $true }
+    ) {
+        param($ClearBlank)
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'CsvBlankTier-' = @('Old'); 'CsvBlankFlag-' = @('Retain') } -DomainController $script:domainController -Confirm:$false
+        $csvPath = Join-Path $TestDrive 'blank-namespaces.csv'
+        @('SamAccountName,Tier,Flag', ('{0},Gold,' -f $script:userName)) | Set-Content -LiteralPath $csvPath -Encoding utf8
+        $result = Import-ADUserDrinkCsvData -CsvPath $csvPath -NamespaceMap @{ 'CsvBlankTier-' = @(@{ Column = 'Tier' }); 'CsvBlankFlag-' = @(@{ Column = 'Flag' }) } -DomainController $script:domainController -ClearBlankNamespaces:$ClearBlank -Confirm:$false
+        $result.Status | Should -Be 'Written'
+        @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'CsvBlankTier-' -DomainController $script:domainController) | Should -Be @('CsvBlankTier-Gold')
+        $flagValues = @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'CsvBlankFlag-' -DomainController $script:domainController)
+        if ($ClearBlank) { $flagValues.Count | Should -Be 0 }
+        else { $flagValues | Should -Be @('CsvBlankFlag-Retain') }
+        @(Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Keep-' -DomainController $script:domainController) | Should -Be @('Keep-Stable')
+    }
+
     It 'projects AD attributes into drink namespaces' {
         if (-not $script:readinessStatus.ReadyForUserWrite) {
             $because = if ([string]::IsNullOrWhiteSpace($script:readinessStatus.BlockingMessage)) {

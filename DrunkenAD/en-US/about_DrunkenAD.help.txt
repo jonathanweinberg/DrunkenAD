@@ -26,12 +26,16 @@ CORE WORKFLOWS
     Write one or more namespaces:
 
         Set-ADUserDrinkData -SamAccountName TesterAccount `
-            -DataMap @{ 'Profile-' = @('Tier=Gold') } -Confirm:$false
+            -DataMap @{ 'AppProfile-' = @('Tier=Gold') } -Confirm:$false
 
     Remove a namespace:
 
         Remove-ADUserDrinkData -SamAccountName TesterAccount `
-            -Prefixes 'Profile-' -Confirm:$false
+            -Prefixes 'AppProfile-' -Confirm:$false
+
+    AppProfile- is separate from the built-in projection's Profile-, Identity-,
+    Meta-, Routing-, and Notify- namespaces. Coordinate non-overlapping prefixes
+    across workflows, including any custom projection maps.
 
 SCHEMA READINESS
     Before writing to live users, confirm that the drink attribute exists and

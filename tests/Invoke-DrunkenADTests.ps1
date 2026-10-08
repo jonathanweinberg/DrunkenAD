@@ -93,6 +93,10 @@ $trustedTestNames = @(
     'WriteOperation.Unit.Tests.ps1'
     'DrunkenAD.Integration.Tests.ps1'
 )
+$availableTestNames = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.Tests.ps1' -File | Select-Object -ExpandProperty Name)
+if (@(Compare-Object -ReferenceObject @($trustedTestNames | Sort-Object) -DifferenceObject @($availableTestNames | Sort-Object)).Count -ne 0) {
+    throw 'The trusted test allowlist must exactly match all top-level test files, including the release guard.'
+}
 $trustedTestPaths = @(
     foreach ($trustedTestName in $trustedTestNames) {
         $trustedTestPath = Join-Path -Path $PSScriptRoot -ChildPath $trustedTestName

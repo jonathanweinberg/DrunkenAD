@@ -36,7 +36,7 @@ Optional domain controller to use consistently for validation, lookup, and write
 Suppresses confirmation prompts by forwarding `-Confirm:$false`.
 
 .PARAMETER EnableLogging
-Enables bounded count-only logging under the current user's local application
+Enables bounded ObjectGUID-and-count logging under the current user's local application
 data when no `LogPath` is supplied. Reuses one 1 MiB log and one archive, with a
 session identifier. Logging failures warn without changing the write outcome.
 
@@ -53,9 +53,10 @@ None. This command does not accept pipeline input.
 System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
-Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'Profile-' -DrinkValues 'Tier=Gold' -AutoConfirm
+Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'AppProfile-' -DrinkValues 'Tier=Gold' -AutoConfirm
 
-Replaces the `Profile-` slice of the `drink` attribute with a single value.
+Replaces the `AppProfile-` slice of the `drink` attribute with a single value,
+separate from the built-in projection's `Profile-` namespace.
 
 .EXAMPLE
 Update-ADUserDrinkAttribute -EmployeeID '123456' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B' -WhatIf

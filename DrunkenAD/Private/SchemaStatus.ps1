@@ -116,26 +116,50 @@ function Get-DrunkenADDrinkAttributeStatus {
     }
 
     $explicitPort = $null
+    $endpointHost = $Server
     $parsedAddress = $null
-    $isBareIPv6 = [System.Net.IPAddress]::TryParse($Server, [ref]$parsedAddress) -and
+    $isBareIPv6 = -not $Server.StartsWith('[') -and [System.Net.IPAddress]::TryParse($Server, [ref]$parsedAddress) -and
         $parsedAddress.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6
     if (-not [string]::IsNullOrWhiteSpace($Server) -and $Server.Contains(':') -and -not $isBareIPv6) {
-        $endpointMatch = [regex]::Match($Server, '^([^:\s]+|\[[^\]\s]+\]):([0-9]+)$')
+        $endpointMatch = [regex]::Match($Server, '^(?:([^:\[\]\s]+):([0-9]+)|\[([^\]\s]+)\](?::([0-9]+))?)$')
         $portNumber = 0
-        if (-not $endpointMatch.Success -or
-            -not [int]::TryParse($endpointMatch.Groups[2].Value, [ref]$portNumber) -or
-            $portNumber -lt 1 -or $portNumber -gt 65535) {
+        if (-not $endpointMatch.Success) {
             throw 'Server must specify a hostname and a valid port between 1 and 65535.'
         }
-        $explicitPort = $portNumber
+        if ($endpointMatch.Groups[3].Success) {
+            $endpointHost = $endpointMatch.Groups[3].Value
+            if (-not [System.Net.IPAddress]::TryParse($endpointHost, [ref]$parsedAddress) -or
+                $parsedAddress.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+                throw 'A bracketed Server address must be a valid IPv6 address.'
+            }
+            $explicitPort = $endpointMatch.Groups[4].Value
+        }
+        else {
+            $endpointHost = $endpointMatch.Groups[1].Value
+            $explicitPort = $endpointMatch.Groups[2].Value
+        }
+        if ($explicitPort -ne '' -and
+            (-not [int]::TryParse($explicitPort, [ref]$portNumber) -or $portNumber -lt 1 -or $portNumber -gt 65535)) {
+            throw 'Server must specify a hostname and a valid port between 1 and 65535.'
+        }
     }
 
     $rootDse = Get-ADRootDSE @rootDseParams
-    $Server = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'dnsHostName')
-    if ([string]::IsNullOrWhiteSpace($Server)) {
-        throw 'RootDSE did not return dnsHostName; schema queries cannot be pinned to a domain controller.'
+    # Compare a DNS candidate's DN to authoritative domain metadata, never a hostname suffix.
+    $defaultNamingContext = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'defaultNamingContext')
+    $isDomainEndpoint = $false
+    if (-not [System.Net.IPAddress]::TryParse($endpointHost, [ref]$parsedAddress) -and
+        $endpointHost -match '^(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?i:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*\.?$') {
+        $candidateDomainDn = ($endpointHost.TrimEnd('.').Split('.') | ForEach-Object { 'DC={0}' -f $_ }) -join ','
+        $isDomainEndpoint = [string]::Equals($candidateDomainDn, $defaultNamingContext, [System.StringComparison]::OrdinalIgnoreCase)
     }
-    if ($null -ne $explicitPort) { $Server = '{0}:{1}' -f $Server, $explicitPort }
+    if ([string]::IsNullOrWhiteSpace($Server) -or $isDomainEndpoint) {
+        $Server = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'dnsHostName')
+        if ([string]::IsNullOrWhiteSpace($Server)) {
+            throw 'RootDSE did not return dnsHostName; schema queries cannot be pinned to a domain controller.'
+        }
+        if (-not [string]::IsNullOrEmpty($explicitPort)) { $Server = '{0}:{1}' -f $Server, $explicitPort }
+    }
 
     $schemaNamingContext = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'schemaNamingContext')
     if ([string]::IsNullOrWhiteSpace($schemaNamingContext)) {
@@ -171,7 +195,7 @@ function Get-DrunkenADDrinkAttributeStatus {
     $attributePresent = $null -ne $attributeObject
     $isDefunct = if ($attributePresent) { [bool](Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'isDefunct') } else { $null }
     $isEnabled = $attributePresent -and (-not $isDefunct)
-    $allowedOnUserClass = $false
+    $allowedOnUserClass = if ($PresenceOnly) { $null } else { $false }
     $attributeDn = Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'distinguishedName'
     $rangeUpper = $null
     $rangeValues = @(Get-DrunkenADSchemaPropertyValue -InputObject $attributeObject -Name 'rangeUpper')
@@ -233,7 +257,8 @@ function Get-DrunkenADDrinkAttributeStatus {
         UserClassDistinguishedName = Get-DrunkenADSchemaPropertyValue -InputObject $userClassObject -Name 'distinguishedName'
         RangeUpper               = $rangeUpper
         AllowedOnUserClass       = $allowedOnUserClass
-        ReadyForUserWrite        = ($isEnabled -and $allowedOnUserClass)
+        ReadyForUserWrite        = if ($PresenceOnly) { $null } else { $isEnabled -and $allowedOnUserClass }
+        ReadinessEvaluated       = (-not $PresenceOnly)
         BlockingReason           = $blockingReason
         BlockingMessage          = $blockingMessage
     }

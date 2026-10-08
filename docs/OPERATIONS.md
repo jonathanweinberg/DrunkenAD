@@ -35,7 +35,7 @@ Use `Set-ADUserDrinkData` for direct namespace writes:
 Set-ADUserDrinkData `
     -SamAccountName 'alice.bennett' `
     -DataMap @{
-        'Profile-' = @('Tier=Gold', 'Region=NA')
+        'AppProfile-' = @('Tier=Gold', 'Region=NA')
         'Flags-'   = @('Enabled', 'Audited')
     } `
     -DomainController 'dc01.contoso.com' `
@@ -58,8 +58,10 @@ Import-ADUserDrinkCsvData `
 
 The sample CSV map owns `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and
 `Sync-`, separate from the default projection. Custom maps must also avoid
-unintended overlap. Blank mapped cells clear old records; preview existing
-imports before applying this behavior. See [CSV migration guidance](HOW-TO-INGEST-CSV.md#blank-cells-and-existing-imports).
+unintended overlap. Entirely blank mapped namespaces remain unchanged unless
+`-ClearBlankNamespaces` is supplied. Incomplete CSV records fail before AD
+access. Confirmation uses refreshed counts and stops if the approved delta
+changes before writing. See [CSV guidance](HOW-TO-INGEST-CSV.md#blank-cells-and-existing-imports).
 
 ## Attribute Projection
 
@@ -96,7 +98,8 @@ application-data directory, under `DrunkenAD/logs-v1`. If that private root is
 unavailable, logging warns and requires an explicit path instead of falling
 back to shared temporary storage. It reuses `activity.log`, rotating to
 `activity.previous.log`, with at most 1 MiB per file. Entries carry a module
-session identifier and counts, not user identities or attribute values.
+session identifier, ObjectGUID, and counts, not account names or attribute
+values. Treat GUIDs as persistent identifiers and protect logs accordingly.
 Rotation is restricted to recognized module-owned files and rejects links.
 Older GUID-named logs are not automatically deleted.
 Preview mode does not append or rotate activity logs.
@@ -106,6 +109,9 @@ paths are append-only and are not automatically rotated; manage their access
 and retention. Logging is best effort: a failure emits a warning, not a false
 directory-write failure. A `Written` status is evidence that the directory call
 succeeded, not a guarantee that a log record was stored.
+Logging warnings honor `-WarningAction SilentlyContinue` and `Ignore`.
+Other warning preferences, including `Stop` and `Inquire`, remain nonterminating
+for logging only, so a failed log cannot invalidate a completed directory write.
 
 ## Live Validation
 

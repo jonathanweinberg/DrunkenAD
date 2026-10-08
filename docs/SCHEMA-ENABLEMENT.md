@@ -31,6 +31,11 @@ Expected outcomes:
 - `Test-ADDrinkAttributeEnabled` returns `True` when `drink` exists and is not defunct
 - `Test-ADDrinkAttributeReadyForUserWrite` returns `True` only when `drink` is also allowed on `user`
 
+`Test-ADDrinkAttributeEnabled -PassThru` has the same presence-only meaning as
+the Boolean form. Its `ReadinessEvaluated` is false and readiness fields are
+null, not a negative readiness verdict. Use the dedicated readiness command
+for class traversal, length metadata, and write eligibility.
+
 If the first command is `True` and the second is `False`, the schema is only partially ready. DrunkenAD reads may still work, but writes will fail.
 
 ## Manual Enablement Path

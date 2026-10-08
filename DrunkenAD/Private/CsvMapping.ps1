@@ -1,3 +1,39 @@
+function Read-DrunkenADCsvRows {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$CsvPath)
+
+    $text = Get-Content -LiteralPath $CsvPath -Raw -Encoding UTF8 -ErrorAction Stop
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    # Import-Csv conflates missing fields with unquoted empty cells. Validate
+    # record shape with the framework parser, using the same input snapshot.
+    Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction Stop
+    $parser = [Microsoft.VisualBasic.FileIO.TextFieldParser]::new([System.IO.StringReader]::new($text))
+    try {
+        $parser.SetDelimiters(',')
+        $parser.HasFieldsEnclosedInQuotes = $true
+        $parser.TrimWhiteSpace = $false
+        $parser.CommentTokens = @('#')
+        if ($parser.EndOfData) { return }
+        $header = $parser.ReadFields()
+        $parser.CommentTokens = @()
+        $record = 1
+        while (-not $parser.EndOfData) {
+            $record++
+            $fields = $parser.ReadFields()
+            if ($fields.Count -ne $header.Count) {
+                throw "CSV record $record has $($fields.Count) fields; the header requires $($header.Count). Supply every field, using an empty cell when appropriate."
+            }
+        }
+        $rows = @(ConvertFrom-Csv -InputObject $text -ErrorAction Stop)
+        if ($rows.Count -ne ($record - 1)) {
+            throw 'CSV records could not be validated consistently. Use a standard comma-delimited header and data records.'
+        }
+        $rows
+    }
+    finally { $parser.Dispose() }
+}
+
 function Add-DrunkenADCsvRecord {
     [CmdletBinding()]
     param(
@@ -206,13 +242,15 @@ function ConvertTo-DrunkenADCsvDataMap {
         [psobject]$Row,
 
         [Parameter(Mandatory = $true)]
-        [object[]]$Mappings
+        [object[]]$Mappings,
+
+        [switch]$ClearBlankNamespaces
     )
 
     $dataMap = @{}
 
     foreach ($mapping in $Mappings) {
-        if (-not $dataMap.ContainsKey($mapping.Prefix)) { $dataMap[$mapping.Prefix] = @() }
+        if ($ClearBlankNamespaces -and -not $dataMap.ContainsKey($mapping.Prefix)) { $dataMap[$mapping.Prefix] = @() }
         $columnValue = [string]$Row.($mapping.Column)
         $fieldValues = if ([string]::IsNullOrWhiteSpace($mapping.SplitOn)) {
             @($columnValue)

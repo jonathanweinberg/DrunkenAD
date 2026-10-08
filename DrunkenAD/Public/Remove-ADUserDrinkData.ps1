@@ -42,9 +42,10 @@ None. This command does not accept pipeline input.
 System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
-Remove-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefixes 'Profile-', 'Flags-' -DomainController 'dc01.contoso.com' -Confirm:$false
+Remove-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefixes 'AppProfile-', 'Flags-' -DomainController 'dc01.contoso.com' -Confirm:$false
 
-Removes all `Profile-` and `Flags-` records from the user's `drink` attribute.
+Removes all `AppProfile-` and `Flags-` records from the user's `drink` attribute,
+leaving the built-in projection's namespaces untouched.
 
 .EXAMPLE
 Remove-ADUserDrinkData -Mail 'tester@contoso.com' -Prefixes 'Temp-' -WhatIf

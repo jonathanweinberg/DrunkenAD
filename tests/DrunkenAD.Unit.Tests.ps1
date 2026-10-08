@@ -295,7 +295,7 @@ Describe 'DrunkenAD unit tests' {
                 Test-ADDrinkAttributeEnabled | Should -BeFalse
             }
 
-            It 'returns write-readiness details through PassThru without changing the Boolean meaning' {
+            It 'returns presence details through PassThru without evaluating write readiness' {
                 $global:DrunkenADTest_GetADObjectHandler = {
                     param($SearchBase, $LDAPFilter)
 
@@ -315,11 +315,13 @@ Describe 'DrunkenAD unit tests' {
                 $result = Test-ADDrinkAttributeEnabled -PassThru
 
                 $result.Enabled | Should -BeTrue
-                $result.AllowedOnUserClass | Should -BeFalse
-                $result.ReadyForUserWrite | Should -BeFalse
-                $result.BlockingReason | Should -Be 'NotAllowedOnUserClass'
+                $result.AllowedOnUserClass | Should -BeNullOrEmpty
+                $result.ReadyForUserWrite | Should -BeNullOrEmpty
+                $result.ReadinessEvaluated | Should -BeFalse
+                $result.BlockingReason | Should -BeNullOrEmpty
                 $result.SchemaNamingContext | Should -Be 'CN=Schema,CN=Configuration,DC=contoso,DC=com'
-                $result.UserClassDistinguishedName | Should -Be 'CN=User,CN=Schema,CN=Configuration,DC=contoso,DC=com'
+                $result.UserClassDistinguishedName | Should -BeNullOrEmpty
+                @($global:DrunkenADTest_GetADObjectCalls | Where-Object { $_.LDAPFilter -like '*classSchema*' }).Count | Should -Be 0
             }
         }
 
@@ -878,6 +880,48 @@ Describe 'DrunkenAD unit tests' {
             }
         }
 
+        Context 'CSV record structure' {
+            It 'accepts complete empty cells and multiline quoted records' {
+                $path = Join-Path $TestDrive 'complete.csv'
+                @('SamAccountName,Tier,Flag', 'unquoted,Gold,', 'quoted,Gold,""', 'multiline,"Gold,', 'Silver",Enabled') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 3
+                [string]$rows[0].Flag | Should -Be ''
+                [string]$rows[1].Flag | Should -Be ''
+                $rows[2].Tier | Should -Match 'Gold,\r?\nSilver'
+            }
+
+            It 'rejects a <Kind> record before any directory access' -TestCases @(
+                @{ Kind = 'short'; Record = 'alice,Gold' }
+                @{ Kind = 'hash-prefixed short'; Record = '#bob,Gold' }
+                @{ Kind = 'long'; Record = 'alice,Gold,Enabled,Unexpected' }
+            ) {
+                param($Kind, $Record)
+                $path = Join-Path $TestDrive 'malformed.csv'
+                @('SamAccountName,Tier,Flag', 'valid,Gold,Enabled', $Record) | Set-Content -LiteralPath $path -Encoding UTF8
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Flag-' = @(@{ Column = 'Flag' }) } -ClearBlankNamespaces } | Should -Throw '*record 3*fields*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+            }
+
+            It 'accepts an Export-Csv type comment without losing the header' {
+                $path = Join-Path $TestDrive 'type.csv'
+                @('#TYPE System.Management.Automation.PSCustomObject', 'SamAccountName,Tier', 'alice,Gold') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 1
+                $rows[0].SamAccountName | Should -Be 'alice'
+            }
+
+            It 'accepts hash-prefixed identities as data after the header' {
+                $path = Join-Path $TestDrive 'hash-identity.csv'
+                @('#TYPE System.Management.Automation.PSCustomObject', 'SamAccountName,Tier', 'alice,Gold', '#bob,Silver') | Set-Content -LiteralPath $path -Encoding UTF8
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 2
+                $rows[1].SamAccountName | Should -Be '#bob'
+                $rows[1].Tier | Should -Be 'Silver'
+            }
+        }
+
         Context 'Import-ADUserDrinkCsvData' {
             BeforeEach {
                 Mock Test-Path { $true }
@@ -891,7 +935,7 @@ Describe 'DrunkenAD unit tests' {
                         drink = @('Keep-Stable')
                     }
                 }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -952,7 +996,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'does not create label-only records from blank CSV fields' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -974,13 +1018,13 @@ Describe 'DrunkenAD unit tests' {
                 Import-ADUserDrinkCsvData -CsvPath '/tmp/users.csv' -NamespaceMap $namespaceMap -DomainController 'dc01.contoso.com' | Out-Null
 
                 Assert-MockCalled Invoke-DrunkenADPrefixWrite -Times 1 -Exactly -ParameterFilter {
-                    $PrefixMap.Contains('Profile-') -and @($PrefixMap['Profile-']).Count -eq 0 -and
+                    -not $PrefixMap.Contains('Profile-') -and
                     ((@($PrefixMap['Flags-']) -join ',') -eq 'Enabled')
                 }
             }
 
             It 'rejects duplicate normalized CSV identities before checking AD readiness' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = 'Alice'; ProfileTier = 'Gold' }
                         [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Silver' }
@@ -1002,7 +1046,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'trims a unique CSV identity before writing and reporting it' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = ' alice '; ProfileTier = 'Gold' }
                     )
@@ -1038,7 +1082,7 @@ Describe 'DrunkenAD unit tests' {
 '@
                 }
 
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'
@@ -1074,7 +1118,7 @@ Describe 'DrunkenAD unit tests' {
             }
 
             It 'throws a deterministic error when the CSV is missing SamAccountName' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             ProfileTier = 'Gold'
@@ -1099,7 +1143,7 @@ Describe 'DrunkenAD unit tests' {
                 Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             Department = 'Engineering'
@@ -1126,7 +1170,7 @@ Describe 'DrunkenAD unit tests' {
                 Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv { @() }
+                Mock Read-DrunkenADCsvRows { @() }
 
                 $namespaceMap = @{
                     'Profile-' = @(
@@ -1147,7 +1191,7 @@ Describe 'DrunkenAD unit tests' {
                 Mock New-DrunkenADWriteContext {
                     throw 'AD readiness should not run for invalid local input.'
                 }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{
                             SamAccountName = 'alice'

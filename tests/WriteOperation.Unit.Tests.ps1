@@ -186,7 +186,8 @@ Describe 'Freshness and projection confirmation outcomes' {
     It 'reports <ExpectedStatus> for <Scenario> with <ExpectedPrompts> prompts' -TestCases @(
         @{ Scenario = 'ProjectionNoChange'; Choice = 'No'; ExpectedStatus = 'NoChange'; ExpectedPrompts = 0; ExpectedWrites = 0; ExpectedReads = 0 }
         @{ Scenario = 'ProjectionDeclined'; Choice = 'No'; ExpectedStatus = 'Declined'; ExpectedPrompts = 1; ExpectedWrites = 0; ExpectedReads = 0 }
-        @{ Scenario = 'CsvChangedApproved'; Choice = 'Yes'; ExpectedStatus = 'Written'; ExpectedPrompts = 1; ExpectedWrites = 1; ExpectedReads = 2 }
+        @{ Scenario = 'CsvChangedApproved'; Choice = 'Yes'; ExpectedStatus = 'Stopped'; ExpectedPrompts = 1; ExpectedWrites = 0; ExpectedReads = 2 }
+        @{ Scenario = 'CsvUnownedChanged'; Choice = 'Yes'; ExpectedStatus = 'Written'; ExpectedPrompts = 1; ExpectedWrites = 1; ExpectedReads = 2 }
         @{ Scenario = 'CsvChangedDeclined'; Choice = 'No'; ExpectedStatus = 'Declined'; ExpectedPrompts = 1; ExpectedWrites = 0; ExpectedReads = 1 }
     ) {
         param($Scenario, $Choice, $ExpectedStatus, $ExpectedPrompts, $ExpectedWrites, $ExpectedReads)
@@ -204,7 +205,10 @@ Describe 'Freshness and projection confirmation outcomes' {
                 $module = Import-Module $ModulePath -Force -PassThru
                 $PSModuleAutoLoadingPreference = 'None'
                 $directoryState = [pscustomobject]@{ Values = @('Tier-concurrent') }
-                $ConfirmationHost.OnPrompt = [Action]({ $directoryState.Values = @('Tier-duringPrompt') }.GetNewClosure())
+                $ConfirmationHost.OnPrompt = [Action]({
+                    if ($Scenario -eq 'CsvUnownedChanged') { $directoryState.Values += 'Other-concurrent' }
+                    else { $directoryState.Values = @('Tier-duringPrompt') }
+                }.GetNewClosure())
                 & $module {
                     param($Scenario, $ConfirmationHost, $DirectoryState)
                     $script:outcomeHost = $ConfirmationHost
@@ -232,12 +236,17 @@ Describe 'Freshness and projection confirmation outcomes' {
                     function script:Set-ADUser {
                         param($Identity, $Server, $Remove, $Add, $Confirm, $ErrorAction)
                         if ($script:outcomeHost.PromptCount -ne 1) { throw 'Write requires confirmation.' }
-                        if ($Remove.drink[0] -ne 'Tier-duringPrompt') { throw 'Write must remove owned data changed during confirmation.' }
+                        if ($Remove.drink[0] -ne 'Tier-concurrent') { throw 'Write must match the approved delta.' }
                         $script:outcomeWrites++
                     }
                 } $Scenario $ConfirmationHost $directoryState
                 $result = if ($Scenario -like 'Csv*') {
-                    Import-ADUserDrinkCsvData -CsvPath $CsvPath -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm
+                    try { Import-ADUserDrinkCsvData -CsvPath $CsvPath -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm }
+                    catch {
+                        if ($Scenario -ne 'CsvChangedApproved' -or $_.Exception.InnerException.Message -notlike '*plan changed after confirmation*') { throw }
+                        if ($_.TargetObject.WrittenRowCount -ne 0) { throw 'Drift must not be counted as written.' }
+                        [pscustomobject]@{ Status = 'Stopped' }
+                    }
                 }
                 else { Set-ADUserDrinkProjection -SamAccountName 'first' -AttributeMap @{ 'Org-' = @('department') } -Confirm -PassThru }
                 [pscustomobject]@{ Status = $result.Status; Writes = (& $module { $script:outcomeWrites }); Reads = (& $module { $script:outcomeReads }) }
@@ -409,7 +418,7 @@ Describe 'DrunkenAD write operation contracts' {
         Context 'CSV preflight and failure progress' {
             BeforeEach {
                 Mock Test-Path { $true }
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' }
                         [pscustomobject]@{ SamAccountName = 'second'; Tier = 'Silver' }
@@ -417,12 +426,22 @@ Describe 'DrunkenAD write operation contracts' {
                 }
             }
 
-            It 'clears every mapped namespace for an all-blank row' {
-                Mock Import-Csv { [pscustomobject]@{ SamAccountName = 'first'; Tier = ''; Flag = ' ' } }
+            It 'clears every mapped namespace for an all-blank row only with explicit opt-in' {
+                Mock Read-DrunkenADCsvRows { [pscustomobject]@{ SamAccountName = 'first'; Tier = ''; Flag = ' ' } }
                 $script:directoryValues = @('Tier-old', 'Flag-old', 'Keep-stable')
-                $result = Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }); 'Flag-' = @(@{ Column = 'Flag' }) } -Confirm:$false
+                $result = Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }); 'Flag-' = @(@{ Column = 'Flag' }) } -ClearBlankNamespaces -Confirm:$false
                 $result.Status | Should -Be 'Written'
                 $script:directoryValues | Should -Be @('Keep-stable')
+            }
+
+            It 'skips all-blank data by default without resolving or writing the account' {
+                Mock Read-DrunkenADCsvRows { [pscustomobject]@{ SamAccountName = 'first'; Tier = ''; Flag = ' ' } }
+                $script:directoryValues = @('Tier-old', 'Flag-old', 'Keep-stable')
+                $result = @(Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }); 'Flag-' = @(@{ Column = 'Flag' }) } -Confirm:$false -WarningAction SilentlyContinue)
+                $result.Count | Should -Be 0
+                $script:directoryValues | Should -Be @('Tier-old', 'Flag-old', 'Keep-stable')
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Set-ADUser -Times 0
             }
 
             It 'replans using newly changed owned values from the resolved identity' {
@@ -431,9 +450,9 @@ Describe 'DrunkenAD write operation contracts' {
                     $script:directoryValues = @('Tier-concurrent', 'Keep-stable')
                     [pscustomobject]@{ SamAccountName = 'first'; DistinguishedName = $Identity; drink = @($script:directoryValues) }
                 }
-                Mock Import-Csv { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' } }
+                Mock Read-DrunkenADCsvRows { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' } }
                 $result = Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false
-                Assert-MockCalled Get-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq 'CN=first,DC=example,DC=test' -and $Server -eq 'dc01.example.test' }
+                Assert-MockCalled Get-ADUser -Times 2 -Exactly -ParameterFilter { $Identity -eq 'CN=first,DC=example,DC=test' -and $Server -eq 'dc01.example.test' }
                 $script:directoryValues | Should -Be @('Keep-stable', 'Tier-Gold')
                 $result.Status | Should -Be 'Written'
             }
@@ -443,9 +462,9 @@ Describe 'DrunkenAD write operation contracts' {
                 Mock Resolve-DrunkenADUser {
                     [pscustomobject]@{ SamAccountName = 'first'; ObjectGUID = $script:resolvedGuid; DistinguishedName = 'CN=first,DC=example,DC=test'; drink = @('Tier-old') }
                 }
-                Mock Import-Csv { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' } }
+                Mock Read-DrunkenADCsvRows { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' } }
                 Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false | Out-Null
-                Assert-MockCalled Get-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq $script:resolvedGuid -and $Server -eq 'dc01.example.test' }
+                Assert-MockCalled Get-ADUser -Times 2 -Exactly -ParameterFilter { $Identity -eq $script:resolvedGuid -and $Server -eq 'dc01.example.test' }
                 Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly
             }
 
@@ -465,19 +484,19 @@ Describe 'DrunkenAD write operation contracts' {
             }
 
             It 'reports unchanged rows without a write' {
-                Mock Import-Csv { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'old' } }
+                Mock Read-DrunkenADCsvRows { [pscustomobject]@{ SamAccountName = 'first'; Tier = 'old' } }
                 $script:directoryValues = @('Tier-old', 'Keep-stable')
                 $result = Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false
                 $result.Status | Should -Be 'NoChange'
                 Assert-MockCalled Set-ADUser -Times 0
             }
 
-            It 'reports inherited WhatIf without refreshing or writing' {
+            It 'reports inherited WhatIf from refreshed plans without writing' {
                 $WhatIfPreference = $true
                 $result = @(Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) })
                 $result[0].Status | Should -Be 'WhatIf'
                 $result[1].Status | Should -Be 'WhatIf'
-                Assert-MockCalled Get-ADUser -Times 0
+                Assert-MockCalled Get-ADUser -Times 2 -Exactly
                 Assert-MockCalled Set-ADUser -Times 0
             }
 
@@ -488,7 +507,7 @@ Describe 'DrunkenAD write operation contracts' {
             }
 
             It 'validates every row length before any write' {
-                Mock Import-Csv {
+                Mock Read-DrunkenADCsvRows {
                     @(
                         [pscustomobject]@{ SamAccountName = 'first'; Tier = 'Gold' }
                         [pscustomobject]@{ SamAccountName = 'second'; Tier = ('x' * 256) }
@@ -498,12 +517,12 @@ Describe 'DrunkenAD write operation contracts' {
                 Assert-MockCalled Set-ADUser -Times 0
             }
 
-            It 'uses one schema check, one preflight resolve and one fresh read per changed CSV row' {
+            It 'uses one schema check, one preflight resolve and two fresh reads per changed CSV row' {
                 $result = @(Import-ADUserDrinkCsvData -CsvPath 'users.csv' -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false)
                 $result.Count | Should -Be 2
                 Assert-MockCalled Get-DrunkenADDrinkAttributeStatus -Times 1 -Exactly
                 Assert-MockCalled Resolve-DrunkenADUser -Times 2 -Exactly
-                Assert-MockCalled Get-ADUser -Times 2 -Exactly -ParameterFilter { $Server -eq 'dc01.example.test' }
+                Assert-MockCalled Get-ADUser -Times 4 -Exactly -ParameterFilter { $Server -eq 'dc01.example.test' }
                 Assert-MockCalled Set-ADUser -Times 2 -Exactly
             }
 
