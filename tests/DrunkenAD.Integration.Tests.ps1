@@ -107,7 +107,12 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         }
 
         if ($script:createdUser) {
-            Remove-ADUser -Identity $script:userName -Server $script:domainController -Confirm:$false -ErrorAction SilentlyContinue
+            Remove-ADUser -Identity $script:userName -Server $script:domainController -Confirm:$false -ErrorAction Stop
+            $remaining = @(Get-ADUser -Filter "SamAccountName -eq '$($script:userName)'" -Server $script:domainController -ErrorAction Stop)
+            if ($remaining.Count -ne 0) {
+                throw 'The isolated integration account was not removed.'
+            }
+            $script:createdUser = $false
         }
     }
 
@@ -219,7 +224,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         $flagValues = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Flags-' -DomainController $script:domainController
 
         $profileValues | Should -Be @('Profile-Tier=Gold')
-        $flagValues | Should -Be @('Flags-Enabled', 'Flags-Audited')
+        ($flagValues | Sort-Object) | Should -Be @('Flags-Audited', 'Flags-Enabled')
     }
 
     It 'projects AD attributes into drink namespaces' {
@@ -249,5 +254,37 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             Sort-Object
 
         $actualValues | Should -Be ($expectedValues | Sort-Object)
+    }
+
+    It 'applies case-only replacements on a real directory' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Case-' = @('first') } -DomainController $script:domainController -Confirm:$false
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Case-' = @('FIRST') } -DomainController $script:domainController -Confirm:$false
+        $values = Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Case-' -DomainController $script:domainController
+        $values | Should -BeExactly @('Case-FIRST')
+    }
+
+    It 'preserves an unrelated value added after the writer reads its snapshot' {
+        if (-not $script:readinessStatus.ReadyForUserWrite) {
+            Set-ItResult -Skipped -Because 'The attribute is not ready for user writes.'
+            return
+        }
+
+        Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'Stale-' = @('Old') } -DomainController $script:domainController -Confirm:$false
+        $snapshot = Get-ADUser -Identity $script:userName -Properties drink -Server $script:domainController -ErrorAction Stop
+        Set-ADUser -Identity $script:userName -Add @{ drink = @('Concurrent-Preserved') } -Server $script:domainController -ErrorAction Stop
+
+        & (Get-Module DrunkenAD) {
+            param($User, $Server)
+            $context = New-DrunkenADWriteContext -Server $Server
+            Invoke-DrunkenADPrefixWrite -User $User -PrefixMap @{ 'Stale-' = @('New') } -Context $context -Confirm:$false
+        } $snapshot $script:domainController
+
+        Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Concurrent-' -DomainController $script:domainController | Should -Be @('Concurrent-Preserved')
+        Get-ADUserDrinkData -SamAccountName $script:userName -Prefix 'Stale-' -DomainController $script:domainController | Should -Be @('Stale-New')
     }
 }

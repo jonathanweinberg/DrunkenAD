@@ -47,10 +47,11 @@ Describe 'DrunkenAD release readiness' {
         }
     }
 
-    It 'marks the module as the 0.13.2 release with publish-ready metadata' {
-        $script:manifest.Version.ToString() | Should -Be '0.13.2'
+    It 'keeps release metadata consistent with the declared module version' {
+        $releaseVersion = $script:manifest.Version.ToString()
+        $releaseVersion | Should -Match '^\d+\.\d+\.\d+(\.\d+)?$'
         $script:manifest.PrivateData.PSData.ProjectUri | Should -Be 'https://github.com/jonathanweinberg/DrunkenAD'
-        $script:manifest.PrivateData.PSData.ReleaseNotes | Should -Match '0.13.2'
+        $script:manifest.PrivateData.PSData.ReleaseNotes | Should -Match ([regex]::Escape($releaseVersion))
         $aboutHelpSuffix = 'en-US/about_DrunkenAD.help.txt'
         @($script:manifest.FileList | Where-Object {
             ($_ -replace '\\', '/').EndsWith($aboutHelpSuffix, [System.StringComparison]::OrdinalIgnoreCase)
@@ -62,12 +63,51 @@ Describe 'DrunkenAD release readiness' {
 
         Test-Path -LiteralPath $changelogPath -PathType Leaf | Should -BeTrue
         $content = Get-Content -LiteralPath $changelogPath -Raw
-        $content | Should -Match '## 0.13.2'
+        $content | Should -Match ('(?m)^## ' + [regex]::Escape($script:manifest.Version.ToString()) + '\s*$')
         $content | Should -Match '## 0.13.1'
         $content | Should -Match '## 0.13.0'
         $content | Should -Match '## 0.12.1'
         $content | Should -Match '## 0.12.0'
         $content | Should -Match '## 0.11.0'
+    }
+
+    It 'lists the complete distributable module contents' {
+        $moduleRoot = Split-Path $script:manifestPath -Parent
+        $manifestData = Import-PowerShellDataFile $script:manifestPath
+        $actualFiles = @(Get-ChildItem $moduleRoot -Recurse -File | ForEach-Object {
+            $_.FullName.Substring($moduleRoot.Length + 1) -replace '\\', '/'
+        } | Sort-Object)
+        @(Compare-Object $actualFiles @($manifestData.FileList | Sort-Object)) | Should -BeNullOrEmpty
+    }
+
+    It 'returns a failing process exit code when Pester discovery fails' {
+        $testRoot = Join-Path $TestDrive 'runner/tests'
+        New-Item $testRoot -ItemType Directory -Force | Out-Null
+        $runnerCopy = Join-Path $testRoot 'Invoke-DrunkenADTests.ps1'
+        Copy-Item $script:testRunnerPath $runnerCopy
+        foreach ($name in @(
+            'DrunkenAD.Unit.Tests.ps1', 'Help.Unit.Tests.ps1', 'LiveCampaign.Unit.Tests.ps1',
+            'Release.Unit.Tests.ps1', 'SchemaEnablement.Unit.Tests.ps1',
+            'SchemaStatus.Unit.Tests.ps1', 'WriteOperation.Unit.Tests.ps1',
+            'DrunkenAD.Integration.Tests.ps1'
+        )) {
+            Set-Content (Join-Path $testRoot $name) "Describe 'Fixture' { It 'passes' { 1 | Should -Be 1 } }"
+        }
+        Set-Content (Join-Path $testRoot 'DrunkenAD.Unit.Tests.ps1') "throw 'Synthetic discovery failure'"
+        $pesterPath = (Get-Module Pester).Path -replace 'Pester\.psm1$', 'Pester.psd1'
+        $processPath = (Get-Process -Id $PID).Path
+        $savedErrorPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell turns redirected native stderr into ErrorRecords.
+            $ErrorActionPreference = 'Continue'
+            $output = & $processPath -NoLogo -NoProfile -File $runnerCopy -PesterManifestPath $pesterPath -Output None 2>&1
+            $processExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorPreference
+        }
+        $processExitCode | Should -Not -Be 0
+        ($output | Out-String) | Should -Match 'Pester result was Failed'
     }
 
     It 'runs architecture map validation from documentation hygiene' {

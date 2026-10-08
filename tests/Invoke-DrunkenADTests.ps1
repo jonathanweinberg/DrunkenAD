@@ -87,6 +87,8 @@ $trustedTestNames = @(
     'LiveCampaign.Unit.Tests.ps1'
     'Release.Unit.Tests.ps1'
     'SchemaEnablement.Unit.Tests.ps1'
+    'SchemaStatus.Unit.Tests.ps1'
+    'WriteOperation.Unit.Tests.ps1'
     'DrunkenAD.Integration.Tests.ps1'
 )
 $trustedTestPaths = @(
@@ -117,6 +119,6 @@ if ($TestResultPath) {
 
 $result = Invoke-Pester -Configuration $configuration
 
-if ($result.FailedCount -gt 0) {
-    throw "Pester completed with $($result.FailedCount) failing test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester result was $($result.Result), with $($result.FailedCount) failing test(s). Inspect discovery and container errors as well as test failures."
 }

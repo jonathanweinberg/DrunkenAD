@@ -113,12 +113,13 @@ function Resolve-DrunkenADLogPath {
         return $null
     }
 
-    $tempPath = $env:TEMP
-    if ([string]::IsNullOrWhiteSpace($tempPath)) {
-        $tempPath = [System.IO.Path]::GetTempPath()
+    $logRoot = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
+    if ([string]::IsNullOrWhiteSpace($logRoot)) {
+        $logRoot = [System.IO.Path]::GetTempPath()
     }
 
-    Join-Path -Path $tempPath -ChildPath 'DrunkenAD.log'
+    $logDirectory = Join-Path -Path $logRoot -ChildPath 'DrunkenAD'
+    Join-Path -Path $logDirectory -ChildPath ('activity-{0}.log' -f [guid]::NewGuid().ToString('N'))
 }
 
 function Write-DrunkenADLog {
@@ -229,7 +230,7 @@ function Resolve-DrunkenADUser {
 
     $userParams = @{
         LDAPFilter = $ldapFilter
-        Properties = @($Properties + 'distinguishedName', 'samAccountName', 'drink')
+        Properties = @(@($Properties) + @('distinguishedName', 'samAccountName', 'drink') | Select-Object -Unique)
         ErrorAction = 'Stop'
     }
 

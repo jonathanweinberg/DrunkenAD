@@ -32,7 +32,8 @@ Optional domain controller to use consistently for validation, lookup, and write
 Optional log file path for appended activity records.
 
 .PARAMETER PassThru
-Returns the final stored `drink` values after the removal logic is computed.
+Returns the computed `drink` values, including previews. This is based on the
+initial read and is not a fresh directory read after the removal.
 
 .INPUTS
 None. This command does not accept pipeline input.
@@ -98,48 +99,10 @@ function Remove-ADUserDrinkData {
     )
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
-    $dataMap = [ordered]@{}
-    foreach ($prefix in $Prefixes) {
-        $dataMap[$prefix] = @()
-    }
-
-    $removeParams = @{
-        DataMap          = $dataMap
-        DomainController = $DomainController
-        LogPath          = $LogPath
-        PassThru         = $PassThru
-        Confirm          = $false
-    }
-
-    $identityParams = @{}
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName' {
-            $removeParams['SamAccountName'] = $SamAccountName
-            $identityParams['SamAccountName'] = $SamAccountName
-        }
-        'UserPrincipalName' {
-            $removeParams['UserPrincipalName'] = $UserPrincipalName
-            $identityParams['UserPrincipalName'] = $UserPrincipalName
-        }
-        'EmployeeID' {
-            $removeParams['EmployeeID'] = $EmployeeID
-            $identityParams['EmployeeID'] = $EmployeeID
-        }
-        'Mail' {
-            $removeParams['Mail'] = $Mail
-            $identityParams['Mail'] = $Mail
-        }
-        'Pager' {
-            $removeParams['Pager'] = $Pager
-            $identityParams['Pager'] = $Pager
-        }
-    }
-
-    $identityDescription = Get-DrunkenADIdentityDescription @identityParams
-
-    if ($PSCmdlet.ShouldProcess($identityDescription, 'Remove generic drink data')) {
-        Set-ADUserDrinkData @removeParams
-    }
+    $dataMap = @{}
+    foreach ($prefix in $Prefixes) { $dataMap[$prefix] = @() }
+    $parameters = @{} + $PSBoundParameters
+    $parameters.Remove('Prefixes')
+    $parameters['DataMap'] = $dataMap
+    Set-ADUserDrinkData @parameters
 }

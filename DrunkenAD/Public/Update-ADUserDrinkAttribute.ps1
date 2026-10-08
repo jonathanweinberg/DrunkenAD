@@ -119,51 +119,14 @@ function Update-ADUserDrinkAttribute {
 
     $prefixMap = ConvertTo-DrunkenADPrefixMap -Prefixes $Prefixes -DrinkValues $DrinkValues
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($prefixMap.Keys | ForEach-Object { [string]$_ })
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-    $effectiveLogPath = Resolve-DrunkenADLogPath -LogPath $LogPath -EnableLogging:$EnableLogging
-    $identityParams = @{}
-
-    $setParams = @{
-        PrefixMap        = $prefixMap
-        DomainController = $DomainController
-        LogPath          = $effectiveLogPath
-        PassThru         = $PassThru
-        Confirm          = $false
+    $parameters = @{} + $PSBoundParameters
+    foreach ($name in @('Prefixes', 'DrinkValues', 'AutoConfirm', 'EnableLogging')) {
+        $parameters.Remove($name)
     }
-
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName' {
-            $setParams['SamAccountName'] = $SamAccountName
-            $identityParams['SamAccountName'] = $SamAccountName
-        }
-        'UserPrincipalName' {
-            $setParams['UserPrincipalName'] = $UserPrincipalName
-            $identityParams['UserPrincipalName'] = $UserPrincipalName
-        }
-        'EmployeeID' {
-            $setParams['EmployeeID'] = $EmployeeID
-            $identityParams['EmployeeID'] = $EmployeeID
-        }
-        'Mail' {
-            $setParams['Mail'] = $Mail
-            $identityParams['Mail'] = $Mail
-        }
-        'Pager' {
-            $setParams['Pager'] = $Pager
-            $identityParams['Pager'] = $Pager
-        }
+    $parameters['PrefixMap'] = $prefixMap
+    $parameters['LogPath'] = Resolve-DrunkenADLogPath -LogPath $LogPath -EnableLogging:$EnableLogging
+    if ($AutoConfirm -and -not $PSBoundParameters.ContainsKey('Confirm')) {
+        $parameters['Confirm'] = $false
     }
-
-    $identityDescription = Get-DrunkenADIdentityDescription @identityParams
-
-    $shouldUpdate = if ($AutoConfirm -and -not $WhatIfPreference) {
-        $true
-    }
-    else {
-        $PSCmdlet.ShouldProcess($identityDescription, 'Update drink attribute')
-    }
-
-    if ($shouldUpdate) {
-        Set-ADUserDrinkPrefixedData @setParams
-    }
+    Set-ADUserDrinkPrefixedData @parameters
 }

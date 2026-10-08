@@ -8,7 +8,25 @@
     Description       = 'Treat the Active Directory drink attribute as a lightweight namespaced data store with exact user resolution and guarded updates.'
     PowerShellVersion = '5.1'
     FileList          = @(
+        'DrunkenAD.psd1',
         'DrunkenAD.psm1',
+        'Private/Core.ps1',
+        'Private/CsvMapping.ps1',
+        'Private/PrefixMap.ps1',
+        'Private/ProjectionMap.ps1',
+        'Private/SchemaStatus.ps1',
+        'Private/WriteOperation.ps1',
+        'Public/Get-ADUserDrinkData.ps1',
+        'Public/Get-AdUserDrinkPrefixedData.ps1',
+        'Public/Import-ADUserDrinkCsvData.ps1',
+        'Public/Invoke-ADUserDrinkDataDemo.ps1',
+        'Public/Remove-ADUserDrinkData.ps1',
+        'Public/SchemaReadiness.ps1',
+        'Public/Set-ADUserDrinkData.ps1',
+        'Public/Set-ADUserDrinkPrefixedData.ps1',
+        'Public/Set-ADUserDrinkProjection.ps1',
+        'Public/Split-DrunkenADCsvField.ps1',
+        'Public/Update-ADUserDrinkAttribute.ps1',
         'en-US/about_DrunkenAD.help.txt'
     )
     FunctionsToExport = @(
@@ -33,7 +51,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.13.2 safety and release-integrity patch: harden namespace, CSV, live-campaign, trusted-test, cross-platform PowerShell 5.1, and architecture-atlas boundaries.'
+            ReleaseNotes = '0.13.2 safety and release-integrity patch: prefix-scoped writes, operation-scoped schema and DC selection, inherited schema readiness, CSV preflight, payload-free logging, and trusted cross-platform tests.'
         }
     }
 }

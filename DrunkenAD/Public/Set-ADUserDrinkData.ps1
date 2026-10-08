@@ -34,7 +34,8 @@ Optional domain controller to use consistently for validation, lookup, and write
 Optional log file path for appended activity records.
 
 .PARAMETER PassThru
-Returns the final stored `drink` values after the write logic is computed.
+Returns the computed `drink` values, including previews. This is based on the
+initial read and is not a fresh directory read after the write.
 
 .INPUTS
 None. This command does not accept pipeline input.
@@ -103,43 +104,8 @@ function Set-ADUserDrinkData {
     )
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($DataMap.Keys | ForEach-Object { [string]$_ })
-    Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
-
-    $setParams = @{
-        PrefixMap        = $DataMap
-        DomainController = $DomainController
-        LogPath          = $LogPath
-        PassThru         = $PassThru
-        Confirm          = $false
-    }
-
-    $identityParams = @{}
-    switch ($PSCmdlet.ParameterSetName) {
-        'SamAccountName' {
-            $setParams['SamAccountName'] = $SamAccountName
-            $identityParams['SamAccountName'] = $SamAccountName
-        }
-        'UserPrincipalName' {
-            $setParams['UserPrincipalName'] = $UserPrincipalName
-            $identityParams['UserPrincipalName'] = $UserPrincipalName
-        }
-        'EmployeeID' {
-            $setParams['EmployeeID'] = $EmployeeID
-            $identityParams['EmployeeID'] = $EmployeeID
-        }
-        'Mail' {
-            $setParams['Mail'] = $Mail
-            $identityParams['Mail'] = $Mail
-        }
-        'Pager' {
-            $setParams['Pager'] = $Pager
-            $identityParams['Pager'] = $Pager
-        }
-    }
-
-    $identityDescription = Get-DrunkenADIdentityDescription @identityParams
-
-    if ($PSCmdlet.ShouldProcess($identityDescription, 'Write generic drink data')) {
-        Set-ADUserDrinkPrefixedData @setParams
-    }
+    $parameters = @{} + $PSBoundParameters
+    $parameters.Remove('DataMap')
+    $parameters['PrefixMap'] = $DataMap
+    Set-ADUserDrinkPrefixedData @parameters
 }
