@@ -3,6 +3,7 @@ BeforeAll {
     $script:sampleModule = Import-Module (Join-Path $script:root 'DrunkenAD/DrunkenAD.psd1') -Force -PassThru
     $script:configPath = Join-Path $script:root 'examples/data/drink-ingestion-config.json'
     $script:projectionPrefixes = @(& $script:sampleModule { (Get-DrunkenADDefaultProjectionAttributeMap).Keys })
+    $script:genericRecordPattern = '(?m)^(?<prefix>[^\s\r\n]+?-)[^\r\n]+\r?$'
 
     function Get-DocumentedGenericPrefixes {
         param([string]$Code)
@@ -129,7 +130,7 @@ Describe 'Documented generic namespace ownership' {
                 elseif ($value.Contains('-')) { $recordPrefixes += $value.Substring(0, $value.IndexOf('-') + 1) }
             }
             foreach ($block in [regex]::Matches($body, '(?ms)^```text\r?\n(?<records>.*?)^```')) {
-                foreach ($record in [regex]::Matches($block.Groups['records'].Value, '(?m)^(?<prefix>[^\s\r\n]+?-)[^\r\n]+$')) {
+                foreach ($record in [regex]::Matches($block.Groups['records'].Value, $script:genericRecordPattern)) {
                     $recordPrefixes += $record.Groups['prefix'].Value
                 }
             }
@@ -182,6 +183,16 @@ Describe 'Documented generic namespace ownership' {
                     Should -BeFalse -Because "$Document must not let projection namespace '$projectionPrefix' overwrite '$prefix'"
             }
         }
+    }
+
+    It 'reads generic text records using <Format> line endings' -TestCases @(
+        @{ Format = 'LF'; Newline = "`n" }
+        @{ Format = 'CRLF'; Newline = "`r`n" }
+    ) {
+        param($Format, $Newline)
+        $records = @('Flags-Enabled', 'AppRouting-Queue=review', '') -join $Newline
+        @([regex]::Matches($records, $script:genericRecordPattern) | ForEach-Object { $_.Groups['prefix'].Value }) |
+            Should -Be @('Flags-', 'AppRouting-')
     }
 
     It 'reads actual generic arguments without treating intentional projection maps as generic examples' {
