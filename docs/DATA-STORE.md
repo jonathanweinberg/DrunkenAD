@@ -128,6 +128,21 @@ replication of a nonlinked multivalued attribute can still lose updates.
 Concurrent writes to the same prefix are not serialized or transactional; a
 conflicting delta can fail or leave a combined set. Serialize those producers.
 
+Do not use a missing-value Remove as a concurrency guard. The controlled
+Windows Server 2025 run accepted an already-missing removal and applied the
+remaining delta; duplicate and case-equivalent additions were ignored without
+a partial update. These observations are consistent with Microsoft's
+[permissive-modify control](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ldap/ldap-server-permissive-modify-oid).
+This is not proof of the exact control used by every runtime, nor a lock.
+CSV revalidation narrows the race window but does not eliminate it.
+
+The number of values has a separate server storage limit from each value's
+`rangeUpper`. The 1,602-value fixture was rejected before range retrieval could
+be exercised; that case is an evidence gap, not a successful large-set test.
+Microsoft documents [nonlinked attribute storage limits](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/active-directory-domain-services-maximum-limits#maximum-number-of-nonlinked-attribute-values)
+that depend on the directory configuration. Keep payloads compact and do not
+assume that a Windows Server 2025 OS alone enables a higher-capacity forest.
+
 The prefix and payload together must fit the target schema's `rangeUpper`.
 Readiness reports expose that limit; it is not hard-coded into the writer.
 `-PassThru` returns values computed from the initial read, including with
