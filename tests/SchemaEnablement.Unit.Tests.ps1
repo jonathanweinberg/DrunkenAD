@@ -35,7 +35,7 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
 
         foreach ($functionName in $stubDefinitions.Keys) {
             $functionPath = 'Function:\global:{0}' -f $functionName
-            $existingFunction = Get-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            $existingFunction = Get-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             if ($existingFunction) {
                 $script:SchemaEnablementUnitOriginalFunctions[$functionName] = $existingFunction.ScriptBlock
             }
@@ -54,7 +54,7 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
                 Set-Item -LiteralPath $functionPath -Value $script:SchemaEnablementUnitOriginalFunctions[$functionName]
             }
             else {
-                Remove-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             }
         }
     }

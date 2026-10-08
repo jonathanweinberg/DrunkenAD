@@ -4,36 +4,16 @@ $script:domainController = $env:DRUNKENAD_TEST_DC
 $script:dnsSuffix = $env:DRUNKENAD_TEST_DNS_SUFFIX
 $script:testUserOu = $env:DRUNKENAD_TEST_USER_OU
 $script:canRun = $script:runIntegration -and -not [string]::IsNullOrWhiteSpace($script:domainController) -and -not [string]::IsNullOrWhiteSpace($script:dnsSuffix)
-$script:integrationSetupError = $null
-$script:createdUser = $false
-$script:userGuid = $null
-$script:readinessStatus = [pscustomobject]@{
-    ReadyForUserWrite = $false
-    BlockingReason    = 'IntegrationNotInitialized'
-}
-
-if ($script:canRun) {
-    try {
-        $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
-        Import-Module $modulePath -Force -ErrorAction Stop
-        Import-Module ActiveDirectory -ErrorAction Stop
-        $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
-    }
-    catch {
-        $script:integrationSetupError = $_.Exception.Message
-    }
-}
 
 Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:canRun) {
     BeforeAll {
-        if (-not (Get-Variable -Name integrationSetupError -Scope Script -ErrorAction SilentlyContinue)) {
-            $script:integrationSetupError = $null
+        $script:createdUser = $false
+        $script:userGuid = $null
+        # Re-read runtime inputs; Pester discovery state is not the execution contract.
+        if ($env:DRUNKENAD_RUN_INTEGRATION -ne '1') {
+            throw 'Integration execution requires DRUNKENAD_RUN_INTEGRATION=1.'
         }
-
-        if (-not (Get-Variable -Name createdUser -Scope Script -ErrorAction SilentlyContinue)) {
-            $script:createdUser = $false
-        }
-
+        $script:runTier1 = $env:DRUNKENAD_RUN_TIER1 -eq '1'
         $script:domainController = $env:DRUNKENAD_TEST_DC
         $script:dnsSuffix = $env:DRUNKENAD_TEST_DNS_SUFFIX
         $script:testUserOu = $env:DRUNKENAD_TEST_USER_OU
@@ -42,16 +22,16 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             throw 'The integration environment variables were not available during test execution.'
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($script:integrationSetupError)) {
-            throw $script:integrationSetupError
+        if ($script:runTier1 -and [string]::IsNullOrWhiteSpace($script:testUserOu)) {
+            throw 'Tier1 requires DRUNKENAD_TEST_USER_OU to identify a pre-existing test OU.'
         }
 
+        $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
+        Import-Module $modulePath -Force -ErrorAction Stop
+        Import-Module ActiveDirectory -ErrorAction Stop
         $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
 
-        if ($env:DRUNKENAD_RUN_INTEGRATION -eq '1' -and $env:DRUNKENAD_RUN_TIER1 -eq '1') {
-            if ([string]::IsNullOrWhiteSpace($script:testUserOu)) {
-                throw 'Tier1 requires DRUNKENAD_TEST_USER_OU to identify a pre-existing test OU.'
-            }
+        if ($script:runTier1) {
             # Use the same validated DC for fixture creation, writes, reads, and cleanup.
             if ([string]::IsNullOrWhiteSpace($script:readinessStatus.Server)) {
                 throw 'Evidence Gap: Tier1 readiness did not return a pinned server.'
@@ -142,10 +122,6 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
     }
 
     It 'reports readiness or a blocking reason for user writes' {
-        if (-not [string]::IsNullOrWhiteSpace($script:integrationSetupError)) {
-            throw $script:integrationSetupError
-        }
-
         if ($script:readinessStatus.ReadyForUserWrite) {
             $script:readinessStatus.BlockingReason | Should -BeNullOrEmpty
         }

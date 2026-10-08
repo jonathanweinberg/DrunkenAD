@@ -31,6 +31,9 @@
   without misreporting an already completed directory write.
 - Expanded the explicit trusted test allowlist, failed discovery/container
   errors reliably, and checked manifest FileList completeness.
+- Restored unit-test function and handler state after execution, with repeated-run
+  isolation regressions. Excluded integration discovery no longer initializes
+  directory modules or performs readiness reads, even with live flags set.
 - Refreshed current Mermaid flows and atlas data; dated infographic plates are
   retained as historical rather than presented as current write contracts.
 - Added sample/projection coexistence and smoke-cleanup regressions; campaign

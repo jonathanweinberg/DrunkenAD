@@ -290,6 +290,215 @@ Describe 'DrunkenAD release readiness' {
     }
 }
 
+Describe 'Unit-test function isolation' {
+    It 'restores <InitialState> functions after repeated unit fixture runs' -ForEach @(
+        @{ InitialState = 'absent' }
+        @{ InitialState = 'preexisting global' }
+    ) {
+        $probePath = Join-Path $TestDrive 'unit-isolation.ps1'
+        Set-Content -LiteralPath $probePath -Value @'
+param($PesterPath, $TestRoot, $InitialState)
+$ErrorActionPreference = 'Stop'
+Import-Module $PesterPath -RequiredVersion 5.7.1 -Force -ErrorAction Stop
+$names = @('Get-ADRootDSE', 'Get-ADObject', 'Get-ADUser', 'Set-ADUser', 'Remove-ADUser', 'Get-ADForest', 'Get-ADDomain', 'Set-ADObject')
+$originals = @{}
+$variableNames = @('GetADUser', 'GetADRootDSE', 'GetADObject', 'SetADUser') | ForEach-Object {
+    "DrunkenADTest_${_}Calls"
+    "DrunkenADTest_${_}Handler"
+}
+$originalVariables = @{}
+foreach ($name in $variableNames) {
+    if (Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue) { throw "Unexpected test variable: $name" }
+    if ($InitialState -eq 'preexisting global') {
+        $originalVariables[$name] = [pscustomobject]@{ Original = $name }
+        Set-Variable -Name $name -Scope Global -Value $originalVariables[$name]
+    }
+}
+foreach ($name in $names) {
+    if (Get-Item -LiteralPath ('Function:\{0}' -f $name) -ErrorAction SilentlyContinue) {
+        throw "Unexpected function in fresh process: $name"
+    }
+    if ($InitialState -eq 'preexisting global') {
+        $originals[$name] = [scriptblock]::Create("throw 'Original ${name}: must not execute.'")
+        Set-Item -LiteralPath ('Function:\global:{0}' -f $name) -Value $originals[$name]
+    }
+}
+for ($run = 1; $run -le 2; $run++) {
+    $configuration = New-PesterConfiguration
+    $configuration.Run.Path = @(
+        'DrunkenAD.Unit.Tests.ps1', 'LiveCampaign.Unit.Tests.ps1', 'Logging.Unit.Tests.ps1',
+        'SchemaEnablement.Unit.Tests.ps1', 'SchemaStatus.Unit.Tests.ps1',
+        'WriteOperation.Unit.Tests.ps1'
+    ) | ForEach-Object { Join-Path $TestRoot $_ }
+    $configuration.Run.PassThru = $true
+    $configuration.Output.Verbosity = 'None'
+    # Exercise each owning fixture without recursively selecting this release file.
+    $configuration.Filter.FullName = @(
+        '*exports the CSV multivalue splitter as an explicit helper',
+        '*runs the inline smoke path with script-local helpers in a fresh scope',
+        '*does not throw after a completed public write when the real warning stream is set to Stop',
+        '*reports preflight information without writing by default',
+        '*does not confuse a similarly named attribute with drink',
+        '*does not write an unchanged value set'
+    )
+    $result = Invoke-Pester -Configuration $configuration
+    if ($result.Result -ne 'Passed' -or $result.PassedCount -ne 6 -or $result.FailedCount -ne 0) {
+        throw "Unit isolation probe failed: $($result.Result), $($result.PassedCount) passed."
+    }
+    foreach ($name in $names) {
+        $current = Get-Item -LiteralPath ('Function:\{0}' -f $name) -ErrorAction SilentlyContinue
+        if ($InitialState -eq 'absent') {
+            if ($current) { throw "Leaked function after run ${run}: $name" }
+        }
+        elseif (-not $current -or -not [object]::ReferenceEquals($current.ScriptBlock, $originals[$name])) {
+            throw "Original function was not restored after run ${run}: $name"
+        }
+        $moduleFunction = & (Get-Module DrunkenAD) {
+            param($Name)
+            Get-Item -LiteralPath ('Function:\{0}' -f $Name) -ErrorAction SilentlyContinue
+        } $name
+        if ($InitialState -eq 'absent') {
+            if ($moduleFunction) { throw "Leaked module function after run ${run}: $name" }
+        }
+        elseif (-not $moduleFunction -or -not [object]::ReferenceEquals($moduleFunction.ScriptBlock, $originals[$name])) {
+            throw "Original function is shadowed in the module after run ${run}: $name"
+        }
+    }
+    foreach ($name in $variableNames) {
+        $current = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
+        if ($InitialState -eq 'absent') {
+            if ($current) { throw "Leaked variable after run ${run}: $name" }
+        }
+        elseif (-not $current -or -not [object]::ReferenceEquals($current.Value, $originalVariables[$name])) {
+            throw "Original variable was not restored after run ${run}: $name"
+        }
+    }
+}
+'Unit isolation verified across two runs.'
+'@
+        $pesterPath = (Get-Module Pester).Path -replace 'Pester\.psm1$', 'Pester.psd1'
+        $processPath = (Get-Process -Id $PID).Path
+        $savedErrorPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell turns redirected native stderr into ErrorRecords.
+            $ErrorActionPreference = 'Continue'
+            $output = & $processPath -NoLogo -NoProfile -File $probePath -PesterPath $pesterPath -TestRoot $PSScriptRoot -InitialState $InitialState 2>&1
+            $processExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorPreference
+        }
+        $processExitCode | Should -Be 0 -Because ($output | Out-String)
+        ($output | Out-String) | Should -Match 'Unit isolation verified across two runs\.'
+    }
+}
+
+Describe 'Integration selection isolation' {
+    It 'performs no discovery reads and honors <Mode>' -ForEach @(
+        @{ Mode = 'Excluded' }
+        @{ Mode = 'MissingPrimaryOptIn' }
+        @{ Mode = 'BaseIntegration' }
+        @{ Mode = 'Tier1Integration' }
+    ) {
+        $fixtureRoot = Join-Path $TestDrive $Mode
+        $testRoot = Join-Path $fixtureRoot 'tests'
+        $moduleRoot = Join-Path $fixtureRoot 'DrunkenAD'
+        New-Item $testRoot, $moduleRoot -ItemType Directory -Force | Out-Null
+        Copy-Item (Join-Path $PSScriptRoot 'Invoke-DrunkenADTests.ps1') $testRoot
+        foreach ($file in Get-ChildItem $PSScriptRoot -File -Filter '*.Tests.ps1') {
+            Set-Content (Join-Path $testRoot $file.Name) "Describe 'Offline fixture' { It 'passes' { 1 | Should -Be 1 } }"
+        }
+        Copy-Item (Join-Path $PSScriptRoot 'DrunkenAD.Integration.Tests.ps1') $testRoot -Force
+        Set-Content (Join-Path $moduleRoot 'DrunkenAD.psd1') "@{ RootModule = 'DrunkenAD.psm1'; ModuleVersion = '0.0.0'; FunctionsToExport = @('Test-ADDrinkAttributeReadyForUserWrite') }"
+        Set-Content (Join-Path $moduleRoot 'DrunkenAD.psm1') @'
+function Test-ADDrinkAttributeReadyForUserWrite {
+    param($Server, [switch]$PassThru)
+    if ($Server -ne 'dc.offline.invalid') { throw 'Integration runtime lost its server environment.' }
+    $global:offlineReadinessCalls++
+    [pscustomobject]@{ ReadyForUserWrite = $false; BlockingReason = 'OfflineFixture'; BlockingMessage = 'Offline fixture'; Server = $Server }
+}
+Export-ModuleMember -Function Test-ADDrinkAttributeReadyForUserWrite
+'@
+        Set-Content (Join-Path $fixtureRoot 'ActiveDirectory.psm1') @'
+function Get-ADOrganizationalUnit {
+    param($Identity, $Server, $ErrorAction)
+    if ($Identity -ne 'OU=Offline,DC=offline,DC=invalid' -or $Server -ne 'dc.offline.invalid') { throw 'Integration runtime lost its OU environment.' }
+    $global:offlineOuReads++
+    [pscustomobject]@{ DistinguishedName = $Identity }
+}
+function Get-ADUser { param($Identity, $Server, $Properties) $global:offlineUnexpectedCalls++; throw 'Directory access forbidden.' }
+function Set-ADUser { [CmdletBinding(SupportsShouldProcess)] param($Identity, $Server, $Add, $Remove, $Replace) $global:offlineUnexpectedCalls++; throw 'Directory access forbidden.' }
+function Get-ADReplicationAttributeMetadata { param($Object, $Server, $Properties) $global:offlineUnexpectedCalls++; throw 'Directory access forbidden.' }
+function New-ADUser { $global:offlineUnexpectedCalls++; throw 'Directory access forbidden.' }
+function Remove-ADUser { $global:offlineUnexpectedCalls++; throw 'Directory access forbidden.' }
+Export-ModuleMember -Function *
+'@
+        $probePath = Join-Path $fixtureRoot 'integration-selection.ps1'
+        Set-Content $probePath @'
+param($PesterPath, $FixtureRoot, $Mode)
+$ErrorActionPreference = 'Stop'
+Import-Module $PesterPath -RequiredVersion 5.7.1 -Force
+Import-Module Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility
+$global:PSModuleAutoLoadingPreference = 'None'
+$global:offlinePesterPath = $PesterPath
+$global:offlineModulePath = Join-Path $FixtureRoot 'DrunkenAD/DrunkenAD.psd1'
+$global:offlineAdPath = Join-Path $FixtureRoot 'ActiveDirectory.psm1'
+$global:offlineImportCalls = 0
+$global:offlineReadinessCalls = 0
+$global:offlineOuReads = 0
+$global:offlineUnexpectedCalls = 0
+$global:offlineAllowInitialization = $false
+function global:Import-Module {
+    [CmdletBinding()]
+    param([Parameter(Position = 0)][string]$Name, [switch]$Force, [version]$RequiredVersion)
+    if ($Name -eq 'ActiveDirectory' -or [IO.Path]::GetFullPath($Name) -eq [IO.Path]::GetFullPath($global:offlineModulePath)) {
+        $global:offlineImportCalls++
+        if (-not $global:offlineAllowInitialization) { throw 'Integration import outside selected runtime.' }
+        if ($Name -eq 'ActiveDirectory') { $PSBoundParameters['Name'] = $global:offlineAdPath }
+    }
+    elseif ($Name -ne $global:offlinePesterPath) { throw "Unexpected module import: $Name" }
+    Microsoft.PowerShell.Core\Import-Module @PSBoundParameters -Global
+}
+$env:DRUNKENAD_RUN_INTEGRATION = if ($Mode -eq 'MissingPrimaryOptIn') { '0' } else { '1' }
+$env:DRUNKENAD_RUN_TIER1 = if ($Mode -eq 'BaseIntegration') { '0' } else { '1' }
+$env:DRUNKENAD_TEST_DC = 'dc.offline.invalid'
+$env:DRUNKENAD_TEST_DNS_SUFFIX = 'offline.invalid'
+$env:DRUNKENAD_TEST_USER_OU = 'OU=Offline,DC=offline,DC=invalid'
+$configuration = New-PesterConfiguration
+$configuration.Run.Path = Join-Path $FixtureRoot 'tests/DrunkenAD.Integration.Tests.ps1'
+$configuration.Run.SkipRun = $true
+$configuration.Run.PassThru = $true
+$configuration.Output.Verbosity = 'None'
+$discovery = Invoke-Pester -Configuration $configuration
+if ($discovery.TotalCount -ne 19 -or @($discovery.Tests | Where-Object { $_.Path -contains 'Bounded Tier1 live regressions' }).Count -ne 7) {
+    throw 'Expected unchanged coverage of 12 base and 7 Tier1 integration cases.'
+}
+if ($global:offlineImportCalls -ne 0 -or $global:offlineReadinessCalls -ne 0) { throw 'Integration discovery attempted directory initialization.' }
+$include = $Mode -ne 'Excluded'
+$global:offlineAllowInitialization = $include -and $env:DRUNKENAD_RUN_INTEGRATION -eq '1'
+& (Join-Path $FixtureRoot 'tests/Invoke-DrunkenADTests.ps1') -PesterManifestPath $PesterPath -IncludeIntegration:$include -Output None
+$expectedImports = if ($global:offlineAllowInitialization) { 2 } else { 0 }
+$expectedReadiness = if ($global:offlineAllowInitialization) { 1 } else { 0 }
+$expectedOu = if ($Mode -eq 'Tier1Integration') { 1 } else { 0 }
+if ($global:offlineImportCalls -ne $expectedImports -or $global:offlineReadinessCalls -ne $expectedReadiness -or $global:offlineOuReads -ne $expectedOu -or $global:offlineUnexpectedCalls -ne 0) {
+    throw "Unexpected initialization counts: imports=$global:offlineImportCalls readiness=$global:offlineReadinessCalls OU=$global:offlineOuReads directory=$global:offlineUnexpectedCalls"
+}
+"Integration selection verified: $Mode; base=12; tier1=7."
+'@
+        $pesterPath = (Get-Module Pester).Path -replace 'Pester\.psm1$', 'Pester.psd1'
+        $processPath = (Get-Process -Id $PID).Path
+        $savedErrorPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $output = & $processPath -NoLogo -NoProfile -File $probePath -PesterPath $pesterPath -FixtureRoot $fixtureRoot -Mode $Mode 2>&1
+            $processExitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $savedErrorPreference }
+        $processExitCode | Should -Be 0 -Because ($output | Out-String)
+        ($output | Out-String) | Should -Match "Integration selection verified: $Mode; base=12; tier1=7\."
+    }
+}
+
 Describe 'DrunkenAD integration coverage shape' {
     BeforeAll {
         $integrationPath = Join-Path -Path $PSScriptRoot -ChildPath 'DrunkenAD.Integration.Tests.ps1'

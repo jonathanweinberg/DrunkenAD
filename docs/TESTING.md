@@ -46,6 +46,14 @@ The runner prints the resolved Pester version and manifest path, and discovers
 only its explicit top-level test allowlist. Discovery or container failures fail
 the process even when Pester reports zero individual failing tests.
 
+Default unit selection excludes integration execution even when live environment
+flags are present. Integration discovery performs no module initialization or AD
+readiness calls; those occur only in the selected integration `BeforeAll`.
+Unit fixtures restore preexisting AD-named functions and test handler variables,
+or remove the replacements they own. Process-isolated regression tests exercise
+both absent and preexisting state across repeated runs. Continue to use a fresh
+process for live work and verify native command provenance before mutation.
+
 If you only want the parser gate:
 
 ```powershell

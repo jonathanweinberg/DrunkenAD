@@ -1,9 +1,11 @@
 Import-Module (Join-Path $PSScriptRoot '../DrunkenAD/DrunkenAD.psd1') -Force
 
 BeforeAll {
-    $script:originalGetADUser = Get-Item Function:\global:Get-ADUser -ErrorAction SilentlyContinue
+    $existingFunction = Get-Item Function:\Get-ADUser -ErrorAction SilentlyContinue
+    $script:originalGetADUser = if ($existingFunction) { $existingFunction.ScriptBlock } else { $null }
     function global:Get-ADUser { param($Identity, $Server, $Properties, $ErrorAction) throw 'Unmocked read.' }
-    $script:originalSetADUser = Get-Item Function:\global:Set-ADUser -ErrorAction SilentlyContinue
+    $existingFunction = Get-Item Function:\Set-ADUser -ErrorAction SilentlyContinue
+    $script:originalSetADUser = if ($existingFunction) { $existingFunction.ScriptBlock } else { $null }
     function global:Set-ADUser {
         param($Identity, $Server, $Remove, $Add, $Replace, $Clear, $Confirm, $ErrorAction)
         throw 'An unmocked directory write is not permitted in unit tests.'
@@ -11,12 +13,12 @@ BeforeAll {
 }
 
 AfterAll {
-    if ($script:originalGetADUser) { Set-Item Function:\global:Get-ADUser $script:originalGetADUser.ScriptBlock }
-    else { Remove-Item Function:\global:Get-ADUser -ErrorAction SilentlyContinue }
+    if ($script:originalGetADUser) { Set-Item Function:\global:Get-ADUser $script:originalGetADUser }
+    else { Remove-Item Function:\Get-ADUser -ErrorAction SilentlyContinue }
     if ($script:originalSetADUser) {
-        Set-Item Function:\global:Set-ADUser $script:originalSetADUser.ScriptBlock
+        Set-Item Function:\global:Set-ADUser $script:originalSetADUser
     }
-    else { Remove-Item Function:\global:Set-ADUser -ErrorAction SilentlyContinue }
+    else { Remove-Item Function:\Set-ADUser -ErrorAction SilentlyContinue }
 }
 
 Describe 'CSV confirmation state across rows' {
