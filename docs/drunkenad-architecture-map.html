@@ -80,7 +80,9 @@
       border-radius: 999px;
       padding: 7px 10px;
       font-size: 12px;
-      white-space: nowrap;
+      white-space: normal;
+      max-width: 100%;
+      overflow-wrap: anywhere;
     }
 
     .legend {
@@ -261,6 +263,7 @@
       color: var(--muted);
       font-size: 10.5px;
       line-height: 1.35;
+      overflow-wrap: anywhere;
     }
 
     .node:hover,
@@ -544,7 +547,7 @@
   "title": "DrunkenAD - Architecture & Flows",
   "subtitle": "An interactive map of the PowerShell module, its Active Directory data-store model, operator workflows, validation gates, and release surfaces.",
   "version": "0.13.2",
-  "updated": "2026-07-16",
+  "updated": "2026-10-08",
   "legend": [
     { "kind": "source", "label": "Inputs & operators", "color": "#f87171" },
     { "kind": "public", "label": "Public command surface", "color": "#facc15" },
@@ -633,7 +636,7 @@
           "id": "setData",
           "label": "Set-ADUserDrinkData",
           "kind": "public",
-          "summary": "Preferred generic write API. Validates namespace ownership locally, checks user-write readiness, and delegates guarded replacement to the prefixed writer.",
+          "summary": "Preferred generic write API. Validates ownership and delegates to a shared writer with one readiness context and a pinned domain controller.",
           "files": ["DrunkenAD/Public/Set-ADUserDrinkData.ps1", "docs/ARCHITECTURE.md"]
         },
         {
@@ -647,14 +650,14 @@
           "id": "projection",
           "label": "Set-ADUserDrinkProjection",
           "kind": "public",
-          "summary": "Reads selected AD user attributes, preserves every owned prefix including empty replacements, and writes through Set-ADUserDrinkData.",
+          "summary": "Resolves the user and source attributes once, retains empty owned prefixes, and reuses the shared private writer and operation context.",
           "files": ["DrunkenAD/Public/Set-ADUserDrinkProjection.ps1", "DrunkenAD/Private/ProjectionMap.ps1"]
         },
         {
           "id": "csvImport",
           "label": "Import-ADUserDrinkCsvData",
           "kind": "public",
-          "summary": "Preflights paths, mappings, columns, and unique normalized identities before AD readiness, then writes each row through the generic API.",
+          "summary": "Preflights local inputs and every usable row before mutation, reuses one readiness context, and reports completed/failed/pending progress on write failure.",
           "files": ["DrunkenAD/Public/Import-ADUserDrinkCsvData.ps1", "DrunkenAD/Private/CsvMapping.ps1", "docs/HOW-TO-INGEST-CSV.md"]
         },
         {
@@ -694,16 +697,16 @@
         },
         {
           "id": "prefixedWriter",
-          "label": "Prefixed writer",
+          "label": "WriteOperation.ps1",
           "kind": "private",
-          "summary": "Removes matching literal prefixes, appends replacement values, detects no-ops, and chooses Set-ADUser -Replace or -Clear.",
-          "files": ["DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1", "DrunkenAD/Private/PrefixMap.ps1"]
+          "summary": "Validates schema length bounds and computes prefix-scoped Remove/Add deltas, including case-only changes. Never clears or replaces the entire attribute.",
+          "files": ["DrunkenAD/Private/WriteOperation.ps1", "DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1", "DrunkenAD/Private/PrefixMap.ps1"]
         },
         {
           "id": "schemaStatus",
           "label": "SchemaStatus.ps1",
           "kind": "private",
-          "summary": "Reads RootDSE and schema objects, distinguishes missing/defunct/not-allowed states, and returns a blocking reason.",
+          "summary": "Selects a DC, reads rangeUpper, traverses user inheritance and auxiliary classes, and fails closed on incomplete or malformed schema graphs.",
           "files": ["DrunkenAD/Private/SchemaStatus.ps1"]
         },
         {
@@ -731,7 +734,7 @@
           "id": "schema",
           "label": "Schema: drink + user",
           "kind": "ad",
-          "summary": "The drink attribute must exist, not be defunct, and appear in user mayContain or systemMayContain before write paths proceed.",
+          "summary": "drink must exist, not be defunct, and be allowed through the user class, its superclasses, or auxiliary classes via optional or mandatory attribute lists.",
           "files": ["docs/SCHEMA-ENABLEMENT.md", "DrunkenAD/Private/SchemaStatus.ps1"]
         },
         {
@@ -752,8 +755,8 @@
           "id": "adWrite",
           "label": "Set-ADUser write",
           "kind": "ad",
-          "summary": "The module writes only after ShouldProcess approval; empty final sets clear drink, non-empty sets replace drink.",
-          "files": ["DrunkenAD/Public/Set-ADUserDrinkPrefixedData.ps1"]
+          "summary": "After ShouldProcess approval, one Set-ADUser call removes then adds owned values on the selected DC. Same-prefix conflicts and cross-DC replication remain external concerns.",
+          "files": ["DrunkenAD/Private/WriteOperation.ps1", "docs/DATA-STORE.md"]
         }
       ]
     },
@@ -773,14 +776,14 @@
           "id": "unitTests",
           "label": "Unit + help tests",
           "kind": "validation",
-          "summary": "Covers prefix ownership, culture invariance, CSV identity safety, live-harness source contracts, schema readiness, docs, and first-class Get-Help.",
-          "files": ["tests/DrunkenAD.Unit.Tests.ps1", "tests/SchemaEnablement.Unit.Tests.ps1", "tests/Help.Unit.Tests.ps1"]
+          "summary": "Covers owned deltas, case-only writes, stale-read preservation, inherited schema graphs, CSV preflight/progress, trusted discovery failures, release contracts, and help.",
+          "files": ["tests/DrunkenAD.Unit.Tests.ps1", "tests/SchemaEnablement.Unit.Tests.ps1", "tests/Help.Unit.Tests.ps1", "tests/SchemaStatus.Unit.Tests.ps1", "tests/WriteOperation.Unit.Tests.ps1", "tests/Release.Unit.Tests.ps1"]
         },
         {
           "id": "integrationTests",
           "label": "Opt-in AD integration",
           "kind": "validation",
-          "summary": "Runs only with DRUNKENAD_RUN_INTEGRATION and live DC details, then validates real write/remove/import/projection behavior.",
+          "summary": "Opt-in real-directory tests cover CRUD, CSV, projection, case-only updates, and controlled stale reads; cleanup must succeed for the isolated account.",
           "files": ["tests/DrunkenAD.Integration.Tests.ps1", "tests/Invoke-DrunkenADTests.ps1"]
         },
         {
@@ -815,7 +818,7 @@
           "id": "diagramSources",
           "label": "Mermaid + PNG diagrams",
           "kind": "artifact",
-          "summary": "Editable Mermaid sources and deterministic page-facing PNG plates describe the current module, input, release, and live-campaign boundaries.",
+          "summary": "Current Mermaid sources and atlas flows describe module behavior. Dated PNG plates are retained as historical illustrations, not current contracts.",
           "files": ["docs/DIAGRAMS.md", "docs/diagrams/module-layout.mmd", "docs/diagrams/namespace-write-model.mmd", "docs/diagrams/csv-ingestion-flow.mmd", "docs/diagrams/live-validation-ladder.mmd", "docs/diagrams/live-campaign-profiles.mmd", "docs/diagrams/release-readiness-flow.mmd"]
         },
         {
@@ -829,8 +832,8 @@
           "id": "issueTrail",
           "label": "Issue notes",
           "kind": "artifact",
-          "summary": "Repo-local issue records preserve implementation, validation, and remote review trails through the 0.13.2 integrity and July safety passes.",
-          "files": ["docs/issues/001-docs-module-split-refresh.md", "docs/issues/005-get-help-first-class-resource.md", "docs/issues/007-release-integrity-and-atlas-validation.md", "docs/issues/008-july-bug-hunt-prefix-isolation-and-input-safety.md", "docs/issues/009-live-campaign-ownership-and-input-guards.md", "docs/issues/010-powershell-compatibility-and-culture-invariants.md", "docs/issues/011-empty-prefix-and-duplicate-csv-identities.md"]
+          "summary": "Repo-local issue records preserve implementation and validation decisions, including adjudication of the October external review against main and the July candidate.",
+          "files": ["docs/issues/001-docs-module-split-refresh.md", "docs/issues/005-get-help-first-class-resource.md", "docs/issues/007-release-integrity-and-atlas-validation.md", "docs/issues/008-july-bug-hunt-prefix-isolation-and-input-safety.md", "docs/issues/009-live-campaign-ownership-and-input-guards.md", "docs/issues/010-powershell-compatibility-and-culture-invariants.md", "docs/issues/011-empty-prefix-and-duplicate-csv-identities.md", "docs/issues/013-october-review-hardening.md"]
         },
         {
           "id": "liveReports",
@@ -845,18 +848,17 @@
   "flows": [
     {
       "id": "write",
-      "title": "Namespace write / replace",
+      "title": "Namespace-scoped write",
       "description": "The core mutation path: callers own literal prefixes, DrunkenAD preserves everything else.",
       "path": ["operator", "setData", "schemaStatus", "schema", "coreHelpers", "userObject", "prefixedWriter", "drinkStore", "adWrite"],
       "steps": [
-        "Caller provides an exact identity and DataMap.",
-        "Local preflight rejects blank or case-insensitively overlapping prefix ownership before AD access.",
-        "Set-ADUserDrinkData requires drink to be writable on user objects.",
-        "Resolve-DrunkenADUser performs an exact LDAP lookup and rejects zero or multiple matches.",
-        "The prefixed writer removes only OrdinalIgnoreCase matches for owned literal prefixes.",
-        "Replacement values are prefixed, deduped, and merged with unrelated existing values.",
-        "Element-wise multivalue comparison prevents delimiter fingerprint collisions.",
-        "No-op changes return early; empty final sets clear drink; non-empty final sets replace drink."
+        "Caller provides an exact identity and DataMap; local preflight rejects blank or overlapping owned prefixes.",
+        "One operation context verifies inherited schema readiness, obtains the actual length bound, and selects a domain controller.",
+        "Resolve exactly one user and read drink from that controller.",
+        "Partition current values by OrdinalIgnoreCase prefix ownership and validate every desired prefixed value.",
+        "Compute case-sensitive Remove/Add deltas for owned values; unrelated values are never sent back as replacements.",
+        "After ShouldProcess approval, apply one Set-ADUser call on the same controller; no-op deltas do not write.",
+        "PassThru returns a computed snapshot preview, not a fresh read-back. Coordinate same-prefix writers and cross-DC replication externally."
       ]
     },
     {
@@ -876,27 +878,27 @@
       "id": "csv",
       "title": "CSV ingestion",
       "description": "Batch import rows into namespaced drink records using JSON or hashtable maps.",
-      "path": ["csvSource", "csvImport", "csvMapping", "splitCsv", "setData", "prefixedWriter", "drinkStore", "examples"],
+      "path": ["csvSource", "csvImport", "csvMapping", "splitCsv", "schemaStatus", "coreHelpers", "prefixedWriter", "drinkStore", "examples"],
       "steps": [
-        "Import-ADUserDrinkCsvData loads and validates the CSV and namespace map before AD readiness.",
-        "CsvMapping rejects blank or overlapping prefixes, missing columns, empty input, and duplicate normalized SamAccountName values before writes begin.",
-        "Each mapping emits prefix/value records, optionally splitting a field with literal SplitOn.",
-        "Rows with no SamAccountName or no drink data are skipped with warnings; blank mapped cells never become label-only records.",
-        "Each non-empty row writes through Set-ADUserDrinkData, so the normal readiness and namespace replacement rules apply.",
-        "The command returns per-row summary objects with ConfigSource, Namespaces, DataMap, and FinalDrinkValues."
+        "Validate CSV paths, mapping shape, columns, non-overlapping prefixes, and unique normalized SamAccountName identities locally.",
+        "Create one readiness context and pin the domain controller.",
+        "Build each usable row map, resolve the user, and validate lengths before the first write; blank identity/data rows emit warnings.",
+        "Apply each prepared row through the shared private writer using prefix-scoped Remove/Add.",
+        "Stream row summaries with computed FinalDrinkValues, including WhatIf previews.",
+        "On a later write failure, stop with completed, failed-row, pending, and prepared counts. Earlier successful rows are not rolled back."
       ]
     },
     {
       "id": "projection",
       "title": "Attribute projection",
       "description": "Copy selected AD user attributes into compact drink namespaces.",
-      "path": ["operator", "projection", "projectionMap", "coreHelpers", "userObject", "setData", "drinkStore"],
+      "path": ["operator", "projection", "projectionMap", "schemaStatus", "coreHelpers", "userObject", "prefixedWriter", "drinkStore"],
       "steps": [
         "Set-ADUserDrinkProjection starts with the default map or a caller-supplied AttributeMap.",
         "IncludeDefaultAttributeMap merges custom prefixes on top of defaults.",
-        "The user is resolved with the required source attributes loaded.",
+        "Create one readiness context, then resolve the user once with required source attributes on the selected DC.",
         "ProjectionMap retains every owned prefix, using an empty replacement when all mapped source attributes are blank.",
-        "The generated DataMap is written through Set-ADUserDrinkData."
+        "The shared private writer reuses that user and context; PassThru returns a computed preview even under WhatIf."
       ]
     },
     {
@@ -906,11 +908,11 @@
       "path": ["schemaAdmin", "schemaCommands", "schemaStatus", "schema", "releaseGate", "integrationTests"],
       "steps": [
         "Test-ADDrinkAttributeEnabled checks whether drink exists and is not defunct.",
-        "Test-ADDrinkAttributeReadyForUserWrite also verifies that user allows drink.",
-        "SchemaStatus reports AttributeMissing, AttributeDefunct, or NotAllowedOnUserClass when blocked.",
+        "User-write readiness traverses superclass and auxiliary-class attribute lists, including mandatory attributes.",
+        "Missing, defunct, disallowed, or invalid schema data blocks writes; graph cycles and missing references fail closed.",
         "The enablement script defaults to preview mode and writes a JSON report when requested.",
         "Apply mode requires expected forest root, domain DNS root, and schema master values.",
-        "After enablement, rerun readiness, integration, or live campaign validation."
+        "After an approved schema modification, explicitly refresh the schema-master cache through RootDSE schemaUpdateNow and verify readiness. Refresh failure does not undo the schema change."
       ]
     },
     {
@@ -919,9 +921,9 @@
       "description": "Local and CI gates for shipping the module without conflating lab-only validation with default checks.",
       "path": ["manifest", "rootModule", "helpSurface", "syntaxGate", "unitTests", "releaseGate", "ciWorkflows", "docsHub"],
       "steps": [
-        "The manifest and root module must agree on exported commands.",
+        "Manifest exports must match the root module, FileList must be complete, and release assertions derive the current version from the manifest.",
         "Parser, documentation, and architecture-atlas hygiene run before deeper checks.",
-        "The runner imports exact Pester 5.7.1 and discovers only six tracked top-level test files, never ignored live results.",
+        "The runner imports exact Pester 5.7.1, discovers eight allowlisted test files, and fails on discovery/container errors as well as individual test failures.",
         "Unit tests cover prefix safety, culture invariance, exact lookup, schema readiness, CSV mapping, live-harness contracts, and help.",
         "Test-DrunkenADRelease composes the local source gate.",
         "GitHub Actions repeat the gate across Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1.",
@@ -952,7 +954,10 @@
     "Live rollback evidence, operator confirmation, or exact input identity proof is missing.",
     "An unexpected user exists below the bounded campaign root.",
     "A live Set-ADUser write fails.",
-    "Documentation links or generated live outputs violate CI hygiene."
+    "Documentation links or generated live outputs violate CI hygiene.",
+    "A prefixed value exceeds the selected schema length bound.",
+    "Schema graph lookup is incomplete, ambiguous, or cyclic.",
+    "An isolated integration account cannot be cleaned up."
   ],
   "entrypoints": [
     "Get-Help about_DrunkenAD",
@@ -962,7 +967,7 @@
     "pwsh -NoLogo -NoProfile -File ./scripts/Test-DrunkenADRelease.ps1"
   ]
 }
-  </script>
+</script>
 
   <script type="module">
     const dataElement = document.getElementById('map-data');

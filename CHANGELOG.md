@@ -2,13 +2,25 @@
 
 ## 0.13.2
 
+- Replaced whole-attribute writes with prefix-scoped Remove/Add deltas on one
+  selected domain controller. Case-only changes are honored, unowned values
+  added after the read are preserved, and schema length bounds are validated.
+- Reused one readiness context and one user lookup per write; CSV preflights all
+  usable rows before mutation and reports progress when a later write fails.
+- Added inherited and auxiliary-class schema readiness, fail-closed graph
+  validation, and explicit schema-cache refresh after guarded enablement.
+- Made default optional log files unique per run and limited messages to counts.
+- Expanded the trusted test allowlist to eight files, failed discovery/container
+  errors reliably, and checked manifest FileList completeness.
+- Refreshed current Mermaid flows and atlas data; dated infographic plates are
+  retained as historical rather than presented as current write contracts.
 - Hardened namespace and CSV input boundaries by rejecting blank or overlapping
   prefixes, empty CSV input, duplicate normalized identities, and ambiguous
   local configuration before Active Directory readiness or lookup.
 - Fixed stale empty projections, delimiter-based multivalue comparison
   collisions, blank labeled CSV records, and culture-sensitive prefix matching.
 - Isolated local and release validation from ignored live-result artifacts by
-  requiring exact Pester 5.7.1 and an explicit tracked six-file test allowlist.
+  requiring exact Pester 5.7.1 and an explicit tracked test allowlist.
 - Made the live campaign fail closed on unexpected or unowned users, require
   rollback evidence and confirmation, compare exact manifest/CSV identity sets,
   and record per-run inputs with SHA-256 hashes.

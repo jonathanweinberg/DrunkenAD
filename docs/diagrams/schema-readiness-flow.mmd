@@ -3,8 +3,12 @@ flowchart TD
     EXISTS -->|No| MISSING["Stop: AttributeMissing"]
     EXISTS -->|Yes| DEFUNCT{"drink defunct?"}
     DEFUNCT -->|Yes| BLOCKDEF["Stop: AttributeDefunct"]
-    DEFUNCT -->|No| USERCLASS{"Allowed on user class?"}
-    USERCLASS -->|No| ENABLE["Enable mayContain on schema master"]
-    ENABLE --> REFRESH["Refresh schema cache and verify"]
-    USERCLASS -->|Yes| READY["Ready for user writes"]
-    REFRESH --> READY
+    DEFUNCT -->|No| GRAPH["Traverse user inheritance and auxiliary classes<br/>may / systemMay / must / systemMustContain"]
+    GRAPH --> VALID{"Complete valid graph?"}
+    VALID -->|No| BLOCKGRAPH["Fail closed: schema lookup or cycle error"]
+    VALID -->|Yes| USERCLASS{"drink allowed?"}
+    USERCLASS -->|No| BLOCKUSER["Stop: NotAllowedOnUserClass<br/>no automatic schema mutation"]
+    USERCLASS -->|Yes| READY["Ready for user writes on selected DC"]
+    ADMIN["Separately authorized schema administrator"] --> ENABLE["Guarded mayContain change on schema master"]
+    ENABLE --> REFRESH["RootDSE schemaUpdateNow<br/>refresh and verify; report failure honestly"]
+    REFRESH --> CHECK

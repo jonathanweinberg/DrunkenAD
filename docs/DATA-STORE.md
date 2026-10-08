@@ -73,7 +73,12 @@ That matters because prefixes like these are allowed and safe:
 - `Flags+`
 - `Meta.(v2)-`
 
-The module escapes those prefixes before matching or removing values.
+The module compares prefixes with `OrdinalIgnoreCase`. Overlapping prefixes in
+one operation are rejected. Across separate calls, a broad prefix such as
+`Meta-` owns every value starting with it, including `Meta-Extra-...`. Stored
+strings do not contain a namespace registry, so the module cannot infer that
+these belong to different applications. Choose mutually exclusive prefixes
+across all producers; adding another delimiter does not establish ownership.
 
 ## Replacement Semantics
 
@@ -101,6 +106,24 @@ then:
 - all existing `Profile-` values are replaced
 - all existing `Flags-` values are replaced
 - everything else remains untouched
+
+Writes send only the selected namespace's removed and added values through
+`Set-ADUser -Remove/-Add`. They never replace or clear the entire attribute.
+Unrelated values added after the initial read on the same DC are preserved.
+Case-only payload changes remove the old spelling and add the requested one.
+
+One DC is selected per operation and reused for schema checks, lookup, and
+write. For multiple writers, configure the same explicit `-DomainController`:
+independent automatic selections can reach different DCs, and normal AD
+replication of a nonlinked multivalued attribute can still lose updates.
+Concurrent writes to the same prefix are not serialized or transactional; a
+conflicting delta can fail or leave a combined set. Serialize those producers.
+
+The prefix and payload together must fit the target schema's `rangeUpper`.
+Readiness reports expose that limit; it is not hard-coded into the writer.
+`-PassThru` returns values computed from the initial read, including with
+`-WhatIf`. It is a preview/result calculation, not a fresh directory read or
+a concurrency guarantee.
 
 ## Removal Semantics
 

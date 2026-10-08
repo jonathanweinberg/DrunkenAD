@@ -25,6 +25,19 @@ before schema checks or user writes, which prevents row order from deciding the
 final namespace value. Blank identities retain the documented warning-and-skip
 behavior.
 
+Each import checks schema readiness once and pins one domain controller. It
+resolves every usable row and validates all prefixed value lengths before any
+write. A missing or ambiguous user therefore prevents the whole import from
+starting. The CSV identity contract remains `SamAccountName`.
+
+Directory errors during execution still stop the import. Already completed
+writes are not rolled back. The terminating error's `TargetObject` exposes
+`CompletedRowCount`, `FailedRowNumber` (including the header), `PendingRowCount`,
+and `PreparedRowCount`. Completed rows have already emitted their normal result
+objects. Counts include processed no-op or preview rows; they are not a claim
+that every processed row changed AD. Capture streamed results when an audit of
+partial progress is required.
+
 The sample import script maps those columns into namespaces like this:
 
 - `ProfileTier` -> `Profile-Tier=<value>`

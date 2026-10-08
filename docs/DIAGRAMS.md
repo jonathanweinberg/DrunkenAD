@@ -3,8 +3,8 @@
 This page keeps the Mermaid diagrams and their generated infographic plates
 together. The Mermaid files under `docs/diagrams/` are the editable source of
 truth. The PNG images under `docs/images/documentation-suite-2026-05-07/` and
-`docs/images/documentation-suite-2026-05-11/` are page-facing explanations with
-labels, examples, and workflow context.
+`docs/images/documentation-suite-2026-05-11/` are dated historical illustrations, not current write or release contracts.
+The Mermaid diagrams below and the interactive atlas describe current behavior.
 
 ## Product Overview
 
@@ -16,11 +16,11 @@ around the same `drink` attribute model.
 
 ## Module Layout
 
-![Module layout image](images/documentation-suite-2026-05-11/module-layout.png)
+Historical plate: [Module layout image](images/documentation-suite-2026-05-11/module-layout.png). The Mermaid diagram below is current.
 
 ```mermaid
 flowchart LR
-    PRIVATE["Private helpers<br/>Core.ps1<br/>PrefixMap.ps1<br/>ProjectionMap.ps1<br/>CsvMapping.ps1<br/>SchemaStatus.ps1"]
+    PRIVATE["Private helpers<br/>Core.ps1 + WriteOperation.ps1<br/>PrefixMap.ps1<br/>ProjectionMap.ps1<br/>CsvMapping.ps1<br/>SchemaStatus.ps1"]
     ROOT["DrunkenAD.psm1<br/>deterministic dot-source loader"]
     PUBLIC["12 exported commands<br/>Get / Set / Remove<br/>CSV + projection<br/>schema readiness<br/>compatibility wrappers"]
     MANIFEST["DrunkenAD.psd1<br/>FunctionsToExport parity<br/>ModuleVersion 0.13.2<br/>PowerShell 5.1"]
@@ -78,29 +78,26 @@ Source file: [diagrams/use-case-map.mmd](diagrams/use-case-map.mmd)
 
 ## Namespace Write Model
 
-![Namespace write model image](images/documentation-suite-2026-05-07/namespace-write-model.png)
+Historical plate: [Namespace write model image](images/documentation-suite-2026-05-07/namespace-write-model.png). The Mermaid diagram below is current.
 
 ```mermaid
 flowchart TD
     START["Caller provides DataMap and identity"] --> VALIDATE["Validate nonblank, non-overlapping literal prefixes"]
-    VALIDATE --> READY["Check drink is writable on user"]
-    READY --> RESOLVE["Resolve exactly one AD user"]
-    RESOLVE --> READ["Read current drink values"]
-    READ --> FILTER["Remove OrdinalIgnoreCase prefix matches"]
-    FILTER --> MERGE["Add replacement values for owned prefixes"]
-    MERGE --> COMPARE["Compare multivalue elements without delimiter flattening"]
-    COMPARE --> DECIDE{"Any final drink values?"}
-    DECIDE -->|Yes| REPLACE["Set-ADUser -Replace drink"]
-    DECIDE -->|No| CLEAR["Set-ADUser -Clear drink"]
-    REPLACE --> RETURN["Return final values when PassThru is used"]
-    CLEAR --> RETURN
+    VALIDATE --> READY["One readiness context<br/>effective DC + schema length bound"]
+    READY --> RESOLVE["Resolve exactly one AD user on that DC"]
+    RESOLVE --> PLAN["Partition owned values<br/>validate desired value lengths"]
+    PLAN --> DELTA["Case-sensitive Remove/Add delta<br/>only for owned prefixes"]
+    DELTA --> DECIDE{"Changes and ShouldProcess approval?"}
+    DECIDE -->|Yes| WRITE["One Set-ADUser on the same DC<br/>Remove then Add; never Clear or Replace"]
+    DECIDE -->|No| RETURN["PassThru returns computed snapshot preview"]
+    WRITE --> RETURN
 ```
 
 Source file: [diagrams/namespace-write-model.mmd](diagrams/namespace-write-model.mmd)
 
 ## CSV Ingestion Flow
 
-![CSV ingestion flow image](images/documentation-suite-2026-05-07/csv-ingestion-flow.png)
+Historical plate: [CSV ingestion flow image](images/documentation-suite-2026-05-07/csv-ingestion-flow.png). The Mermaid diagram below is current.
 
 ```mermaid
 flowchart LR
@@ -108,19 +105,19 @@ flowchart LR
     MAP["JSON or hashtable namespace map"] --> LOCAL
     LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
     OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
-    IDENTITIES --> ROW["Build per-row DataMap<br/>skip blank mapped values"]
-    ROW --> READY["Verify drink write readiness"]
-    READY --> WRITE["Set-ADUserDrinkData"]
+    IDENTITIES --> READY["One readiness context<br/>pin effective DC"]
+    READY --> ROW["Preflight every usable row<br/>resolve identity + validate value lengths"]
+    ROW --> WRITE["Shared private writer<br/>prefix-scoped Remove/Add"]
     WRITE --> AD["Active Directory user drink"]
-    AD --> READBACK["Sample read-back validation"]
-    READBACK --> REPORT["Processed, failures, samples"]
+    AD --> REPORT["Stream per-row computed previews"]
+    WRITE -->|Runtime failure| FAILURE["Stop with completed / failed / pending counts<br/>earlier rows are not rolled back"]
 ```
 
 Source file: [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd)
 
 ## Schema Readiness Flow
 
-![Schema readiness flow image](images/documentation-suite-2026-05-07/schema-readiness-flow.png)
+Historical plate: [Schema readiness flow image](images/documentation-suite-2026-05-07/schema-readiness-flow.png). The Mermaid diagram below is current.
 
 ```mermaid
 flowchart TD
@@ -128,11 +125,15 @@ flowchart TD
     EXISTS -->|No| MISSING["Stop: AttributeMissing"]
     EXISTS -->|Yes| DEFUNCT{"drink defunct?"}
     DEFUNCT -->|Yes| BLOCKDEF["Stop: AttributeDefunct"]
-    DEFUNCT -->|No| USERCLASS{"Allowed on user class?"}
-    USERCLASS -->|No| ENABLE["Enable mayContain on schema master"]
-    ENABLE --> REFRESH["Refresh schema cache and verify"]
-    USERCLASS -->|Yes| READY["Ready for user writes"]
-    REFRESH --> READY
+    DEFUNCT -->|No| GRAPH["Traverse user inheritance and auxiliary classes<br/>may / systemMay / must / systemMustContain"]
+    GRAPH --> VALID{"Complete valid graph?"}
+    VALID -->|No| BLOCKGRAPH["Fail closed: schema lookup or cycle error"]
+    VALID -->|Yes| USERCLASS{"drink allowed?"}
+    USERCLASS -->|No| BLOCKUSER["Stop: NotAllowedOnUserClass<br/>no automatic schema mutation"]
+    USERCLASS -->|Yes| READY["Ready for user writes on selected DC"]
+    ADMIN["Separately authorized schema administrator"] --> ENABLE["Guarded mayContain change on schema master"]
+    ENABLE --> REFRESH["RootDSE schemaUpdateNow<br/>refresh and verify; report failure honestly"]
+    REFRESH --> CHECK
 ```
 
 Source file: [diagrams/schema-readiness-flow.mmd](diagrams/schema-readiness-flow.mmd)
@@ -180,15 +181,15 @@ Source file: [diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profil
 
 ## Release Readiness
 
-![Release readiness image](images/documentation-suite-2026-05-11/release-readiness.png)
+Historical plate: [Release readiness image](images/documentation-suite-2026-05-11/release-readiness.png). The Mermaid diagram below is current.
 
 ```mermaid
 flowchart LR
     INPUTS["Inputs<br/>DrunkenAD.psd1<br/>DrunkenAD.psm1<br/>Public commands<br/>Private helpers<br/>docs<br/>tests"]
-    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>six tracked top-level test files<br/>never tests/Live/results"]
+    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>eight allowlisted test files<br/>never tests/Live/results"]
     SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
-    CHECKS["Local source gate<br/>manifest metadata<br/>clean import + export parity<br/>syntax + docs + architecture<br/>94 passed; 6 integration not run"]
-    CI["Remote CI matrix passed<br/>Ubuntu pwsh<br/>macOS pwsh<br/>Windows pwsh<br/>Windows PowerShell 5.1<br/>no PSGallery publish"]
+    CHECKS["Local source gate<br/>manifest + complete FileList<br/>clean import + export parity<br/>syntax + docs + architecture<br/>fail on discovery or container errors"]
+    CI["Remote CI matrix<br/>Ubuntu pwsh + macOS pwsh<br/>Windows pwsh + PowerShell 5.1<br/>integration remains opt-in<br/>no PSGallery publish"]
 
     INPUTS --> SCRIPT
     TRUST --> SCRIPT

@@ -4,10 +4,8 @@ DrunkenAD is a PowerShell module with a narrow job: resolve one AD user, treat
 that user's multivalued `drink` attribute as a literal-prefix store, and write
 only the namespaces the caller owns.
 
-![Module layout](images/documentation-suite-2026-05-11/module-layout.png)
-
-The source diagram for this page lives at
-[diagrams/module-layout.mmd](diagrams/module-layout.mmd).
+See the current [module layout diagram](DIAGRAMS.md#module-layout) and its
+[Mermaid source](diagrams/module-layout.mmd).
 
 ## Core Boundary
 
@@ -17,7 +15,7 @@ around lookup, prefix matching, replacement semantics, and live readiness.
 
 The root module dot-sources focused files from `DrunkenAD/Private` and
 `DrunkenAD/Public`. Private files hold shared helpers for schema checks, lookup,
-prefix maps, projection maps, logging, and CSV mapping. Public files hold the
+prefix maps, shared write operations, projection maps, logging, and CSV mapping. Public files hold the
 exported commands and compatibility wrappers listed in the manifest.
 
 The main public commands are:
@@ -37,30 +35,47 @@ should use the `DrinkData` and projection names.
 
 ## Write Semantics
 
-![Namespace write model](images/documentation-suite-2026-05-07/namespace-write-model.png)
+```mermaid
+flowchart LR
+    INPUT["Validate prefixes"] --> CONTEXT["Select one DC and check schema once"]
+    CONTEXT --> READ["Resolve user and read values"]
+    READ --> PLAN["Validate lengths and compute owned changes"]
+    PLAN --> APPROVE["ShouldProcess"]
+    APPROVE --> WRITE["Set-ADUser -Remove / -Add"]
+```
 
 The source diagram for this write model lives at
 [diagrams/namespace-write-model.mmd](diagrams/namespace-write-model.mmd).
 
 Every write follows the same conceptual sequence:
 
-1. Confirm `drink` exists and is legal on `user`.
+1. Select a DC and confirm `drink` is legal on `user`, including inherited and
+   auxiliary classes. Reuse that result for the operation.
 2. Resolve exactly one user by an exact LDAP lookup.
 3. Read the current `drink` values.
-4. Remove existing values that match the owned prefixes literally.
-5. Add the new values for those prefixes.
-6. Preserve unrelated values.
-7. Use `Clear` when the final value set is empty, otherwise use `Replace`.
+4. Validate prefixed value lengths against the schema and compute changes for
+   the owned prefixes with ordinal comparisons.
+5. Apply only removed and added values in one `Set-ADUser` call after
+   `ShouldProcess`; a removal never clears the entire attribute.
+6. Return the computed value set on request, including previews.
 
 The literal-prefix rule is important. A prefix such as `Literal[01]-` is treated
 as text, not a regular expression.
 
 ## Ingestion And Projection
 
-CSV ingestion and projection both build a `DataMap`, then call the generic write
-path.
+CSV ingestion and projection both build a `DataMap`, then use the same private
+writer and operation context. CSV resolves and validates every usable row
+before its first write. Projection reuses its already resolved user.
 
-![CSV ingestion flow](images/documentation-suite-2026-05-07/csv-ingestion-flow.png)
+```mermaid
+flowchart LR
+    CSV["CSV and namespace map"] --> LOCAL["Validate local input"]
+    LOCAL --> CONTEXT["One schema check and DC"]
+    CONTEXT --> PREPARE["Resolve and validate all rows"]
+    PREPARE --> WRITE["Apply each owned delta"]
+    WRITE --> RESULTS["Row results or failure progress"]
+```
 
 The source diagram for this flow lives at
 [diagrams/csv-ingestion-flow.mmd](diagrams/csv-ingestion-flow.mmd).
@@ -82,3 +97,6 @@ The module fails early when:
 
 Those failures are intentional. The module should not silently skip ambiguous
 identity resolution or continue after schema-readiness failure.
+
+See [DATA-STORE.md](DATA-STORE.md) for same-prefix and cross-DC concurrency
+limits. Activity logs contain counts, not attribute payloads or user identifiers.
