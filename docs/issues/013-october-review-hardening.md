@@ -83,8 +83,9 @@ Dedicated interactive-host regressions verify the two All choices.
 
 ## Verification Ledger
 
-The ledger is sanitized. Exact targets, accounts, access methods, rollback
-identifiers, and raw output stay outside GitHub and the public repository.
+The October ledger is sanitized. Credentials, new raw output, and other private
+material remain excluded. The specific historical publication exception below
+does not broaden permission to publish future lab artifacts.
 
 | Check | Result |
 | --- | --- |
@@ -118,14 +119,17 @@ identifiers, and raw output stay outside GitHub and the public repository.
 
 ## Public Documentation Boundary
 
-The final privacy scan found exact target/access identifiers and raw directory
-screenshots in an older validation record that was already on public main.
-The current candidate replaces that page with aggregate historical results and
-removes six raw screenshot/HTML attachments. Private originals were preserved
-outside the public tree. A separate commit keeps this cleanup independently
-reviewable. This is not a new live-evidence publication or a claim that older
-Git history has been scrubbed. History rewriting, artifact/cache cleanup, and
-any necessary credential rotation require a separate coordinated decision.
+The initial privacy scan identified an older validation note and six directory
+screenshot/HTML attachments already on public main. They were temporarily
+removed by `aa335b7`, also proposed independently as `90d0da1` in PR #14.
+
+On 2026-10-08, the repository owner explicitly accepted publication of the
+details covered by [commit 90d0da1](https://github.com/jonathanweinberg/DrunkenAD/commit/90d0da13162cab2ba2ae817c7055a5ade5d3cc14).
+That limited removal is therefore reversed, and the historical note and six
+attachments remain available. No history purge is required for these accepted
+details. This does not authorize publishing passwords, tokens, private keys,
+new raw live output, or unrelated private lab material. The historical record
+is not current validation evidence.
 
 ## Primary References
 
@@ -138,10 +142,11 @@ any necessary credential rotation require a separate coordinated decision.
 ## Delivery Boundary
 
 October work is layered on the unmerged July candidate. Keep PR #12 and the
-October review separately attributable. The privacy-only cleanup is also
-proposed independently against main in [PR #14](https://github.com/jonathanweinberg/DrunkenAD/pull/14).
+October review separately attributable. The privacy-only cleanup in
+[PR #14](https://github.com/jonathanweinberg/DrunkenAD/pull/14) is withdrawn under
+the owner's revised publication decision; the code hardening is unchanged.
 Issue #13 remains open for review; this change does not authorize a merge,
 issue closure, tag, or release.
 
-Implementation commit: `9191581`. Privacy commit: `aa335b7` on the October
-branch, applied independently as `90d0da1` on the privacy-only branch.
+Implementation commit: `9191581`. The privacy removal (`aa335b7`, independently
+`90d0da1`) and its reversal remain attributable; no history was rewritten.
