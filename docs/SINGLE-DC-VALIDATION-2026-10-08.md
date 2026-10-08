@@ -80,6 +80,34 @@ preservation and unchanged metadata on overlimit rejection. The DN branch
 includes BMP and supplementary characters in the literal prefix. These are
 scalar native-source checks, not every multivalue/runtime combination.
 
+## Synthetic Retry Preparation
+
+The corrected private launcher and an external direct-child watchdog were
+reviewed and checked without loading ActiveDirectory or running integration
+tests. This follow-up did not create a fixture or consume new live authority.
+
+- Eight synthetic watchdog controls passed on local PowerShell 7.6.3 and native
+  Windows PowerShell 5.1: exit codes 0/2/7, concurrent output on both streams,
+  a hang, a near-deadline exit, script-hash rejection and argument rejection.
+  Exit codes remain outcomes to inspect, not automatic validation passes.
+- The actual corrected launcher, in explicit synthetic-only mode under a
+  30-second watchdog, verified all 22 candidate files and completed its Pester
+  preflight: one pass, one intentional skip, zero failures. Its direct child
+  exited normally; the consumed approval marker's digest remained unchanged.
+- A separate source reviewer found no open findings for this bounded
+  synthetic-only path after the timeout/teardown race fix. The near-deadline
+  control samples scheduling; it does not deterministically cover that race.
+- The watchdog bounds the main wait, not total wall time: startup, termination
+  and output draining add time. Output is buffered, and only the retained
+  direct child is stopped. This is not a generic process-tree or memory limit.
+  Termination does not prove Pester teardown or directory cleanup; any future
+  interrupted live attempt still requires independent owned-fixture cleanup.
+
+This resolves the synthetic-preparation prerequisite only. It supplies no new
+native AD assertions, environment-readiness checks or acceptance decision.
+Any live retry still needs fresh explicit authority, renewed prerequisites and
+an exact reviewed launcher/candidate; the old approval remains consumed.
+
 ## Acceptance Boundaries
 
 The known 1,602-value capacity prerequisite can remain an explicit skip in a

@@ -20,8 +20,11 @@ new native projection-boundary cases were not executed. The single fixture
 was removed and independent exact-GUID/parent checks passed; this new approval
 is consumed, in addition to the earlier six-user allowance. No retry occurred.
 The owner requested the [restricted single-DC proposal](SINGLE-DC-ACCEPTANCE-PROPOSAL.md),
-not acceptance of it. Harness correction and a fresh authorized completed
-receipt remain required; the interruption cannot be waived as an environment
+not acceptance of it. The corrected private launcher subsequently passed a
+synthetic-only native skip preflight, and eight watchdog controls passed on
+both tested runtimes, with no AD access and the consumed marker unchanged.
+These are preparation checks, not live assertions. A fresh authorized completed
+receipt remains required; the interruption cannot be waived as an environment
 deferral. Earlier dated receipts below retain their own scope.
 
 The [expanded live receipt](POST-MERGE-LIVE-EXPANSION.md) adds the later

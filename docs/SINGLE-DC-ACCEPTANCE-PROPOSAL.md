@@ -46,7 +46,7 @@ remain separate decisions.
 | --- | --- |
 | Source identity | Candidate `07d26b9`, its archive and all 22 bundled file hashes were verified before execution. Production module source remains equivalent to `038013b`; see the [candidate receipt](SINGLE-DC-VALIDATION-2026-10-08.md). |
 | Offline gate | `07d26b9` passed 393 local tests with 27 live cases excluded, plus all five exact-candidate CI checks. The receipt distinguishes Core and Windows PowerShell 5.1 counts and platform skips from live evidence. |
-| Revised integration setup | The issue #18 repair passed offline selection/isolation tests. The latest native attempt created its single fixture but did not complete its result receipt. Resolve the private launcher collision, verify synthetic skip handling and bound runtime before any newly authorized integration attempt. |
+| Revised integration setup | The issue #18 repair passed offline selection/isolation tests. The latest native attempt created its single fixture but did not complete its result receipt. The corrected private launcher passed a synthetic-only native skip preflight, and eight watchdog controls passed on both tested runtimes; see the [preparation receipt](SINGLE-DC-VALIDATION-2026-10-08.md#synthetic-retry-preparation). This is not live proof. A retry still requires fresh authority, renewed prerequisites, exact launcher/candidate review and independent cleanup. |
 | Projection boundaries | All eight added native command/culture/source cases remain unexecuted. A fresh authorized run must prove exact-limit round-trip and local overlimit rejection with complete value-set and metadata preservation. Offline controls are not substitutes. |
 | Capacity gap | Keep any recognized 1,602-value setup rejection visible as a skipped prerequisite with unchanged-state proof. It is not a range-retrieval pass; do not reduce the fixture to claim success. |
 | Final cleanup | The interrupted attempt's fixture absence and parent preservation were independently verified. A later acceptance run still requires zero failed tests/containers, no unexplained skips/not-run cases and its own cleanup receipt. A completed capacity-only skip leaves that suite partial, even if the restricted claim is later accepted. |
@@ -78,6 +78,8 @@ proposal is accepted; none is invented here.
 - Latest run: interrupted in private harness/Pester skip handling; no completed
   test aggregate and none of the eight new boundary cases executed.
 - Cleanup: independently verified; zero owned fixtures remain and parent intact.
+- Synthetic preparation: corrected launcher skip preflight and bounded watchdog
+  controls passed without AD access; no live retry occurred.
 - Any retry: fresh authority required; the completed live acceptance receipt is
   still missing. The harness problem is not an accepted deferral.
 - Restricted acceptance: pending owner review of this proposal and receipt.
