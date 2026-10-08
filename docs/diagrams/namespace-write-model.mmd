@@ -1,10 +1,12 @@
 flowchart TD
-    START["Caller provides DataMap and identity"] --> READY["Check drink is writable on user"]
+    START["Caller provides DataMap and identity"] --> VALIDATE["Validate nonblank, non-overlapping literal prefixes"]
+    VALIDATE --> READY["Check drink is writable on user"]
     READY --> RESOLVE["Resolve exactly one AD user"]
     RESOLVE --> READ["Read current drink values"]
-    READ --> FILTER["Remove values matching owned prefixes"]
+    READ --> FILTER["Remove OrdinalIgnoreCase prefix matches"]
     FILTER --> MERGE["Add replacement values for owned prefixes"]
-    MERGE --> DECIDE{"Any final drink values?"}
+    MERGE --> COMPARE["Compare multivalue elements without delimiter flattening"]
+    COMPARE --> DECIDE{"Any final drink values?"}
     DECIDE -->|Yes| REPLACE["Set-ADUser -Replace drink"]
     DECIDE -->|No| CLEAR["Set-ADUser -Clear drink"]
     REPLACE --> RETURN["Return final values when PassThru is used"]

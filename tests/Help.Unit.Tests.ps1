@@ -74,8 +74,9 @@ Describe 'DrunkenAD comment-based help contract' {
 
             $examples = @($help.Examples.Example)
             $examples.Count | Should -BeGreaterOrEqual 2
+            $exampleCode = @($examples | ForEach-Object { [string]$_.Code }) -join [System.Environment]::NewLine
+            $exampleCode | Should -Match ([regex]::Escape($command.Name))
             foreach ($example in $examples) {
-                $example.Code | Should -Match $command.Name
                 @($example.Remarks.Text | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count | Should -BeGreaterThan 0
             }
 

@@ -97,6 +97,7 @@ function Remove-ADUserDrinkData {
         [switch]$PassThru
     )
 
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes
     Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $dataMap = [ordered]@{}

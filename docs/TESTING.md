@@ -25,11 +25,23 @@ Those tests focus on the safety-critical behavior:
 - first-class `Get-Help` coverage for every exported command and the
   `about_DrunkenAD` topic
 
-Run both parser and unit tests with:
+The test runner requires exactly Pester 5.7.1. Run the unit tests with:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1
 ```
+
+For an offline or isolated environment, pass a trusted, fully qualified Pester
+5.7.1 manifest path outside the repository's live-result storage:
+
+```powershell
+pwsh -NoLogo -NoProfile `
+    -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 `
+    -PesterManifestPath /opt/powershell/modules/Pester/5.7.1/Pester.psd1
+```
+
+The runner prints the resolved Pester version and manifest path, and discovers
+only its explicit top-level test allowlist.
 
 If you only want the parser gate:
 
@@ -86,10 +98,13 @@ That harness is designed for a prepared live lab with a host wrapper. The host
 method is responsible for rollback, workspace access, guest execution, and
 result collection as described in [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md). It:
 
-- creates or verifies a distinct pre-mutation rollback point
+- requires operator confirmation and creates a distinct pre-mutation rollback point
+- generates profile-sized, run-specific manifest, CSV, and config inputs
+- records SHA-256 hashes for every generated or copied input
 - ensures the repository workspace is available in the live lab
-- verifies domain and schema readiness before any write
-- reconciles a deterministic seed population based on the selected profile
+- verifies domain, schema, and exact manifest/CSV identity readiness before any write
+- reconciles a deterministic seed population only inside the bounded campaign root
+- fails closed instead of pruning unexpected users or adopting accounts from elsewhere
 - runs CSV ingestion, projection, and CRUD validation phases
 - writes timestamped reports under `tests/Live/results/<timestamp>/`
 
@@ -116,6 +131,11 @@ Profiles are:
 
 Use `-VmWrapperPath` or `DRUNKENAD_VM_WRAPPER_PATH` if the host wrapper is not in
 one of the repo-relative default locations.
+
+Approved guest mutation requires `DRUNKENAD_SEED_PASSWORD` in the guest process
+environment. The password is not accepted as a launcher argument and must not be
+written to run artifacts. `-WhatIf` remains available without that environment
+variable so operators can preview the campaign boundary first.
 
 The `tests/Live/results/` directory is intentionally ignored by Git. Treat it as
 run output, not source content, even when it contains generated guest launchers,
@@ -164,7 +184,7 @@ For module changes, the clean loop is:
 
 The repository includes two GitHub Actions workflows:
 
-- [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core PowerShell gate.
+- [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core gate on Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 Desktop with pinned Pester 5.7.1.
 - [.github/workflows/documentation-ci.yml](../.github/workflows/documentation-ci.yml) runs documentation hygiene checks.
 
 The PowerShell workflow:

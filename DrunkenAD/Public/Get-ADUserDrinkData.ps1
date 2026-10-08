@@ -24,7 +24,7 @@ Finds the user by exact `mail`.
 Finds the user by exact `pager`.
 
 .PARAMETER Prefix
-Optional literal prefix used to filter the returned `drink` values.
+Optional nonblank literal prefix used to filter the returned `drink` values.
 
 .PARAMETER DomainController
 Optional domain controller to use for both schema validation and user lookup.
@@ -87,6 +87,10 @@ function Get-ADUserDrinkData {
         [string]$DomainController
     )
 
+    if ($PSBoundParameters.ContainsKey('Prefix') -and [string]::IsNullOrWhiteSpace($Prefix)) {
+        throw 'Prefix cannot be null, empty, or blank when supplied.'
+    }
+
     Assert-ADDrinkAttributeEnabled -Server $DomainController
 
     $resolveUserParams = @{
@@ -105,8 +109,9 @@ function Get-ADUserDrinkData {
     $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
 
     if ($PSBoundParameters.ContainsKey('Prefix')) {
-        $escapedPrefix = [regex]::Escape($Prefix)
-        $values = @($values | Where-Object { $_ -match ('^{0}' -f $escapedPrefix) })
+        $values = @($values | Where-Object {
+            $_.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        })
     }
 
     @($values)

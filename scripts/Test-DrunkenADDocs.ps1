@@ -180,4 +180,6 @@ if ($linkFailures.Count -gt 0) {
     throw 'One or more documentation links failed validation.'
 }
 
+& (Join-Path -Path $PSScriptRoot -ChildPath 'Test-DrunkenADArchitectureMap.ps1')
+
 Write-Host 'Documentation hygiene checks passed.' -ForegroundColor Green

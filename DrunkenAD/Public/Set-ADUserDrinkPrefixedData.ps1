@@ -106,6 +106,7 @@ function Set-ADUserDrinkPrefixedData {
         [switch]$PassThru
     )
 
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($PrefixMap.Keys | ForEach-Object { [string]$_ })
     Assert-ADDrinkAttributeReadyForUserWrite -Server $DomainController
 
     $identityParams = @{}
@@ -145,8 +146,9 @@ function Set-ADUserDrinkPrefixedData {
             throw "Prefix values cannot be null, empty, or whitespace."
         }
 
-        $escapedPrefix = [regex]::Escape($prefix)
-        $updatedDrinks = @($updatedDrinks | Where-Object { $_ -notmatch ('^{0}' -f $escapedPrefix) })
+        $updatedDrinks = @($updatedDrinks | Where-Object {
+            -not $_.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+        })
 
         $rawValues = ConvertTo-DrunkenADStringArray -Values $PrefixMap[$prefixKey] -SkipBlank
         $prefixedValues = @()
@@ -170,10 +172,7 @@ function Set-ADUserDrinkPrefixedData {
 
     $updatedDrinks = ConvertTo-DrunkenADStringArray -Values $updatedDrinks -SkipBlank
 
-    $currentFingerprint = @($currentDrinks | Sort-Object) -join "`n"
-    $updatedFingerprint = @($updatedDrinks | Sort-Object) -join "`n"
-
-    if ($currentFingerprint -eq $updatedFingerprint) {
+    if (Test-DrunkenADStringSetEqual -ReferenceValues $currentDrinks -DifferenceValues $updatedDrinks) {
         Write-Verbose "No drink attribute changes are required for $($user.SamAccountName)."
         Write-DrunkenADLog -LogPath $effectiveLogPath -Message "No drink attribute changes were required for $($user.SamAccountName)."
 

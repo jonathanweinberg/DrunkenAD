@@ -1,4 +1,4 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [string]$VmName = 'WindowsServer2025_ADDNS',
 
@@ -11,13 +11,44 @@ param(
     [string]$ResultsRoot = (Join-Path -Path $PSScriptRoot -ChildPath 'results'),
 
     [ValidateSet('Quick', 'Standard', 'Full')]
-    [string]$CampaignProfile = 'Full',
-
-    [int]$SeedCount = 0
+    [string]$CampaignProfile = 'Full'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+function ConvertTo-PowerShellSingleQuotedLiteral {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    "'{0}'" -f $Value.Replace("'", "''")
+}
+
+function Test-DrunkenADPathWithinRoot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $trimCharacters = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd($trimCharacters)
+    $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd($trimCharacters)
+    $rootPrefix = '{0}{1}' -f $fullRoot, [System.IO.Path]::DirectorySeparatorChar
+
+    $fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+}
 
 function Invoke-Prlctl {
     [CmdletBinding()]
@@ -197,26 +228,51 @@ function Get-DrunkenADLiveCampaignProfile {
 }
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '..\..'))
+$allowedResultsRoot = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath 'results'))
+$resolvedResultsRoot = [System.IO.Path]::GetFullPath($ResultsRoot)
+if (-not (Test-DrunkenADPathWithinRoot -Path $resolvedResultsRoot -Root $allowedResultsRoot)) {
+    throw "ResultsRoot must resolve within the ignored live-results directory '$allowedResultsRoot'."
+}
+
 $resolvedVmWrapperPath = Resolve-DrunkenADVmWrapperPath -ExplicitPath $VmWrapperPath -RepoRootPath $repoRoot
-$runName = Get-Date -Format 'yyyyMMdd-HHmmss'
-$runRoot = Join-Path -Path $ResultsRoot -ChildPath $runName
-$hostDataDirectory = Join-Path -Path $PSScriptRoot -ChildPath 'Data'
+$runName = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+$runRoot = Join-Path -Path $resolvedResultsRoot -ChildPath $runName
+$runDataDirectory = Join-Path -Path $runRoot -ChildPath 'inputs'
 $guestRepoRoot = '\\psf\{0}' -f $RepoShareName
-$guestResultsRoot = '\\psf\{0}\tests\Live\results\{1}' -f $RepoShareName, $runName
+$repoRootPrefix = '{0}{1}' -f $repoRoot.TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)), [System.IO.Path]::DirectorySeparatorChar
+$resultsRelativePath = $resolvedResultsRoot.Substring($repoRootPrefix.Length)
+$resultsRelativePath = $resultsRelativePath.Replace([char]'/', [char]'\')
+$guestResultsRoot = '{0}\{1}\{2}' -f $guestRepoRoot, $resultsRelativePath, $runName
+$guestDataDirectory = '{0}\inputs' -f $guestResultsRoot
 $guestScriptPath = '{0}\tests\Live\Invoke-DrunkenADGuestCampaign.ps1' -f $guestRepoRoot
 $profile = Get-DrunkenADLiveCampaignProfile -Name $CampaignProfile
-$effectiveSeedCount = if ($PSBoundParameters.ContainsKey('SeedCount') -and $SeedCount -gt 0) {
-    $SeedCount
-}
-else {
-    $profile.SeedCount
+$effectiveSeedCount = $profile.SeedCount
+
+$campaignAction = "Create rollback snapshot '$SnapshotName' and run the $CampaignProfile campaign with $effectiveSeedCount synthetic users"
+if (-not $PSCmdlet.ShouldProcess($VmName, $campaignAction)) {
+    return [pscustomobject]@{
+        Status               = 'Preview'
+        VmName               = $VmName
+        SnapshotName         = $SnapshotName
+        CampaignProfile      = $CampaignProfile
+        SeedCount            = $effectiveSeedCount
+        ResultsDirectoryPath = $runRoot
+    }
 }
 
-if (-not (Test-Path -LiteralPath $runRoot)) {
-    New-Item -Path $runRoot -ItemType Directory -Force | Out-Null
+if (Test-Path -LiteralPath $runRoot) {
+    throw "The unique run directory already exists: $runRoot"
 }
+New-Item -Path $runRoot -ItemType Directory -Force | Out-Null
 
-$seedData = & (Join-Path -Path $PSScriptRoot -ChildPath 'Export-DrunkenADSeedData.ps1') -SeedCount $effectiveSeedCount -OutputDirectory $hostDataDirectory
+$seedData = & (Join-Path -Path $PSScriptRoot -ChildPath 'Export-DrunkenADSeedData.ps1') -SeedCount $effectiveSeedCount -OutputDirectory $runDataDirectory
+$sourceConfigPath = Join-Path -Path $repoRoot -ChildPath 'examples/data/drink-ingestion-config.json'
+$runConfigPath = Join-Path -Path $runDataDirectory -ChildPath 'drink-ingestion-config.json'
+Copy-Item -LiteralPath $sourceConfigPath -Destination $runConfigPath -ErrorAction Stop
+
+$manifestHash = (Get-FileHash -LiteralPath $seedData.ManifestPath -Algorithm SHA256 -ErrorAction Stop).Hash
+$csvHash = (Get-FileHash -LiteralPath $seedData.CsvPath -Algorithm SHA256 -ErrorAction Stop).Hash
+$configHash = (Get-FileHash -LiteralPath $runConfigPath -Algorithm SHA256 -ErrorAction Stop).Hash
 $snapshotRecord = New-VmSnapshotRecord -VmName $VmName -SnapshotName $SnapshotName
 $shareStatus = Ensure-RepoSharedFolder -VmName $VmName -RepoRootPath $repoRoot -ShareName $RepoShareName
 
@@ -231,26 +287,43 @@ $operatorNotesPath = Join-Path -Path $runRoot -ChildPath 'operator-notes.md'
     ('- VM: `{0}`' -f $VmName)
     ('- Snapshot: `{0}` (`{1}`)' -f $snapshotRecord.Name, $snapshotRecord.Id)
     ('- Campaign Profile: `{0}`' -f $CampaignProfile)
+    ('- Seed Count: `{0}`' -f $effectiveSeedCount)
     ('- Shared Folder: `{0}` (`{1}`)' -f $RepoShareName, $shareStatus)
     ('- VM Wrapper: `{0}`' -f $resolvedVmWrapperPath)
-    ('- Manifest: `{0}`' -f $seedData.ManifestPath)
-    ('- CSV: `{0}`' -f $seedData.CsvPath)
+    ('- Manifest: `{0}` (SHA-256 `{1}`)' -f $seedData.ManifestPath, $manifestHash)
+    ('- CSV: `{0}` (SHA-256 `{1}`)' -f $seedData.CsvPath, $csvHash)
+    ('- Config: `{0}` (SHA-256 `{1}`)' -f $runConfigPath, $configHash)
     ('- Results Directory: `{0}`' -f $runRoot)
 ) -join [Environment]::NewLine | Set-Content -LiteralPath $operatorNotesPath -Encoding utf8
 
+$guestManifestPath = '{0}\seed-manifest.json' -f $guestDataDirectory
+$guestCsvPath = '{0}\seed-ingestion.csv' -f $guestDataDirectory
+$guestConfigPath = '{0}\drink-ingestion-config.json' -f $guestDataDirectory
 $guestLauncherPath = Join-Path -Path $runRoot -ChildPath 'Invoke-GuestCampaign.ps1'
-(
-    "& '$guestScriptPath' " +
-    "-RepoRootPath '$guestRepoRoot' " +
-    "-ManifestPath '\\psf\$RepoShareName\tests\Live\Data\seed-manifest.json' " +
-    "-CsvPath '\\psf\$RepoShareName\tests\Live\Data\seed-ingestion.csv' " +
-    "-ConfigPath '\\psf\$RepoShareName\examples\data\drink-ingestion-config.json' " +
-    "-ResultsDirectoryPath '$guestResultsRoot' " +
-    "-SnapshotName '$($snapshotRecord.Name)' " +
-    "-SnapshotId '$($snapshotRecord.Id)' " +
-    "-CampaignProfile '$CampaignProfile' " +
-    "-CrudSamplePerRegion $($profile.CrudSamplePerRegion)"
-) | Set-Content -LiteralPath $guestLauncherPath -Encoding utf8
+$guestLauncherArguments = @(
+    '&'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestScriptPath)
+    '-RepoRootPath'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestRepoRoot)
+    '-ManifestPath'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestManifestPath)
+    '-CsvPath'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestCsvPath)
+    '-ConfigPath'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestConfigPath)
+    '-ResultsDirectoryPath'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $guestResultsRoot)
+    '-SnapshotName'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $snapshotRecord.Name)
+    '-SnapshotId'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $snapshotRecord.Id)
+    '-CampaignProfile'
+    (ConvertTo-PowerShellSingleQuotedLiteral -Value $CampaignProfile)
+    '-CrudSamplePerRegion'
+    [string]$profile.CrudSamplePerRegion
+    '-Confirm:$false'
+)
+($guestLauncherArguments -join ' ') | Set-Content -LiteralPath $guestLauncherPath -Encoding utf8
 
 $guestOutput = & pwsh -NoLogo -NoProfile -File $resolvedVmWrapperPath -FilePath $guestLauncherPath 2>&1 | Out-String
 $guestExitCode = $LASTEXITCODE
@@ -271,11 +344,16 @@ else {
 }
 
 [pscustomobject]@{
+    Status                  = 'Passed'
     SnapshotName            = $snapshotRecord.Name
     SnapshotId              = $snapshotRecord.Id
     RepoShareName           = $RepoShareName
     SeedManifestPath        = $seedData.ManifestPath
+    SeedManifestSha256      = $manifestHash
     SeedCsvPath             = $seedData.CsvPath
+    SeedCsvSha256           = $csvHash
+    IngestionConfigPath     = $runConfigPath
+    IngestionConfigSha256   = $configHash
     ResultsDirectoryPath    = $runRoot
     CrossProjectExcerptPath = $crossProjectExcerptPath
 }

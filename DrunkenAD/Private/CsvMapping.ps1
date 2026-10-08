@@ -33,6 +33,7 @@ function ConvertTo-DrunkenADHashtable {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
         $InputObject
     )
 
@@ -55,7 +56,7 @@ function ConvertTo-DrunkenADHashtable {
             $items += ,(ConvertTo-DrunkenADHashtable -InputObject $item)
         }
 
-        return $items
+        return ,$items
     }
 
     if ($InputObject -is [psobject] -and @($InputObject.PSObject.Properties).Count -gt 0) {
@@ -104,6 +105,8 @@ function Get-DrunkenADCsvMappings {
         [hashtable]$NamespaceMap
     )
 
+    Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($NamespaceMap.Keys | ForEach-Object { [string]$_ })
+
     $mappings = @()
 
     foreach ($prefix in $NamespaceMap.Keys) {
@@ -151,6 +154,7 @@ function Assert-DrunkenADCsvColumns {
         [string]$CsvPath,
 
         [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
         [object[]]$Rows,
 
         [Parameter(Mandatory = $true)]
@@ -158,7 +162,7 @@ function Assert-DrunkenADCsvColumns {
     )
 
     if ($Rows.Count -eq 0) {
-        return
+        throw "CSV file '$CsvPath' does not contain any data rows."
     }
 
     $columns = @($Rows[0].PSObject.Properties.Name)
@@ -169,6 +173,28 @@ function Assert-DrunkenADCsvColumns {
     foreach ($mapping in $Mappings) {
         if ($columns -notcontains $mapping.Column) {
             throw "CSV file '$CsvPath' is missing required column '$($mapping.Column)' for prefix '$($mapping.Prefix)'."
+        }
+    }
+}
+
+function Assert-DrunkenADCsvIdentities {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Rows
+    )
+
+    $seenIdentities = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in $Rows) {
+        $identity = [string]$row.SamAccountName
+        if ([string]::IsNullOrWhiteSpace($identity)) {
+            continue
+        }
+
+        $identity = $identity.Trim()
+        if (-not $seenIdentities.Add($identity)) {
+            throw "CSV contains duplicate SamAccountName '$identity'."
         }
     }
 }
@@ -195,11 +221,16 @@ function ConvertTo-DrunkenADCsvDataMap {
         }
 
         foreach ($fieldValue in $fieldValues) {
+            if ([string]::IsNullOrWhiteSpace([string]$fieldValue)) {
+                continue
+            }
+
+            $normalizedFieldValue = ([string]$fieldValue).Trim()
             $recordValue = if ([string]::IsNullOrWhiteSpace($mapping.Label)) {
-                $fieldValue
+                $normalizedFieldValue
             }
             else {
-                '{0}={1}' -f $mapping.Label, $fieldValue
+                '{0}={1}' -f $mapping.Label, $normalizedFieldValue
             }
 
             Add-DrunkenADCsvRecord -DataMap $dataMap -Prefix $mapping.Prefix -Value $recordValue

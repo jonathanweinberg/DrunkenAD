@@ -5,39 +5,103 @@ param(
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
     [string]$Output = 'Detailed',
 
-    [string]$TestResultPath
+    [string]$TestResultPath,
+
+    [string]$PesterManifestPath = $env:DRUNKENAD_PESTER_MANIFEST
 )
 
-function Add-DrunkenADLocalPesterCache {
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$requiredPesterVersion = [version]'5.7.1'
+$projectRoot = Split-Path -Path $PSScriptRoot -Parent
+$ignoredResultsRoot = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Live') -ChildPath 'results'
+
+function Test-DrunkenADPathWithinRoot {
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
 
-    if (Get-Module -ListAvailable -Name Pester | Where-Object { $_.Version -ge [version]'5.0' }) {
-        return
-    }
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
 
-    $projectRoot = Split-Path -Path $PSScriptRoot -Parent
-    $cacheRoot = Join-Path -Path $projectRoot -ChildPath 'tests/Live/results'
-    if (-not (Test-Path -LiteralPath $cacheRoot)) {
-        return
-    }
+    $trimCharacters = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd($trimCharacters)
+    $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd($trimCharacters)
+    $rootPrefix = '{0}{1}' -f $fullRoot, [System.IO.Path]::DirectorySeparatorChar
 
-    $candidate = Get-ChildItem -LiteralPath $cacheRoot -Directory |
-        ForEach-Object { Join-Path -Path $_.FullName -ChildPath 'Modules' } |
-        Where-Object { Test-Path -LiteralPath (Join-Path -Path $_ -ChildPath 'Pester') } |
-        Sort-Object -Descending |
-        Select-Object -First 1
-
-    if ($candidate) {
-        $env:PSModulePath = '{0}{1}{2}' -f $candidate, [System.IO.Path]::PathSeparator, $env:PSModulePath
-    }
+    $fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
-Add-DrunkenADLocalPesterCache
-Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop
+function Resolve-DrunkenADPesterManifest {
+    [CmdletBinding()]
+    param(
+        [string]$ExplicitManifestPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitManifestPath)) {
+        $resolvedManifestPath = (Resolve-Path -LiteralPath $ExplicitManifestPath -ErrorAction Stop).Path
+        if (-not (Test-Path -LiteralPath $resolvedManifestPath -PathType Leaf)) {
+            throw "Pester manifest '$resolvedManifestPath' is not a file."
+        }
+
+        if (Test-DrunkenADPathWithinRoot -Path $resolvedManifestPath -Root $ignoredResultsRoot) {
+            throw 'Pester must not be loaded from ignored live-result storage.'
+        }
+
+        $manifestData = Import-PowerShellDataFile -LiteralPath $resolvedManifestPath
+        if ([version]$manifestData.ModuleVersion -ne $requiredPesterVersion) {
+            throw "Pester $requiredPesterVersion is required, but '$resolvedManifestPath' declares version $($manifestData.ModuleVersion)."
+        }
+
+        return $resolvedManifestPath
+    }
+
+    $installedCandidates = @(
+        Get-Module -ListAvailable -Name Pester |
+            Where-Object { $_.Version -eq $requiredPesterVersion } |
+            Sort-Object Path
+    )
+
+    foreach ($candidate in $installedCandidates) {
+        if (-not (Test-DrunkenADPathWithinRoot -Path $candidate.Path -Root $ignoredResultsRoot)) {
+            return $candidate.Path
+        }
+    }
+
+    throw "Pester $requiredPesterVersion is required. Install that exact version or set DRUNKENAD_PESTER_MANIFEST to its fully qualified Pester.psd1 path."
+}
+
+$resolvedPesterManifest = Resolve-DrunkenADPesterManifest -ExplicitManifestPath $PesterManifestPath
+Import-Module -Name $resolvedPesterManifest -RequiredVersion $requiredPesterVersion -Force -ErrorAction Stop
+Write-Host ('Pester {0} from {1}' -f $requiredPesterVersion, $resolvedPesterManifest)
+
+$trustedTestNames = @(
+    'DrunkenAD.Unit.Tests.ps1'
+    'Help.Unit.Tests.ps1'
+    'LiveCampaign.Unit.Tests.ps1'
+    'Release.Unit.Tests.ps1'
+    'SchemaEnablement.Unit.Tests.ps1'
+    'DrunkenAD.Integration.Tests.ps1'
+)
+$trustedTestPaths = @(
+    foreach ($trustedTestName in $trustedTestNames) {
+        $trustedTestPath = Join-Path -Path $PSScriptRoot -ChildPath $trustedTestName
+        if (-not (Test-Path -LiteralPath $trustedTestPath -PathType Leaf)) {
+            throw "Trusted test file '$trustedTestPath' was not found."
+        }
+
+        $trustedTestPath
+    }
+)
 
 $configuration = New-PesterConfiguration
-$configuration.Run.Path = $PSScriptRoot
+$configuration.Run.Path = $trustedTestPaths
 $configuration.Run.PassThru = $true
 $configuration.Output.Verbosity = $Output
 

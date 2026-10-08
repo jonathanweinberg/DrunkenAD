@@ -57,6 +57,46 @@ function ConvertTo-DrunkenADStringArray {
     return ,([string[]]$result.ToArray())
 }
 
+function Test-DrunkenADStringSetEqual {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$ReferenceValues,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$DifferenceValues
+    )
+
+    if ($ReferenceValues.Count -ne $DifferenceValues.Count) {
+        return $false
+    }
+
+    $unmatchedValues = New-Object System.Collections.Generic.List[string]
+    foreach ($value in $ReferenceValues) {
+        $unmatchedValues.Add($value)
+    }
+
+    foreach ($value in $DifferenceValues) {
+        $matchIndex = -1
+        for ($index = 0; $index -lt $unmatchedValues.Count; $index++) {
+            if ([string]::Equals($unmatchedValues[$index], $value, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $matchIndex = $index
+                break
+            }
+        }
+
+        if ($matchIndex -lt 0) {
+            return $false
+        }
+
+        $unmatchedValues.RemoveAt($matchIndex)
+    }
+
+    return $true
+}
+
 function Resolve-DrunkenADLogPath {
     [CmdletBinding()]
     param(

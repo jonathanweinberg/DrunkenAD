@@ -104,10 +104,14 @@ The profile source diagram lives at
 Before running a live campaign:
 
 - confirm a VM snapshot or equivalent rollback point
-- keep credentials under `tests/Live/results/`
+- preview the host campaign with `-WhatIf` before approving mutation
+- provide `DRUNKENAD_SEED_PASSWORD` through the guest process environment only
+- never write the seed password to a tracked file or run artifact
 - confirm that `tests/Live/results/` is ignored by Git
 - confirm the selected host wrapper can create or verify the rollback point,
   expose the repository workspace, run the guest-side script, and collect reports
+- verify the operator notes contain the run-specific input paths and SHA-256 hashes
+- stop if an unexpected user exists under the bounded campaign root; the harness will not prune it
 - use a timeout long enough for thousands of AD reads and writes
 
 Start with the quick profile when you only need a live sanity pass:

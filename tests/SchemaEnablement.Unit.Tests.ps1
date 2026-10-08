@@ -75,6 +75,13 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
         }
     }
 
+    It 'exposes Confirm and WhatIf on the executable script entrypoint' {
+        $scriptCommand = Get-Command -Name $script:enablementScriptPath -ErrorAction Stop
+
+        $scriptCommand.Parameters.Keys | Should -Contain 'Confirm'
+        $scriptCommand.Parameters.Keys | Should -Contain 'WhatIf'
+    }
+
     It 'reports preflight information without writing by default' {
         Mock Test-ADDrinkAttributeReadyForUserWrite {
             [pscustomobject]@{

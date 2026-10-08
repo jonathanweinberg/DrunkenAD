@@ -19,6 +19,8 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             [ref]$script:guestCampaignTokens,
             [ref]$script:guestCampaignParseErrors
         )
+        $script:liveCampaignContent = Get-Content -LiteralPath $liveCampaignScriptPath -Raw
+        $script:guestCampaignContent = Get-Content -LiteralPath $guestCampaignScriptPath -Raw
         $script:liveValidationDocContent = Get-Content -LiteralPath $liveValidationDocPath -Raw
         $script:hostMethodsDocPath = $hostMethodsDocPath
         $publicDocPaths = @(
@@ -30,7 +32,7 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             'docs/OPERATIONS.md'
         )
         $publicDocPaths += @(Get-ChildItem -LiteralPath (Join-Path -Path $projectRoot -ChildPath 'docs/issues') -Filter '*.md' |
-            ForEach-Object { [System.IO.Path]::GetRelativePath($projectRoot, $_.FullName) })
+            ForEach-Object { 'docs/issues/{0}' -f $_.Name })
         $script:publicLiveCampaignDocContent = ($publicDocPaths | ForEach-Object {
             Get-Content -LiteralPath (Join-Path -Path $projectRoot -ChildPath $_) -Raw
         }) -join [Environment]::NewLine
@@ -73,6 +75,67 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             $parameter.Extent.Text | Should -Match "'Full'"
             $parameter.DefaultValue.Extent.Text | Should -Be "'Full'"
         }
+    }
+
+    It 'requires bounded root scope and rollback evidence for the guest campaign' {
+        $rootOuParameter = $script:guestCampaignAst.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'RootOuName' }
+        $snapshotNameParameter = $script:guestCampaignAst.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'SnapshotName' }
+        $snapshotIdParameter = $script:guestCampaignAst.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'SnapshotId' }
+
+        $rootOuParameter.Attributes.TypeName.Name | Should -Contain 'ValidatePattern'
+        $snapshotNameParameter.Extent.Text | Should -Match 'Mandatory\s*=\s*\$true'
+        $snapshotIdParameter.Extent.Text | Should -Match 'Mandatory\s*=\s*\$true'
+    }
+
+    It 'allows a guest WhatIf preview without requiring the seed password' {
+        $confirmationIndex = $script:guestCampaignContent.IndexOf('$PSCmdlet.ShouldProcess')
+        $passwordCheckIndex = $script:guestCampaignContent.IndexOf('if ([string]::IsNullOrWhiteSpace($env:DRUNKENAD_SEED_PASSWORD))')
+
+        $confirmationIndex | Should -BeGreaterOrEqual 0
+        $passwordCheckIndex | Should -BeGreaterThan $confirmationIndex
+    }
+
+    It 'allows the inline smoke assertion to expect an empty value set' {
+        $assertionFunction = $script:guestCampaignAst.FindAll(
+            {
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -eq 'Assert-DrinkValuesMatch'
+            },
+            $true
+        ) | Select-Object -First 1
+        $expectedParameter = $assertionFunction.Body.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'Expected' }
+
+        $assertionFunction | Should -Not -BeNullOrEmpty
+        $expectedParameter.Attributes.TypeName.Name | Should -Contain 'AllowEmptyCollection'
+    }
+
+    It 'validates exact manifest and CSV identities before any campaign mutation' {
+        $script:guestCampaignContent | Should -Match 'function Assert-SeedIdentitySetsMatch'
+        $script:guestCampaignContent | Should -Match '(?s)Assert-SeedIdentitySetsMatch.+foreach \(\$ouDn'
+        $script:guestCampaignContent | Should -Match 'duplicate.*SamAccountName|SamAccountName.*duplicate'
+    }
+
+    It 'never prunes unexpected users or adopts users outside the campaign root' {
+        $script:guestCampaignContent | Should -Not -Match '\bRemove-ADObject\b'
+        $script:guestCampaignContent | Should -Match 'Unexpected.*campaign root|campaign root.*unexpected'
+        $script:guestCampaignContent | Should -Match 'function ConvertTo-DrunkenADLdapFilterValue'
+        $script:guestCampaignContent | Should -Match 'Set-ManagedSeedUser.+-SearchBaseDn\s+\$ouLayout\[''Root''\]'
+        $script:guestCampaignContent | Should -Match '\$objectChanged\s*=\s*\$true'
+    }
+
+    It 'uses profile-sized immutable run inputs and safely quotes guest arguments' {
+        $seedCountParameter = $script:liveCampaignAst.ParamBlock.Parameters |
+            Where-Object { $_.Name.VariablePath.UserPath -eq 'SeedCount' }
+
+        $seedCountParameter | Should -BeNullOrEmpty
+        $script:liveCampaignContent | Should -Match '\$runDataDirectory'
+        $script:liveCampaignContent | Should -Match '-OutputDirectory\s+\$runDataDirectory'
+        $script:liveCampaignContent | Should -Match 'function ConvertTo-PowerShellSingleQuotedLiteral'
     }
 
     It 'keeps public live campaign docs host-method neutral' {

@@ -43,9 +43,11 @@ area rather than public documentation.
 
 - `jq empty docs/drunkenad-architecture-map.json`
 - `git diff --check`
-- pending-doc secret-pattern scan
 
 CI was intentionally skipped for this docs-only release.
+
+Follow-up release-integrity and atlas-validation hardening is tracked in
+Issue 007.
 
 ## Commit Trail
 
@@ -55,6 +57,6 @@ CI was intentionally skipped for this docs-only release.
 
 ## Release
 
-Planned release:
+Closed by the `v0.13.1` release:
 
 https://github.com/jonathanweinberg/DrunkenAD/releases/tag/v0.13.1

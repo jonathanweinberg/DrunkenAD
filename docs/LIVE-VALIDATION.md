@@ -68,12 +68,24 @@ the wrapper or in host-method documentation, not in the generic validation guide
 
 That workflow:
 
-1. creates or verifies a pre-mutation rollback point
-2. ensures the repository workspace is available to the live lab
-3. verifies the domain DN, module import path, and `drink` readiness
-4. reconciles the deterministic 3,000-user seed population
-5. runs CSV ingestion, projection, and CRUD validation phases
-6. writes timestamped reports under `tests/Live/results/<timestamp>/`
+1. confirms the campaign and creates a pre-mutation rollback point
+2. creates profile-sized manifest, CSV, and config inputs under the unique run directory
+3. records SHA-256 hashes for those inputs in the operator notes
+4. ensures the repository workspace is available to the live lab
+5. verifies the domain DN, exact manifest/CSV identities, module path, and `drink` readiness
+6. reconciles only users already inside the bounded campaign root
+7. runs CSV ingestion, projection, and CRUD validation phases
+8. writes timestamped reports under `tests/Live/results/<timestamp>/`
+
+The selected profile is the sole seed-count authority. The campaign stops before
+reconciliation if it finds an unexpected user under its root, and it never
+prunes that user or adopts a same-named account from elsewhere in the domain.
+Direct guest mutation also requires explicit rollback-point name and identifier
+parameters. A guest `-WhatIf` preview does not require a seed password.
+
+Before an approved mutation, provide the seed password through the guest
+process environment as `DRUNKENAD_SEED_PASSWORD`. Do not place its value in a
+tracked file, launcher argument, operator note, or collected console output.
 
 The results directory is intentionally ignored by Git. Treat anything under
 `tests/Live/results/` as local run output, including wrapper launchers,
