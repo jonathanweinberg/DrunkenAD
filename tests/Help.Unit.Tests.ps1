@@ -21,6 +21,14 @@ Describe 'DrunkenAD comment-based help contract' {
         $aboutText | Should -Match 'schema readiness'
     }
 
+    It 'documents opt-in blank clearing and strict decoding in the about topic' {
+        $aboutText = (Get-Help about_DrunkenAD -ErrorAction Stop | Out-String) -replace '\s+', ' '
+        $aboutText | Should -Match 'Blank mapped namespaces are left unchanged by default'
+        $aboutText | Should -Match 'ClearBlankNamespaces explicitly opts into clearing'
+        $aboutText | Should -Match 'Invalid byte sequences fail before directory access'
+        $aboutText | Should -Not -Match 'Every mapped namespace is replaced, including an empty replacement'
+    }
+
     It 'keeps comment-based help directly attached to each public function' {
         $publicFiles = @(Get-ChildItem -LiteralPath $script:publicRoot -Filter '*.ps1' -File)
 

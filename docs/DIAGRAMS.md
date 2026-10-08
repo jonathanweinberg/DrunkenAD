@@ -101,7 +101,7 @@ Historical plate: [CSV ingestion flow image](images/documentation-suite-2026-05-
 
 ```mermaid
 flowchart TD
-    CSV["CSV rows"] --> LOCAL["Local preflight<br/>complete records + required columns"]
+    CSV["CSV rows"] --> LOCAL["Local preflight<br/>strict Unicode decoding<br/>complete records + required columns"]
     MAP["JSON or hashtable namespace map"] --> LOCAL
     LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
     OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]
@@ -192,7 +192,7 @@ Historical plate: [Release readiness image](images/documentation-suite-2026-05-1
 ```mermaid
 flowchart LR
     INPUTS["Inputs<br/>DrunkenAD.psd1<br/>DrunkenAD.psm1<br/>Public commands<br/>Private helpers<br/>docs<br/>tests"]
-    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>eight allowlisted test files<br/>never tests/Live/results"]
+    TRUST["Trusted test boundary<br/>exact Pester 5.7.1 manifest<br/>explicit top-level test allowlist<br/>never tests/Live/results"]
     SCRIPT["scripts/Test-DrunkenADRelease.ps1"]
     CHECKS["Local source gate<br/>manifest + complete FileList<br/>clean import + export parity<br/>syntax + docs + architecture<br/>fail on discovery or container errors"]
     CI["Remote CI matrix<br/>Ubuntu pwsh + macOS pwsh<br/>Windows pwsh + PowerShell 5.1<br/>integration remains opt-in<br/>no PSGallery publish"]

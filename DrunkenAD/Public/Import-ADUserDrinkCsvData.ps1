@@ -10,13 +10,16 @@ Blank cells contribute no records. A namespace with no nonblank mapped values
 is left unchanged unless ClearBlankNamespaces is supplied. Without that switch,
 rows with no data are skipped. Incomplete or extra-field records are rejected
 before directory access; quoted and unquoted empty cells are both valid.
+Text must be valid UTF-8 (with or without a BOM), or BOM-marked UTF-16/UTF-32.
+Invalid byte sequences fail before directory access; legacy code pages are not
+guessed. Export legacy CSV sources as CSV UTF-8 before importing.
 Each row must include `SamAccountName`. All usable rows are resolved and length
 validated before the first write. A runtime write failure stops processing;
 the error TargetObject contains processed, written, outcome, and pending counts.
 CompletedRowCount counts processed rows, including declined and previewed rows.
 
 .PARAMETER CsvPath
-Path to the source CSV file.
+Path to the Unicode source CSV file. Prefer CSV UTF-8.
 
 .PARAMETER NamespaceMap
 Hashtable describing how CSV columns map into `drink` namespace records. Keys

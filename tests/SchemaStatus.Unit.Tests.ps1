@@ -330,6 +330,7 @@ Describe 'Schema readiness inheritance and metadata' {
             @{ Endpoint = 'EXPLICIT.Contoso.Com' }
             @{ Endpoint = 'alias.contoso.com' }
             @{ Endpoint = 'dc-alias' }
+            @{ Endpoint = 'CONTOSO' }
             @{ Endpoint = 'explicit.contoso.com:50000' }
             @{ Endpoint = 'localhost:50000' }
             @{ Endpoint = '192.0.2.10' }

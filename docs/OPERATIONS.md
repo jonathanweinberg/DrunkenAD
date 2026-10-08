@@ -59,7 +59,8 @@ Import-ADUserDrinkCsvData `
 The sample CSV map owns `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and
 `Sync-`, separate from the default projection. Custom maps must also avoid
 unintended overlap. Entirely blank mapped namespaces remain unchanged unless
-`-ClearBlankNamespaces` is supplied. Incomplete CSV records fail before AD
+`-ClearBlankNamespaces` is supplied. Save CSV sources as UTF-8; invalid byte
+sequences and incomplete CSV records fail before AD
 access. Confirmation uses refreshed counts and stops if the approved delta
 changes before writing. See [CSV guidance](HOW-TO-INGEST-CSV.md#blank-cells-and-existing-imports).
 

@@ -93,6 +93,23 @@ When the environment is ready, the live integration tests validate:
 - CSV ingestion against a temporary CSV source
 - projection of AD attributes into default namespaces
 
+### Expanded Single-DC Checks
+
+After separately authorizing the bounded Tier 1 scope, set
+`DRUNKENAD_RUN_TIER1=1` as well as the existing integration variables. Tier 1
+also requires `DRUNKENAD_TEST_USER_OU` to name a pre-existing lab OU. The suite
+uses the same one disabled temporary account, records its GUID, and verifies
+cleanup. The seven extra tests probe stale Remove, duplicate/case-variant Add,
+live length boundaries, Unicode across write paths, 1,600-plus values, and
+no-op replication metadata. Each test independently resets only that account.
+They remain excluded from default CI and from an ordinary twelve-case run.
+
+Do not count a skipped boundary test or an unknown AD error as a pass. The
+full [post-merge matrix](POST-MERGE-VALIDATION.md) distinguishes these automated
+areas from identity, interactive-host, ACL, exporter, multi-DC, and environment
+checks that need separate protocols and evidence. Run the final candidate,
+retain private raw results, and publish only sanitized receipts.
+
 ## Live Campaign Harness
 
 The higher-fidelity lab workflow lives under [tests/Live/Invoke-DrunkenADLiveCampaign.ps1](../tests/Live/Invoke-DrunkenADLiveCampaign.ps1) and [tests/Live/Invoke-DrunkenADGuestCampaign.ps1](../tests/Live/Invoke-DrunkenADGuestCampaign.ps1).
@@ -193,8 +210,7 @@ The PowerShell workflow:
 - installs the pinned Pester version used by CI
 - validates the module manifest
 - parses tracked PowerShell files through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
-- runs the unit suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
-- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1)
+- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1), which invokes the unit suite once through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
 - executes on Ubuntu, macOS, and Windows
 - uploads per-OS Pester XML results as short-lived artifacts
 

@@ -352,9 +352,13 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 - CSV rows must have the same number of fields as the header. Missing or extra
   fields are rejected from a single input snapshot before any AD access; valid
   unquoted empty fields are accepted.
+- Save as CSV UTF-8. BOM-marked UTF-16/UTF-32 also work; invalid byte sequences
+  fail before AD access instead of silently replacing accented or other text.
 - It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
-- It uses the same domain controller for validation, lookup, and write operations.
+- It reuses the selected endpoint for validation, lookup, and writes. Use an
+  actual DC hostname for a single-DC guarantee; NetBIOS names and DNS aliases
+  are passed through and can resolve differently between calls.
 - Each prepared row is re-read before confirmation, so the prompt describes its
   current delta. If that delta changes after approval, the import stops without
   applying the changed delta. Earlier writes are not rolled back; concurrent

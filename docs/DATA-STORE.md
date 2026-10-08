@@ -116,10 +116,13 @@ Writes send only the selected namespace's removed and added values through
 Unrelated values added after the initial read on the same DC are preserved.
 Case-only payload changes remove the old spelling and add the requested one.
 
-One DC is selected per operation and reused for schema checks, lookup, and
-write. Even a domain alias is resolved to the RootDSE controller for that
-operation. For multiple writers, configure the same actual DC hostname in
-`-DomainController`, not a domain-wide alias:
+The selected endpoint is reused for schema checks, lookup, and write. An absent
+server or the domain DNS name is pinned to the RootDSE controller, preserving
+an explicit port. Explicit hosts, IPs, DNS aliases, and NetBIOS names are passed
+through unchanged. A short name cannot safely be guessed to mean a domain
+rather than a specific DC. NetBIOS names and aliases can select different DCs
+between calls. For multiple writers, configure the same actual DC hostname in
+`-DomainController`, not a NetBIOS name or domain-wide alias:
 independent automatic selections can reach different DCs, and normal AD
 replication of a nonlinked multivalued attribute can still lose updates.
 Concurrent writes to the same prefix are not serialized or transactional; a
@@ -209,6 +212,7 @@ Set-ADUserDrinkProjection `
 If you want your custom namespaces plus the default projection payload, add `-IncludeDefaultAttributeMap`.
 
 The sample CSV config uses `CsvProfile-` and `CsvRouting-`, not the projection's
-`Profile-` and `Routing-`. Both workflows clear old values for owned prefixes
-whose source fields are blank. Existing custom maps still require an ownership
-review before combining workflows.
+`Profile-` and `Routing-`. Projection clears a mapped namespace whose source
+attributes are blank. CSV retains all-blank mapped namespaces by default and
+clears them only with `-ClearBlankNamespaces`. Existing custom maps still require
+an ownership review before combining workflows.

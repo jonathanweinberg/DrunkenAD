@@ -33,7 +33,8 @@ Start with the path that matches your job:
 - Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md), then open the
   [interactive architecture atlas](drunkenad-architecture-map.html).
 - Reviewing the October changes: read the
-  [external-review adjudication](issues/013-october-review-hardening.md).
+  [external-review adjudication](issues/013-october-review-hardening.md) and
+  [post-merge validation matrix](POST-MERGE-VALIDATION.md).
 
 ## Document Map
 
@@ -46,6 +47,7 @@ Start with the path that matches your job:
 | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) | CSV ingestion workflow and mapping format. |
 | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) | Safe schema-readiness enablement path. |
 | [TESTING.md](TESTING.md) | Parser, unit, integration, and live campaign test layers. |
+| [POST-MERGE-VALIDATION.md](POST-MERGE-VALIDATION.md) | Post-merge review decisions and all 26 proposed live evidence gates. |
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
 | [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |
 | [DIAGRAMS.md](DIAGRAMS.md) | Mermaid source plus information-dense infographic plates. |

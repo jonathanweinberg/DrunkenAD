@@ -271,6 +271,95 @@ Describe 'Freshness and projection confirmation outcomes' {
     }
 }
 
+Describe 'Projection value culture contracts' {
+    InModuleScope DrunkenAD {
+        It 'preserves invariant date and numeric rendering under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US'; CultureAmount = '1234.56' }
+            @{ CultureName = 'de-DE'; CultureAmount = '1234,56' }
+        ) {
+            param($CultureName, $CultureAmount)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $user = [pscustomobject]@{
+                    whenCreated = [datetime]::new(2026, 10, 8, 13, 14, 15)
+                    offsetDate = [datetimeoffset]::new(2026, 10, 8, 13, 14, 15, [timespan]::FromHours(2))
+                    amount = [decimal]1234.56
+                    ratio = [double]1234.56
+                    largeInteger = [long]9223372036854775807
+                    zero = 0
+                    negative = [decimal](-12.5)
+                    enabled = $false
+                }
+                [cultureinfo]::CurrentCulture.Name | Should -BeExactly $CultureName
+                $user.amount.ToString() | Should -BeExactly $CultureAmount
+                $map = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap @{
+                    'Values-' = @('whenCreated', 'offsetDate', 'amount', 'ratio', 'largeInteger', 'zero', 'negative', 'enabled')
+                }
+                $map['Values-'] | Should -BeExactly @(
+                    'whenCreated=10/08/2026 13:14:15'
+                    'offsetDate=10/08/2026 13:14:15 +02:00'
+                    'amount=1234.56'
+                    'ratio=1234.56'
+                    'largeInteger=9223372036854775807'
+                    'zero=0'
+                    'negative=-12.5'
+                    'enabled=False'
+                )
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+
+        It 'preserves multivalue strings and DNs while retaining blank namespaces under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US' }
+            @{ CultureName = 'de-DE' }
+        ) {
+            param($CultureName)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $user = [pscustomobject]@{
+                    mixed = @([decimal]1234.56, [datetime]::new(2026, 10, 8), 'First', 'first', '  ordinary  ', '1.234,56', $null, '', " `t")
+                    memberOf = @('CN=Example\, Group,OU=People,DC=example,DC=test', 'CN=Other,DC=example,DC=test')
+                    emptyScalar = $null
+                    emptyArray = @()
+                    blankValues = @($null, '', ' ', "`t`r`n")
+                }
+                $map = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap @{
+                    'Values-' = @('mixed', 'memberOf')
+                    'Null-' = @('emptyScalar')
+                    'Empty-' = @('emptyArray')
+                    'Blank-' = @('blankValues')
+                }
+                $map['Values-'] | Should -BeExactly @(
+                    'mixed=1234.56'
+                    'mixed=10/08/2026 00:00:00'
+                    'mixed=First'
+                    'mixed=  ordinary  '
+                    'mixed=1.234,56'
+                    'memberOf=CN=Example\, Group,OU=People,DC=example,DC=test'
+                    'memberOf=CN=Other,DC=example,DC=test'
+                )
+                foreach ($prefix in @('Null-', 'Empty-', 'Blank-')) {
+                    $map.Contains($prefix) | Should -BeTrue
+                    @($map[$prefix]).Count | Should -Be 0
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+    }
+}
+
 Describe 'DrunkenAD write operation contracts' {
     InModuleScope DrunkenAD {
         BeforeEach {
@@ -397,6 +486,49 @@ Describe 'DrunkenAD write operation contracts' {
             Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly
             Assert-MockCalled Get-DrunkenADDrinkAttributeStatus -Times 1 -Exactly
             Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq 'CN=demo,DC=example,DC=test' }
+        }
+
+        It 'clears only mapped namespaces for blank projection values under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US' }
+            @{ CultureName = 'de-DE' }
+        ) {
+            param($CultureName)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $script:directoryValues = @('Org-old', 'Flags-old', 'Keep-stable')
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName = 'demo'
+                        DistinguishedName = 'CN=demo,DC=example,DC=test'
+                        drink = @($script:directoryValues)
+                        department = $null
+                        title = @($null, '', ' ', "`t")
+                        company = @()
+                    }
+                }
+                $result = Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{
+                    'Org-' = @('department', 'title')
+                    'Flags-' = @('company')
+                } -Confirm:$false -PassThru
+                $result.Status | Should -Be 'Written'
+                $result.DataMap.Contains('Org-') | Should -BeTrue
+                $result.DataMap.Contains('Flags-') | Should -BeTrue
+                @($result.DataMap['Org-']).Count | Should -Be 0
+                @($result.DataMap['Flags-']).Count | Should -Be 0
+                $result.FinalDrinkValues | Should -BeExactly @('Keep-stable')
+                $script:directoryValues | Should -BeExactly @('Keep-stable')
+                Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                    @($Remove.drink).Count -eq 2 -and $Remove.drink -contains 'Org-old' -and
+                    $Remove.drink -contains 'Flags-old' -and -not $Add -and -not $Clear -and -not $Replace
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
         }
 
         It 'honors WhatIf through every write wrapper including AutoConfirm' {
