@@ -490,6 +490,75 @@ Describe 'DrunkenAD write operation contracts' {
             Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq 'CN=demo,DC=example,DC=test' }
         }
 
+        It 'validates complete <SourceKind> projection lengths through <CommandName> under <CultureName>' -TestCases @(
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; SourceKind = 'UnicodeDN' }
+        ) {
+            param($CommandName, $CultureName, $SourceKind)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                if ($SourceKind -eq 'DateTime') {
+                    $script:boundaryProperty = 'whenCreated'
+                    $sourceValue = [datetime]::new(2024, 1, 2, 3, 4, 5)
+                    $rendered = '01/02/2024 03:04:05'
+                }
+                else {
+                    $script:boundaryProperty = 'memberOf'
+                    $rendered = 'CN=Example\, ' + [char]0xe9 + [char]0x6f22 + [char]::ConvertFromUtf32(0x1f680) + '=QA,DC=example,DC=test'
+                    $sourceValue = $rendered
+                }
+                $script:boundaryExpected = 'Bound-' + $script:boundaryProperty + '=' + $rendered
+                $script:boundaryLimit = $script:boundaryExpected.Length
+                $script:boundarySource = @($sourceValue)
+                if ($SourceKind -eq 'DateTime') {
+                    # Keep the native single-valued source typed while crossing its rendered limit.
+                    $script:boundaryLimit--
+                }
+                else { $script:boundarySource += $rendered + 'X' }
+                $script:directoryValues = @('Bound-old', 'Keep-stable')
+                Mock Get-DrunkenADDrinkAttributeStatus {
+                    [pscustomobject]@{ ReadyForUserWrite = $true; Server = 'dc01.example.test'; RangeUpper = $script:boundaryLimit }
+                }
+                Mock Resolve-DrunkenADUser {
+                    $properties = @{
+                        SamAccountName = 'demo'
+                        DistinguishedName = 'CN=demo,DC=example,DC=test'
+                        drink = @($script:directoryValues)
+                    }
+                    $properties[$script:boundaryProperty] = $script:boundarySource
+                    [pscustomobject]$properties
+                }
+                $parameters = @{ SamAccountName = 'demo'; AttributeMap = @{ 'Bound-' = @($script:boundaryProperty) }; Confirm = $false; PassThru = $true; ErrorAction = 'Stop' }
+                { & $CommandName @parameters } | Should -Throw "*has $($script:boundaryLimit + 1) characters*at most $script:boundaryLimit*including the prefix*"
+                Assert-MockCalled Set-ADUser -Times 0 -Exactly
+                $script:directoryValues | Should -BeExactly @('Bound-old', 'Keep-stable')
+
+                $script:boundarySource = @($sourceValue)
+                $script:boundaryLimit = $script:boundaryExpected.Length
+                $result = & $CommandName @parameters
+                $result.Status | Should -Be 'Written'
+                $script:directoryValues | Should -BeExactly @('Keep-stable', $script:boundaryExpected)
+                Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                    $Server -eq 'dc01.example.test' -and -not $Replace -and -not $Clear -and
+                    @($Remove.drink).Count -eq 1 -and $Remove.drink[0] -ceq 'Bound-old' -and
+                    @($Add.drink).Count -eq 1 -and $Add.drink[0] -ceq $script:boundaryExpected
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+
         It 'clears only mapped namespaces for blank projection values under <CultureName>' -TestCases @(
             @{ CultureName = 'en-US' }
             @{ CultureName = 'de-DE' }
