@@ -209,9 +209,12 @@ Describe 'DrunkenAD comment-based help contract' {
 
     It 'uses the same explicit DC hostname in every directory-command help example' {
         foreach ($command in $script:exportedCommands) {
-            $help = Get-Help -Name $command.Name -Full -ErrorAction Stop
-            foreach ($example in $help.Examples.Example) {
-                Assert-ExampleController -Code $example.Code
+            # Windows PowerShell 5.1 exposes only the first example line as Get-Help.Code.
+            $help = $command.ScriptBlock.Ast.GetHelpContent()
+            $help.Examples.Count | Should -BeGreaterOrEqual 2
+            foreach ($example in $help.Examples) {
+                $code = [regex]::Split($example.Trim(), '\r?\n\s*\r?\n', 2)[0]
+                Assert-ExampleController -Code $code
             }
         }
     }
