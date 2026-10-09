@@ -32,11 +32,17 @@ $env:DRUNKENAD_TEST_DC = 'dc01.contoso.com'
 $env:DRUNKENAD_TEST_DNS_SUFFIX = 'contoso.com'
 ```
 
-Optional:
+Before a writable-directory fixture can be created, also set:
 
 ```powershell
 $env:DRUNKENAD_TEST_USER_OU = 'OU=Drink Ops,DC=contoso,DC=com'
+$env:DRUNKENAD_TEST_JOURNAL_DIRECTORY = 'C:\PrivateTestEvidence\unique-run'
 ```
+
+The OU must already exist. Prepare the journal directory as a new, empty,
+owner-only local directory outside the checkout. See the
+[fixture ownership and interruption contract](TESTING.md#fixture-ownership-and-interruption).
+Do not reuse a journal or treat a timed-out create as proof that no user exists.
 
 Then run:
 
@@ -128,7 +134,7 @@ Use `campaign-summary.json` as the canonical machine-readable report. It capture
 
 ## Campaign Profiles
 
-![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+![Live campaign profiles](images/documentation-suite-2026-10-08/live-campaign-profiles.png)
 
 The source diagram for campaign profile selection lives at
 [diagrams/live-campaign-profiles.mmd](diagrams/live-campaign-profiles.mmd).

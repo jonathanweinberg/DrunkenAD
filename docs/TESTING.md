@@ -46,6 +46,14 @@ The runner prints the resolved Pester version and manifest path, and discovers
 only its explicit top-level test allowlist. Discovery or container failures fail
 the process even when Pester reports zero individual failing tests.
 
+Default unit selection excludes integration execution even when live environment
+flags are present. Integration discovery performs no module initialization or AD
+readiness calls; those occur only in the selected integration `BeforeAll`.
+Unit fixtures restore preexisting AD-named functions and test handler variables,
+or remove the replacements they own. Process-isolated regression tests exercise
+both absent and preexisting state across repeated runs. Continue to use a fresh
+process for live work and verify native command provenance before mutation.
+
 If you only want the parser gate:
 
 ```powershell
@@ -62,9 +70,16 @@ It is skipped unless all of the following are present:
 - `DRUNKENAD_TEST_DC`
 - `DRUNKENAD_TEST_DNS_SUFFIX`
 
-Optional:
+Before a writable-directory fixture can be created, also provide:
 
-- `DRUNKENAD_TEST_USER_OU`
+- `DRUNKENAD_TEST_USER_OU`, naming an existing test OU
+- `DRUNKENAD_TEST_JOURNAL_DIRECTORY`, an absolute path to a new, empty,
+  pre-existing private directory outside the checkout
+
+Prepare that directory with owner-only access on the test host. The journal
+helper rejects checkout paths, reparse points and reused/nonempty directories;
+it does not configure or certify filesystem permissions. Discovery and a
+readiness-blocked run create no journal or fixture.
 
 Example:
 
@@ -73,6 +88,7 @@ $env:DRUNKENAD_RUN_INTEGRATION = '1'
 $env:DRUNKENAD_TEST_DC = 'dc01.contoso.com'
 $env:DRUNKENAD_TEST_DNS_SUFFIX = 'contoso.com'
 $env:DRUNKENAD_TEST_USER_OU = 'OU=Drink Ops,DC=contoso,DC=com'
+$env:DRUNKENAD_TEST_JOURNAL_DIRECTORY = 'C:\PrivateTestEvidence\unique-run'
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
 ```
 
@@ -92,6 +108,102 @@ When the environment is ready, the live integration tests validate:
 - cleanup of the temporary test user
 - CSV ingestion against a temporary CSV source
 - projection of AD attributes into default namespaces
+
+### Fixture Ownership And Interruption
+
+Setup writes an exclusive, flushed creation-intent record before its single
+create attempt. The disabled fixture carries a run-specific description
+marker. Its returned GUID is recorded and checked before test-data writes.
+Every fixture-producing mode binds the readiness result to a positively
+verified canonical writable DC. Setup also rechecks the original parent GUID
+and the new user's immediate-parent membership before admitting test writes.
+No password is written to the journal. These private records contain directory
+identities and must never be committed or attached to public issues.
+
+Marker, handle and journal-protocol strings require exact ordinal equality.
+Case changes or added invisible Unicode characters are mismatches, not aliases;
+the helper rejects them before admitting a write or ownership assertion.
+
+Normal cleanup verifies the recorded parent, GUID, description marker and
+disabled state, then removes only that GUID. It never falls back to a name or
+prefix deletion. A delete error is not proof that the delete failed: successful
+same-target absence and parent checks may establish cleanup afterward. Failed
+reads, mismatched ownership, partial journal writes and uncertain creation stay
+explicitly incomplete. Retained journal files are not reusable approval markers.
+
+Forced termination can bypass Pester cleanup. A surviving controller must
+retain process identity and reconcile the journal independently; an absent GUID
+in an interrupted creation record does not mean no account was created. Do not
+retry creation, clear the journal, or delete a same-named object to recover.
+This journal is evidence for narrowly authorized reconciliation, not authority
+to perform it or a guarantee that a timed-out directory call was rolled back.
+The private controller and fresh native recovery evidence remain separate gates.
+
+### Expanded Single-DC Checks
+
+After separately authorizing the bounded Tier 1 scope, set
+`DRUNKENAD_RUN_TIER1=1` as well as the existing integration variables. Tier 1
+also requires `DRUNKENAD_TEST_USER_OU` to name a pre-existing lab OU. The suite
+uses the same one disabled temporary account, journals its GUID, and verifies
+cleanup. Fifteen extra cases probe stale Remove, duplicate/case-variant Add,
+live length boundaries, Unicode across write paths, bounded capacity, no-op
+replication metadata, and eight native projection-boundary combinations.
+The latter cover both public projection commands, en-US/de-DE, and typed dates
+or distinguished names against the actual schema limit. Each case independently
+resets only that account; the complete opt-in suite discovers 27 cases.
+The capacity case requires its own additional opt-in below; without it only
+26 cases are eligible. Expanded cases remain excluded from default CI and from
+an ordinary twelve-case run.
+
+Do not count a skipped boundary test or an unknown AD error as a pass. The
+full [post-merge matrix](POST-MERGE-VALIDATION.md) distinguishes these automated
+areas from identity, interactive-host, ACL, exporter, multi-DC, and environment
+checks that need separate protocols and evidence. Run the final candidate,
+retain private raw results, and publish only sanitized receipts.
+
+### Bounded Capacity Characterization
+
+Capacity testing additionally requires `DRUNKENAD_RUN_CAPACITY=1`, alongside
+the integration and Tier 1 opt-ins and separately approved fixture scope.
+The flag alone or a Pester `Capacity` tag filter does not authorize execution.
+Use a fresh native ActiveDirectory process and an independently reviewed
+launcher with a hard timeout, interruption reconciliation and cleanup plan.
+Never reuse a consumed approval marker or change schema/database settings to
+force a result. No live evidence exists for this replacement case yet.
+
+Before fixture creation, capacity setup verifies native command provenance and
+compares the explicit canonical DC DNS hostname with RootDSE and writable-DC
+identity metadata. It also verifies the exact existing OU in that domain.
+Aliases, domain selectors, IPs, ports, trailing dots, ambiguous metadata and
+RODCs fail this test's precondition; accepted public API endpoint forms are
+unchanged. This adds two outer read calls beyond the prior Tier 1 OU lookup.
+Outer setup is outside the cooperative case timer and must be covered by the
+launcher's external watchdog.
+
+The case grows fixed, distinct ASCII values on the same owned disabled user
+and pinned DC. It calls the production scoped writer with one actual marker
+removal plus new values. A stable unrelated value must survive every step.
+
+| Bound | Limit |
+| --- | --- |
+| Namespace payload | At most 1,600 payload values plus one rotating marker, each complete prefixed value exactly 32 UTF-16 code units |
+| Whole attribute | At most 1,602 intended values including the unrelated 13-code-unit sentinel; 102,490 UTF-16 text bytes, not database or protocol size |
+| Probe requests | At most 13, growing by up to 128 payloads; each removes one marker and adds at most 129 values |
+| Attribute writes | At most 16 including initial reset, seed and the existing per-case cleanup reset; shared fixture setup/deletion are separate |
+| Time | 120-second cooperative budget; native calls can block, so an external process watchdog remains required |
+
+A recognized server capacity rejection must leave the complete independently
+read `drink` set and all captured attribute replication metadata unchanged,
+before cleanup. Unexpected errors or changed state fail. Record the last
+accepted and first rejected counts, input size, request shape, elapsed time
+and cleanup result privately. This is a bracket for that fixture and history,
+not an exact or general per-user ceiling. Reaching the bounds without a
+verified rejection is an Evidence Gap, not a successful capacity assertion.
+
+The former 1,602-value seed failed before large-range retrieval ran. Replacing
+that prerequisite-dependent case does not validate large-range retrieval or
+remove it from the evidence matrix. That separate objective still requires a
+suitable authorized environment and independent complete-value verification.
 
 ## Live Campaign Harness
 
@@ -193,8 +305,7 @@ The PowerShell workflow:
 - installs the pinned Pester version used by CI
 - validates the module manifest
 - parses tracked PowerShell files through [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1)
-- runs the unit suite through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
-- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1)
+- runs release-readiness checks through [scripts/Test-DrunkenADRelease.ps1](../scripts/Test-DrunkenADRelease.ps1), which invokes the unit suite once through [tests/Invoke-DrunkenADTests.ps1](../tests/Invoke-DrunkenADTests.ps1)
 - executes on Ubuntu, macOS, and Windows
 - uploads per-OS Pester XML results as short-lived artifacts
 

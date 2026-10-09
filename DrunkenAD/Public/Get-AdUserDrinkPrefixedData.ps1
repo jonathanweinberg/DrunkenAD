@@ -40,7 +40,7 @@ Get-AdUserDrinkPrefixedData -SamAccountName 'TesterAccount' -DrinkValuePrefix 'A
 Returns all `drink` values on the user that start with `AppProfile-`.
 
 .EXAMPLE
-Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValuePrefix 'AppProfile-'
+Get-AdUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -DrinkValuePrefix 'AppProfile-' -DomainController 'dc01.contoso.com'
 
 Returns all `drink` values for that exact UPN whose prefix is `AppProfile-`.
 

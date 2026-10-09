@@ -50,7 +50,7 @@ Replaces the user's `AppProfile-` values with `AppProfile-Tier=Gold`, leaving th
 built-in projection's `Profile-` namespace untouched.
 
 .EXAMPLE
-Set-ADUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -PrefixMap @{ 'App[01]-' = @('Second') } -WhatIf
+Set-ADUserDrinkPrefixedData -UserPrincipalName 'tester@contoso.com' -PrefixMap @{ 'App[01]-' = @('Second') } -DomainController 'dc01.contoso.com' -WhatIf
 
 Shows what would change for a literal prefix containing regex metacharacters.
 

@@ -10,11 +10,24 @@ The source diagram for this page lives at
 
 ## Before Any Live Write
 
-1. Confirm you are targeting the intended domain controller.
+1. For coordinated writes, select one common writable DC by its actual hostname
+   for all producers of the affected users' `drink` attribute, including
+   different prefixes. Use explicit `-DomainController` on each write command.
 2. Import the module.
 3. Check schema readiness.
 4. Confirm the workflow's owned prefixes.
 5. Use `-WhatIf` where the command supports it.
+
+Use that same DC for reads feeding writes. Do not let individual producers
+independently choose a replacement during failover. Domain names, NetBIOS domain
+names and aliases do not establish this shared physical target. This operating
+guidance does not change accepted API parameters or certify multi-DC behavior.
+Same-prefix producers still need external serialization; see
+[concurrency limits](DATA-STORE.md#replacement-semantics).
+
+RODCs are not supported write targets by
+[Set-ADUser](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser?view=windowsserver2025-ps#notes).
+Schema readiness is not a write-permission or writable-controller check.
 
 ```powershell
 Import-Module .\DrunkenAD\DrunkenAD.psd1 -Force
@@ -59,7 +72,8 @@ Import-ADUserDrinkCsvData `
 The sample CSV map owns `CsvProfile-`, `Flags-`, `CsvRouting-`, `Tenant-`, and
 `Sync-`, separate from the default projection. Custom maps must also avoid
 unintended overlap. Entirely blank mapped namespaces remain unchanged unless
-`-ClearBlankNamespaces` is supplied. Incomplete CSV records fail before AD
+`-ClearBlankNamespaces` is supplied. Save CSV sources as UTF-8; invalid byte
+sequences and incomplete CSV records fail before AD
 access. Confirmation uses refreshed counts and stops if the approved delta
 changes before writing. See [CSV guidance](HOW-TO-INGEST-CSV.md#blank-cells-and-existing-imports).
 
@@ -118,9 +132,9 @@ for logging only, so a failed log cannot invalidate a completed directory write.
 Use the live campaign when you need end-to-end evidence across schema readiness,
 temporary smoke writes, seeded users, CSV ingestion, projection, and CRUD.
 
-![Live validation ladder](images/documentation-suite-2026-05-07/live-validation-ladder.png)
+![Live validation ladder](images/documentation-suite-2026-10-08/live-validation-ladder.png)
 
-![Live campaign profiles](images/documentation-suite-2026-05-11/live-campaign-profiles.png)
+![Live campaign profiles](images/documentation-suite-2026-10-08/live-campaign-profiles.png)
 
 The source diagram for this validation path lives at
 [diagrams/live-validation-ladder.mmd](diagrams/live-validation-ladder.mmd).

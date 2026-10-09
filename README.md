@@ -21,12 +21,16 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
-| Module layout | [Current Mermaid flow](docs/DIAGRAMS.md#module-layout) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| Write model | [Current Mermaid flow](docs/DIAGRAMS.md#namespace-write-model) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| CSV ingestion | [Current Mermaid flow](docs/DIAGRAMS.md#csv-ingestion-flow) | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
-| Schema readiness | [Current Mermaid flow](docs/DIAGRAMS.md#schema-readiness-flow) | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
-| Live validation | <img src="docs/images/documentation-suite-2026-05-07/live-validation-ladder.png" alt="Live validation ladder" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
-| Release readiness | [Current Mermaid flow](docs/DIAGRAMS.md#release-readiness) | [docs/TESTING.md](docs/TESTING.md) |
+| Module layout | <img src="docs/images/documentation-suite-2026-10-08/module-layout.png" alt="Illustrated module layout with shared helpers and 12 public commands" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Write model | <img src="docs/images/documentation-suite-2026-10-08/namespace-write-model.png" alt="Illustrated scoped Remove/Add update preserving unrelated values" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| CSV ingestion | <img src="docs/images/documentation-suite-2026-10-08/csv-ingestion-flow.png" alt="Illustrated CSV validation, confirmation, scoped writes, and explicit outcomes" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
+| Schema readiness | <img src="docs/images/documentation-suite-2026-10-08/schema-readiness-flow.png" alt="Illustrated schema checks separated from authorized schema changes" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
+| Live validation | <img src="docs/images/documentation-suite-2026-10-08/live-validation-ladder.png" alt="Illustrated approval, isolated testing, read-back, and cleanup gates" width="260"> | [docs/LIVE-VALIDATION.md](docs/LIVE-VALIDATION.md) |
+| Release readiness | <img src="docs/images/documentation-suite-2026-10-08/release-readiness.png" alt="Illustrated source checks, CI platforms, opt-in live evidence, and separate publication approval" width="260"> | [docs/TESTING.md](docs/TESTING.md) |
+
+The refreshed illustrations explain the workflows; dated test receipts establish
+what actually passed. Detailed [Mermaid diagrams](docs/DIAGRAMS.md) remain
+available alongside the artwork.
 
 ## Design Goals
 
@@ -56,8 +60,10 @@ DrunkenAD is opinionated about the edges that matter when writing application da
 - The module distinguishes between schema presence and actual user-write readiness, so `drink` must both exist and be allowed on the Active Directory `user` class.
 - Updates use PowerShell `ShouldProcess`, so `-WhatIf` and `-Confirm` work naturally.
 - Writes apply only owned value deltas on one selected DC, never a whole-attribute
-  replacement. Same-prefix writers and cross-DC replication still need external
-  coordination; see [concurrency limits](docs/DATA-STORE.md).
+  replacement. Configure one common writable DC by its actual hostname in
+  `-DomainController` across all cooperating writers of the affected users'
+  `drink` attribute, including different prefixes. Same-prefix writers still
+  need external serialization; see [concurrency limits](docs/DATA-STORE.md).
 - The integration validation workflow creates unique test objects and only removes the ones it created.
 
 ## Data Store Model
@@ -352,9 +358,13 @@ The sample CSV workflow is meant to show a realistic ingestion path from a flat 
 - CSV rows must have the same number of fields as the header. Missing or extra
   fields are rejected from a single input snapshot before any AD access; valid
   unquoted empty fields are accepted.
+- Save as CSV UTF-8. BOM-marked UTF-16/UTF-32 also work; invalid byte sequences
+  fail before AD access instead of silently replacing accented or other text.
 - It can turn one CSV column into multiple `drink` values by using `SplitOn` on that mapping only.
 - It can load those mappings from [drink-ingestion-config.json](examples/data/drink-ingestion-config.json) or accept a hashtable at invocation time.
-- It uses the same domain controller for validation, lookup, and write operations.
+- It reuses the selected endpoint for validation, lookup, and writes. Use an
+  actual DC hostname for a single-DC guarantee; NetBIOS names and DNS aliases
+  are passed through and can resolve differently between calls.
 - Each prepared row is re-read before confirmation, so the prompt describes its
   current delta. If that delta changes after approval, the import stops without
   applying the changed delta. Earlier writes are not rolled back; concurrent

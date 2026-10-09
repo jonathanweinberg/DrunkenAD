@@ -1,17 +1,27 @@
 $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
 Import-Module $modulePath -Force -ErrorAction Stop
 
-$global:DrunkenADTest_GetADUserCalls = @()
-$global:DrunkenADTest_GetADUserHandler = { throw 'Get-ADUser test stub should be configured by the current test.' }
-$global:DrunkenADTest_GetADRootDSECalls = @()
-$global:DrunkenADTest_GetADRootDSEHandler = { throw 'Get-ADRootDSE test stub should be configured by the current test.' }
-$global:DrunkenADTest_GetADObjectCalls = @()
-$global:DrunkenADTest_GetADObjectHandler = { throw 'Get-ADObject test stub should be configured by the current test.' }
-$global:DrunkenADTest_SetADUserCalls = @()
-$global:DrunkenADTest_SetADUserHandler = { return }
-
 Describe 'DrunkenAD unit tests' {
     BeforeAll {
+        $script:DrunkenADUnitOriginalVariables = @{}
+        $script:DrunkenADUnitVariableNames = @(
+            'DrunkenADTest_GetADUserCalls', 'DrunkenADTest_GetADUserHandler',
+            'DrunkenADTest_GetADRootDSECalls', 'DrunkenADTest_GetADRootDSEHandler',
+            'DrunkenADTest_GetADObjectCalls', 'DrunkenADTest_GetADObjectHandler',
+            'DrunkenADTest_SetADUserCalls', 'DrunkenADTest_SetADUserHandler'
+        )
+        foreach ($name in $script:DrunkenADUnitVariableNames) {
+            $existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
+            if ($existing) { $script:DrunkenADUnitOriginalVariables[$name] = $existing.Value }
+        }
+        $global:DrunkenADTest_GetADUserCalls = @()
+        $global:DrunkenADTest_GetADUserHandler = { throw 'Get-ADUser test stub should be configured by the current test.' }
+        $global:DrunkenADTest_GetADRootDSECalls = @()
+        $global:DrunkenADTest_GetADRootDSEHandler = { throw 'Get-ADRootDSE test stub should be configured by the current test.' }
+        $global:DrunkenADTest_GetADObjectCalls = @()
+        $global:DrunkenADTest_GetADObjectHandler = { throw 'Get-ADObject test stub should be configured by the current test.' }
+        $global:DrunkenADTest_SetADUserCalls = @()
+        $global:DrunkenADTest_SetADUserHandler = { return }
         $script:DrunkenADUnitModulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
         $script:DrunkenADUnitOriginalFunctions = @{}
         $stubDefinitions = @{
@@ -67,7 +77,7 @@ Describe 'DrunkenAD unit tests' {
 
         foreach ($functionName in $stubDefinitions.Keys) {
             $functionPath = 'Function:\global:{0}' -f $functionName
-            $existingFunction = Get-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            $existingFunction = Get-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             if ($existingFunction) {
                 $script:DrunkenADUnitOriginalFunctions[$functionName] = $existingFunction.ScriptBlock
             }
@@ -83,8 +93,14 @@ Describe 'DrunkenAD unit tests' {
                 Set-Item -LiteralPath $functionPath -Value $script:DrunkenADUnitOriginalFunctions[$functionName]
             }
             else {
-                Remove-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             }
+        }
+        foreach ($name in $script:DrunkenADUnitVariableNames) {
+            if ($script:DrunkenADUnitOriginalVariables.ContainsKey($name)) {
+                Set-Variable -Name $name -Scope Global -Value $script:DrunkenADUnitOriginalVariables[$name]
+            }
+            else { Remove-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue }
         }
     }
 
@@ -997,6 +1013,15 @@ Describe 'DrunkenAD unit tests' {
                 $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
                 $rows.Count | Should -Be 1
                 $rows[0].SamAccountName | Should -Be 'alice'
+            }
+
+            It 'rejects an unterminated quoted field instead of consuming another user row' {
+                $path = Join-Path $TestDrive 'unterminated.csv'
+                @('SamAccountName,Tier', 'alice,"Gold', 'bob,Silver') | Set-Content -LiteralPath $path -Encoding UTF8
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false } |
+                    Should -Throw '*cannot be parsed*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
             }
 
             It 'accepts hash-prefixed identities as data after the header' {

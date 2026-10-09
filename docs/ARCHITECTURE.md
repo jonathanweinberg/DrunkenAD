@@ -38,7 +38,9 @@ selected endpoint for the user lookup. They do not traverse the class graph or
 depend on write readiness. Explicit hosts, IPs, aliases, and tunnel endpoints
 are preserved. Only absent servers or DNS names matching RootDSE's default
 domain are pinned to its controller hostname; explicit ports are retained.
-An alias remains the operator's responsibility if it can route to multiple DCs.
+NetBIOS names are also preserved, not inferred from the first DNS label. A short
+name may identify a specific DC instead. NetBIOS names and aliases remain the
+operator's responsibility if they can route to multiple DCs.
 
 ## Write Semantics
 

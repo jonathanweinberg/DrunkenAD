@@ -296,7 +296,7 @@ Describe 'Public write warning preferences' {
     }
 
     AfterAll {
-        & $script:loggingPublicModule { Remove-Item Function:script:Set-ADUser -ErrorAction Stop }
+        & $script:loggingPublicModule { Remove-Item Function:Set-ADUser -ErrorAction Stop }
     }
 
     BeforeEach {

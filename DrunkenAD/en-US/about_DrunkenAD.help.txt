@@ -19,18 +19,27 @@ LONG DESCRIPTION
         Get-Help Remove-ADUserDrinkData -Parameter Prefixes
 
 CORE WORKFLOWS
+    Select one common writable DC by its actual hostname for every producer of
+    the affected users' drink attribute. Use that same DC for reads feeding
+    writes and previews. Replace dc01.contoso.com with that designated hostname;
+    domain names, NetBIOS domain names, and aliases do not establish this shared
+    physical target. Same-prefix writers still need external serialization.
+
     Read values:
 
-        Get-ADUserDrinkData -SamAccountName TesterAccount
+        Get-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com'
 
     Write one or more namespaces:
 
         Set-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com' `
             -DataMap @{ 'AppProfile-' = @('Tier=Gold') } -Confirm:$false
 
     Remove a namespace:
 
         Remove-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com' `
             -Prefixes 'AppProfile-' -Confirm:$false
 
     AppProfile- is separate from the built-in projection's Profile-, Identity-,
@@ -53,10 +62,12 @@ CSV INGESTION
     config file or an in-memory NamespaceMap. Split-DrunkenADCsvField documents
     the literal delimiter behavior used by SplitOn mappings.
 
-    Every mapped namespace is replaced, including an empty replacement when all
-    its source cells are blank. Preview existing imports before applying this
-    behavior. The sample CsvProfile- and CsvRouting- prefixes do not overlap the
-    built-in projection. No stored values are automatically migrated.
+    Blank mapped namespaces are left unchanged by default. ClearBlankNamespaces
+    explicitly opts into clearing them; preview that switch with WhatIf first.
+    CSV text must be valid UTF-8, or BOM-marked UTF-16/UTF-32. Invalid byte
+    sequences fail before directory access; export legacy CSV sources as UTF-8.
+    The sample CsvProfile- and CsvRouting- prefixes do not overlap the built-in
+    projection. No stored values are automatically migrated.
 
     CSV and projection summaries include Written, NoChange, Declined, or WhatIf
     status. Computed values are not a post-write directory read-back.

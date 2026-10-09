@@ -53,13 +53,13 @@ None. This command does not accept pipeline input.
 System.String[]. Returned when `PassThru` is specified.
 
 .EXAMPLE
-Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'AppProfile-' -DrinkValues 'Tier=Gold' -AutoConfirm
+Update-ADUserDrinkAttribute -SamAccountName 'TesterAccount' -Prefixes 'AppProfile-' -DrinkValues 'Tier=Gold' -DomainController 'dc01.contoso.com' -AutoConfirm
 
 Replaces the `AppProfile-` slice of the `drink` attribute with a single value,
 separate from the built-in projection's `Profile-` namespace.
 
 .EXAMPLE
-Update-ADUserDrinkAttribute -EmployeeID '123456' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B' -WhatIf
+Update-ADUserDrinkAttribute -EmployeeID '123456' -Prefixes 'One-', 'Two-' -DrinkValues 'A', 'B' -DomainController 'dc01.contoso.com' -WhatIf
 
 Previews an aligned multi-prefix update without writing any changes.
 
