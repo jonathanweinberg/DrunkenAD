@@ -2,6 +2,8 @@
 
 ## 0.13.2
 
+- Fail closed on malformed CSV byte sequences before AD access, preserving
+  UTF-8 and BOM-marked UTF-16/UTF-32 without silently replacing damaged text.
 - Replaced whole-attribute writes with prefix-scoped Remove/Add deltas on one
   selected domain controller. Case-only changes are honored, unowned values
   added after the read are preserved, and schema length bounds are validated.

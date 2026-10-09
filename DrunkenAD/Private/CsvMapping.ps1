@@ -2,7 +2,32 @@ function Read-DrunkenADCsvRows {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$CsvPath)
 
-    $text = Get-Content -LiteralPath $CsvPath -Raw -Encoding UTF8 -ErrorAction Stop
+    $path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($CsvPath)
+    $bytes = [System.IO.File]::ReadAllBytes($path)
+    $codePage = 65001
+    $offset = 0
+    # Recognize the same Unicode BOMs as Get-Content, but retain strict decoding
+    # after detection. UTF-32 LE must precede its shared UTF-16 LE prefix.
+    if ($bytes.Length -ge 4 -and $bytes[0] -eq 0xff -and $bytes[1] -eq 0xfe -and $bytes[2] -eq 0 -and $bytes[3] -eq 0) {
+        $codePage = 12000; $offset = 4
+    }
+    elseif ($bytes.Length -ge 4 -and $bytes[0] -eq 0 -and $bytes[1] -eq 0 -and $bytes[2] -eq 0xfe -and $bytes[3] -eq 0xff) {
+        $codePage = 12001; $offset = 4
+    }
+    elseif ($bytes.Length -ge 3 -and $bytes[0] -eq 0xef -and $bytes[1] -eq 0xbb -and $bytes[2] -eq 0xbf) {
+        $offset = 3
+    }
+    elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xff -and $bytes[1] -eq 0xfe) {
+        $codePage = 1200; $offset = 2
+    }
+    elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xfe -and $bytes[1] -eq 0xff) {
+        $codePage = 1201; $offset = 2
+    }
+    $encoding = [System.Text.Encoding]::GetEncoding($codePage, [System.Text.EncoderFallback]::ExceptionFallback, [System.Text.DecoderFallback]::ExceptionFallback)
+    try { $text = $encoding.GetString($bytes, $offset, $bytes.Length - $offset) }
+    catch [System.Text.DecoderFallbackException] {
+        throw 'CSV encoding is invalid. Export the source as CSV UTF-8 and retry. UTF-16 and UTF-32 require a matching byte-order mark; malformed Unicode is not accepted.'
+    }
     if ([string]::IsNullOrWhiteSpace($text)) { return }
 
     # Import-Csv conflates missing fields with unquoted empty cells. Validate
