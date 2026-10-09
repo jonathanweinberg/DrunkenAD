@@ -18,14 +18,14 @@ remains held; neither this matrix nor a green check authorizes publication.
 
 | Evidence Class | Candidate And Observed Result | Limit |
 | --- | --- | --- |
-| Encoding-only source review | `083e384`: independent gatekeeper found no blocking issue in the five-file extraction from `55906b1`. | No merge or support-scope approval is implied. |
+| Encoding-only source review and merge | `083e384`: independent gatekeeper found no blocking issue in the five-file extraction from `55906b1`. Owner-authorized PR #19 merged as `2a1ea96`; the merged tree matches the reviewed candidate. | Source delivery is not release publication or final support acceptance. |
 | Encoding regression | Main plus the added tests: 9 passed / 12 failed. With the extracted fix: 21 passed / 0 failed. | Failing baseline demonstrates malformed bytes reaching a mocked directory boundary, not a live AD call. |
 | Encoding local and CI | `083e384`: LF/CRLF local gates each 370 passed, 0 failed/skipped, 12 integration cases excluded. Five hosted checks passed, including Windows PowerShell 5.1. | Offline/hosted evidence is not native directory or authentic Excel certification. |
 | Previous completed native suite | `038013b`: 18 passed, 0 failed, 1 explicit capacity-prerequisite skip, with cleanup. | Partial, not all proposed cases passed. Setup rejection did not exercise large-range retrieval. |
 | Expanded native checks | Same production source as `038013b`: identity/lookup, prompts, failure accounting, rename/move, projection, no-op and seven endpoint forms. See the [bounded receipt](POST-MERGE-LIVE-EXPANSION.md). | One controller and runtime; not multi-DC, delegated-actor or compatibility-mode proof. |
 | Last actual AD attempt | `07d26b9`: interrupted by a private launcher/Pester variable collision. Fixture deletion and independent absence/parent checks completed. See the [attempt receipt](SINGLE-DC-VALIDATION-2026-10-08.md). | No completed live aggregate; eight new native projection-boundary cases never ran. Approval is consumed. |
 | Later synthetic preparation | Corrected launcher skip preflight and eight watchdog controls passed without AD. | Preparation only; no authorized live retry occurred. |
-| PR #17 checkpoint | `3314d38` had five passing CI checks. Its production module matched `038013b`; later capacity work changes tests, not production code. | Source identity supports relevance of old receipts, not a fresh new-head live pass. |
+| Prior PR #17 full-gate checkpoint | `14cf70a`: LF/CRLF local gates each 615 passed with 27 live cases excluded; five hosted jobs passed. All three reparse cases executed successfully in four runtime XML files. | Non-macOS hosted lanes retain one macOS-only logging skip. Production module identity with `038013b` is not fresh native-AD proof; later commits need their own checks. |
 | Replacement capacity case | Bounded production Remove/Add characterization is implemented behind a separate opt-in. | No fresh accepted/rejected count, native preservation result or cleanup receipt exists for it. |
 | Fixture ownership recovery | Private intent/GUID journals, verified target/parent binding and GUID-only cleanup have offline helper and actual-hook fault-injection coverage. | No surviving-controller or fresh native interruption-recovery receipt is implied. See [fixture guidance](TESTING.md#fixture-ownership-and-interruption). |
 
@@ -37,16 +37,16 @@ recognized setup skip, interruption or missing exporter is an Evidence Gap.
 
 | Review 5 Recommendation | Disposition |
 | --- | --- |
-| Split and merge encoding repair | Extracted as PR #19, with independent review and exact-head checks. Merge awaits explicit owner authority. PR #17 and issue closure remain separate. |
+| Split and merge encoding repair | Completed: owner-authorized PR #19 merged as `2a1ea96`, preserving the reviewed `083e384` tree. PR #17 and issue closure remain separate. |
 | Replace fixed large-set prerequisite | Adapted to a bounded fixture-specific capacity bracket with real companion removal, full-set and replication-metadata preservation. No universal ceiling claim. Range retrieval remains separate and unproven. |
 | One writable DC per writer | Corrected to one **common** writable DC across every producer of the affected objects' nonlinked `drink` attribute, including different prefixes. See [operating guidance](OPERATIONS.md#before-any-live-write). |
 | Same-prefix writers always silently merge | Rejected as a general contract. Stale deltas can fail, replace values or leave combined sets; external serialization is still needed. |
-| Multi-DC cases become out of scope | Conditional proposal only. An accepted restriction can exclude scenarios from a support envelope, but cannot label their unexecuted evidence as passed. |
+| Multi-DC cases become out of scope | Outside the owner-selected common-writable-DC target. They remain unexecuted; target selection is not final acceptance of missing evidence or any evidence deferral. |
 | Add a default missing-DC warning | Not adopted. Warnings can terminate automation under `WarningAction Stop`; a host string alone cannot establish role, common configuration or other writers. No API parameter or endpoint behavior changes. |
 | Keep evidence write-ups out of public docs | Detailed chronology and raw receipts are private. This concise public matrix retains requirements and limitations; stable links to sanitized receipts remain. |
 | Illustration size concern | Retain the artwork the owner explicitly requested. Keep the illustrated overview and detailed Mermaid flows; no removal is inferred from the review's size observation. |
 | Import the four external probe scripts | Awaiting original files. Descriptions and independently written tests are not an exact reproduction of that corpus. |
-| Declare 0.13.2 scope and tag | The [restricted proposal](SINGLE-DC-ACCEPTANCE-PROPOSAL.md) awaits owner acceptance; tagging remains explicitly held. |
+| Declare 0.13.2 scope and tag | The owner selected common writable DC, native Windows PowerShell 5.1 and supported Unicode as the [target scope](SINGLE-DC-ACCEPTANCE-PROPOSAL.md#selected-review-5-target-scope). Final acceptance remains pending; tagging remains explicitly held. |
 
 ## Scope And Evidence Discipline
 
@@ -127,7 +127,8 @@ Windows PowerShell 5.1/RSAT lane, are recommended 0.13.2 gates (`G`). Cases 14,
 24's other advertised modes and 25 are conditional support gates (`C`), with
 explicit scope deferral required if not claimed. Cases 15-21 and 26 are planned
 pre-1.0 evidence (`D`), promoted to gates when claiming those environments or
-current throughput. See G0-G5 below; no proposed restriction is accepted here.
+current throughput. See G0-G5 below; the target-scope choice does not itself
+accept missing receipts or any evidence deferral.
 
 ### Tier 1: Single Writable DC
 
@@ -157,9 +158,10 @@ current throughput. See G0-G5 below; no proposed restriction is accepted here.
 | 17. Distinct prefixes across DCs | Coordinated writes before replication, complete sets before/after convergence. | Not executed. Whole-attribute replication can affect different prefixes; one no-loss trial would not guarantee safety. |
 | 18. Read-only DC | Permitted reads and exact write failure/referral/no-unexpected-mutation evidence. | [Set-ADUser excludes RODC writes](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser?view=windowsserver2025-ps#notes). Module-specific negative-path behavior is untested, not a supported write mode. |
 
-Multi-DC hardware is unavailable in the owner's current lab. These are proposed
-scope exclusions, not accepted deferrals or passed tests. No new cloud lab,
-DNS alias, replication change or infrastructure purchase is authorized.
+Multi-DC hardware is unavailable in the owner's current lab. Multiple-controller
+scenarios are outside the selected target, not passed tests or final acceptance.
+No new cloud lab, DNS alias, replication change or infrastructure purchase
+is authorized.
 
 ### Tier 3: Schema, Permissions, And Environments
 
@@ -177,8 +179,8 @@ DNS alias, replication change or infrastructure purchase is authorized.
 ## Recommended Release Decision
 
 Keep release/tagging held. The [single-DC proposal](SINGLE-DC-ACCEPTANCE-PROPOSAL.md)
-names a possible restricted envelope and remaining receipts; it does not
-approve itself. A common writer DC cannot turn untested cases into success.
+records the selected target envelope and remaining receipts; final acceptance
+is still pending. A common writer DC cannot turn untested cases into success.
 
 | Gate | Required Evidence / Scope | Current Disposition |
 | --- | --- | --- |

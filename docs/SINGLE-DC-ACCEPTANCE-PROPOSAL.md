@@ -1,7 +1,8 @@
 # Restricted Single-DC Acceptance Proposal
 
-Prepared at the owner's request after the October review. **Proposed, not yet
-accepted.** This is a bounded acceptance decision for the reviewed candidate,
+Prepared at the owner's request after the October review. **Target scope
+selected; final acceptance pending.** This is a bounded acceptance proposal
+for the reviewed candidate,
 not a declaration that all 26 validation cases passed, a change to the public
 API, or permission to merge, publish, close issues, or modify infrastructure.
 The separate release/tag hold remains in force.
@@ -72,18 +73,20 @@ proposal is accepted; none is invented here.
 | 25 | Redirected, OneDrive and junction-backed enterprise profiles. | Approved representative profiles and log-path expectations, before environment-specific logging claims. |
 | 26 | Current 3,000-user throughput, resource use and ADWS behavior. | Explicit campaign authority and measurement plan, before renewed scale claims. |
 
-## Review 5 Scope Option
+## Selected Review 5 Target Scope
 
-The owner has reported that multi-DC hardware is unavailable. A target 0.13.2
-envelope could require the common writer DC above, native Windows PowerShell
-5.1 with RSAT, existing ready schema, and the documented Unicode CSV contract.
-This remains a proposed policy, not an accepted support restriction or release.
-The observed live host was the DC; member-host RSAT behavior remains unproven.
+On 2026-10-08, the owner selected the common writable DC, native Windows
+PowerShell 5.1 and supported-Unicode envelope as the target for 0.13.2.
+This guides the remaining work; it does not accept missing evidence, approve
+any evidence deferral, or lift the release hold. Existing ready schema is
+the proposed baseline. The observed live host was the DC; member-host RSAT
+behavior remains unproven and must not be implied by the native-5.1 target.
 
-If explicitly adopted, cases 16-17 and the multi-controller portions of 12, 15
-and 19 would be outside that accepted envelope **and still not executed**.
-That would not validate routing/failover, replication freshness, other tools
-writing on peers, or same-DC concurrency. RODCs are unsupported write targets
+Cases 16-17 and the multi-controller portions of 12, 15 and 19 are outside the
+selected target and **still not executed**. Final acceptance must retain their
+disposition explicitly. The target choice does not validate routing/failover,
+replication freshness, other tools writing on peers, or same-DC concurrency.
+RODCs are unsupported write targets
 under Microsoft's Set-ADUser contract; case 18's exact failure and referral
 behavior remains untested. Schema, actor, runtime, authentic-export and scale
 work can remain a named pre-1.0 backlog, not silently become passes.
@@ -94,6 +97,8 @@ change, DNS alias, cloud lab or release is introduced by this proposal.
 ## Decision Record
 
 - Proposal requested: yes.
+- Target scope: common writable DC, native Windows PowerShell 5.1 and supported
+  Unicode selected by the owner on 2026-10-08; not final evidence acceptance.
 - Additional isolated one-user run: authorized, attempted once and consumed.
 - Latest run: interrupted in private harness/Pester skip handling; no completed
   test aggregate and none of the eight new boundary cases executed.
@@ -104,4 +109,5 @@ change, DNS alias, cloud lab or release is introduced by this proposal.
   still missing. The harness problem is not an accepted deferral.
 - Restricted acceptance: pending owner review of this proposal and receipt.
 - Release/tagging: explicitly held.
-- Merge and issue closure: not performed or authorized by this proposal.
+- Encoding-only PR #19: separately authorized and merged as `2a1ea96`.
+- PR #17 merge and issue closure: not performed or authorized by this proposal.
