@@ -238,6 +238,7 @@ Describe 'DrunkenAD release readiness' {
         Copy-Item $script:testRunnerPath $runnerCopy
         foreach ($name in @(
             'DrunkenAD.Unit.Tests.ps1', 'Help.Unit.Tests.ps1', 'LiveCampaign.Unit.Tests.ps1',
+            'IntegrationLifecycle.Unit.Tests.ps1', 'IntegrationOwnership.Unit.Tests.ps1',
             'Release.Unit.Tests.ps1', 'SchemaEnablement.Unit.Tests.ps1',
             'SchemaStatus.Unit.Tests.ps1', 'WriteOperation.Unit.Tests.ps1',
             'Logging.Unit.Tests.ps1', 'SampleOwnership.Unit.Tests.ps1',

@@ -8,6 +8,7 @@ or credentials belong in public issues, pull requests or documentation.
 
 Tracking: [issue #16](https://github.com/jonathanweinberg/DrunkenAD/issues/16),
 [test isolation #18](https://github.com/jonathanweinberg/DrunkenAD/issues/18),
+[fixture recovery #20](https://github.com/jonathanweinberg/DrunkenAD/issues/20),
 [PR #17](https://github.com/jonathanweinberg/DrunkenAD/pull/17), and the separate
 [encoding PR #19](https://github.com/jonathanweinberg/DrunkenAD/pull/19).
 The manifest's `0.13.2` is not a published-release receipt. Release/tagging
@@ -26,6 +27,7 @@ remains held; neither this matrix nor a green check authorizes publication.
 | Later synthetic preparation | Corrected launcher skip preflight and eight watchdog controls passed without AD. | Preparation only; no authorized live retry occurred. |
 | PR #17 checkpoint | `3314d38` had five passing CI checks. Its production module matched `038013b`; later capacity work changes tests, not production code. | Source identity supports relevance of old receipts, not a fresh new-head live pass. |
 | Replacement capacity case | Bounded production Remove/Add characterization is implemented behind a separate opt-in. | No fresh accepted/rejected count, native preservation result or cleanup receipt exists for it. |
+| Fixture ownership recovery | Private intent/GUID journals, verified target/parent binding and GUID-only cleanup have offline helper and actual-hook fault-injection coverage. | No surviving-controller or fresh native interruption-recovery receipt is implied. See [fixture guidance](TESTING.md#fixture-ownership-and-interruption). |
 
 Do not sum counts across candidates, deliberately repeated runs or evidence
 classes. A Pester pass with a partial wrapper result is still partial. A

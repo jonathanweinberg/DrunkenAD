@@ -8,6 +8,10 @@ $script:canRun = $script:runIntegration -and -not [string]::IsNullOrWhiteSpace($
 Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:canRun) {
     BeforeAll {
         $script:createdUser = $false
+        $script:creationAttempted = $false
+        $script:ownershipJournal = $null
+        $script:ownershipRecorded = $false
+        $script:testParent = $null
         $script:userGuid = $null
         $script:capacityTargetServer = $null
         # Re-read runtime inputs; Pester discovery state is not the execution contract.
@@ -108,6 +112,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             $capacityController = @(Get-ADDomainController -Identity $script:domainController -Server $script:domainController -ErrorAction Stop)
             $capacityOu = @(Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop)
             $script:domainController = Assert-CapacityTarget -Server $script:domainController -RootDse $capacityRootDse -Controller $capacityController -OuPath $script:testUserOu -Ou $capacityOu
+            $script:testParent = @($capacityOu)[0]
             $script:capacityTargetServer = $script:domainController
         }
         $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
@@ -122,7 +127,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             }
             $script:domainController = $script:readinessStatus.Server
             if (-not $runCapacity) {
-                Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop | Out-Null
+                $script:testParent = Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop
             }
         }
 
@@ -151,11 +156,44 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
         }
 
         if ($script:readinessStatus.ReadyForUserWrite) {
-            $script:runId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
+            if ([string]::IsNullOrWhiteSpace($script:testUserOu) -or
+                [string]::IsNullOrWhiteSpace($env:DRUNKENAD_TEST_JOURNAL_DIRECTORY)) {
+                throw 'Fixture creation requires a pre-existing test OU and a private DRUNKENAD_TEST_JOURNAL_DIRECTORY outside the checkout.'
+            }
+            if (-not $runCapacity) {
+                $fixtureServer = [string]$script:readinessStatus.Server
+                if ([string]::IsNullOrWhiteSpace($fixtureServer)) {
+                    throw 'Fixture creation requires a concrete readiness-selected DC.'
+                }
+                if (-not [string]::Equals($script:domainController, $fixtureServer, [StringComparison]::OrdinalIgnoreCase)) {
+                    $script:testParent = $null
+                }
+                $script:domainController = $fixtureServer
+            }
+            if ($null -eq $script:testParent) {
+                $script:testParent = Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop
+            }
+            if (@($script:testParent).Count -ne 1 -or
+                -not [string]::Equals([string]$script:testParent.DistinguishedName, $script:testUserOu, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Fixture creation requires the exact pre-existing test OU.'
+            }
+            if (-not $runCapacity) {
+                $fixtureRootDse = @(Get-ADRootDSE -Server $script:domainController -ErrorAction Stop)
+                $fixtureController = @(Get-ADDomainController -Identity $script:domainController -Server $script:domainController -ErrorAction Stop)
+                $script:domainController = Assert-CapacityTarget -Server $script:domainController -RootDse $fixtureRootDse -Controller $fixtureController -OuPath $script:testUserOu -Ou @($script:testParent)
+            }
+            . (Join-Path $PSScriptRoot 'Support/IntegrationOwnership.ps1')
+            $ownershipRunId = [Guid]::NewGuid()
+            $script:runId = $ownershipRunId.ToString('N').Substring(0, 8)
             $script:userName = "DrunkenAD_$($script:runId)"
             $script:userPrincipalName = '{0}@{1}' -f $script:userName, $script:dnsSuffix
             $script:mail = '{0}@{1}' -f $script:userName, $script:dnsSuffix
             $script:employeeId = [string](Get-Random -Minimum 100000 -Maximum 999999)
+            $script:ownershipJournal = New-DrunkenADIntegrationJournal -Directory $env:DRUNKENAD_TEST_JOURNAL_DIRECTORY `
+                -ForbiddenRoot (Split-Path $PSScriptRoot -Parent) -Server $script:domainController `
+                -ParentDn $script:testParent.DistinguishedName -ParentGuid ([guid]$script:testParent.ObjectGUID) `
+                -UserName $script:userName -RunId $ownershipRunId `
+                -TestSourceSHA256 (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'DrunkenAD.Integration.Tests.ps1')).Hash
 
             $newUserParams = @{
                 Name              = $script:userName
@@ -163,6 +201,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
                 UserPrincipalName = $script:userPrincipalName
                 AccountPassword   = (New-IntegrationPassword | ConvertTo-SecureString -AsPlainText -Force)
                 Enabled           = $false
+                Description       = $script:ownershipJournal.Intent.OwnershipToken
                 EmployeeID        = $script:employeeId
                 OtherAttributes   = @{
                     mail  = $script:mail
@@ -176,11 +215,36 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
                 $newUserParams['Path'] = $script:testUserOu
             }
 
-            $created = New-ADUser @newUserParams -PassThru
-            $script:createdUser = $true
-            $script:userGuid = [guid]$created.ObjectGUID
-            if ($script:userGuid -eq [guid]::Empty) {
-                throw 'The isolated integration account did not return an ObjectGUID.'
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State CreateIssued
+            $script:creationAttempted = $true
+            try {
+                $created = New-ADUser @newUserParams -PassThru
+                $createdGuid = [guid]::Empty
+                if (@($created).Count -ne 1 -or -not [guid]::TryParse([string]$created.ObjectGUID, [ref]$createdGuid) -or $createdGuid -eq [guid]::Empty) {
+                    throw 'The isolated integration account did not return one valid ObjectGUID.'
+                }
+                $script:userGuid = $createdGuid
+                Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State Created -ObjectGuid $createdGuid
+                $script:ownershipRecorded = $true
+                $createdReadback = @(Get-ADUser -Filter "ObjectGUID -eq '$createdGuid'" -Properties Description,Enabled -Server $script:domainController -ErrorAction Stop)
+                Assert-DrunkenADIntegrationOwnedUser -Journal $script:ownershipJournal -User $createdReadback -ExpectedGuid $createdGuid
+                $createdParent = Get-ADOrganizationalUnit -Identity ([guid]$script:ownershipJournal.Intent.ParentGuid) -Server $script:domainController -ErrorAction Stop
+                $createdWithinParent = @(Get-ADUser -Filter "ObjectGUID -eq '$createdGuid'" -SearchBase $script:ownershipJournal.Intent.ParentDn -SearchScope OneLevel -Server $script:domainController -ErrorAction Stop)
+                if ([guid]$createdParent.ObjectGUID -ne [guid]$script:ownershipJournal.Intent.ParentGuid -or
+                    -not [string]::Equals([string]$createdParent.DistinguishedName, [string]$script:ownershipJournal.Intent.ParentDn, [StringComparison]::OrdinalIgnoreCase) -or
+                    $createdWithinParent.Count -ne 1 -or [guid]$createdWithinParent[0].ObjectGUID -ne $createdGuid) {
+                    throw 'The created fixture and its recorded parent were not confirmed before test writes.'
+                }
+                $script:createdUser = $true
+            }
+            catch {
+                $creationFailure = $_
+                # An error does not prove that the server did not create the account.
+                if ($null -eq $script:userGuid) {
+                    try { Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State CreationOutcomeUnknown }
+                    catch { $creationFailure.Exception.Data['OwnershipJournalFailure'] = $true }
+                }
+                throw $creationFailure
             }
         }
     }
@@ -190,20 +254,47 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             $script:createdUser = $false
         }
 
-        if ($script:createdUser) {
-            $cleanupIdentity = if ($null -ne $script:userGuid -and $script:userGuid -ne [guid]::Empty) { $script:userGuid } else { $script:userName }
-            Remove-ADUser -Identity $cleanupIdentity -Server $script:domainController -Confirm:$false -ErrorAction Stop
-            $remaining = @(Get-ADUser -Filter "SamAccountName -eq '$($script:userName)'" -Server $script:domainController -ErrorAction Stop)
-            if ($remaining.Count -ne 0) {
-                throw 'The isolated integration account was not removed.'
+        if ($script:creationAttempted) {
+            if (-not $script:ownershipRecorded -or $null -eq $script:userGuid -or $script:userGuid -eq [guid]::Empty) {
+                throw 'CleanupUnknown: creation may have committed without a durable GUID receipt. Independently reconcile the private intent; do not retry creation or delete by name.'
             }
-            if ($null -ne $script:userGuid -and $script:userGuid -ne [guid]::Empty) {
-                $remainingByGuid = @(Get-ADUser -Filter "ObjectGUID -eq '$($script:userGuid)'" -Server $script:domainController -ErrorAction Stop)
-                if ($remainingByGuid.Count -ne 0) {
-                    throw 'The isolated integration account ObjectGUID is still present.'
+            try {
+                $intent = $script:ownershipJournal.Intent
+                if (-not [string]::Equals([string]$intent.Server, $script:domainController, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'The cleanup target differs from the recorded creation target.'
                 }
+                $parentBeforeCleanup = Get-ADOrganizationalUnit -Identity ([guid]$intent.ParentGuid) -Server $script:domainController -ErrorAction Stop
+                if ([guid]$parentBeforeCleanup.ObjectGUID -ne [guid]$intent.ParentGuid -or
+                    -not [string]::Equals([string]$parentBeforeCleanup.DistinguishedName, [string]$intent.ParentDn, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'The recorded integration parent changed; cleanup ownership is uncertain.'
+                }
+                $owned = @(Get-ADUser -Filter "ObjectGUID -eq '$($script:userGuid)'" -Properties Description,Enabled -Server $script:domainController -ErrorAction Stop)
+                $removeErrorObserved = $false
+                if ($owned.Count -gt 0) {
+                    Assert-DrunkenADIntegrationOwnedUser -Journal $script:ownershipJournal -User $owned -ExpectedGuid $script:userGuid
+                    $withinParent = @(Get-ADUser -Filter "ObjectGUID -eq '$($script:userGuid)'" -SearchBase $intent.ParentDn -SearchScope OneLevel -Server $script:domainController -ErrorAction Stop)
+                    if ($withinParent.Count -ne 1 -or [guid]$withinParent[0].ObjectGUID -ne $script:userGuid) {
+                        throw 'The owned fixture is no longer directly inside its recorded parent.'
+                    }
+                    Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State DeleteIssued -ObjectGuid $script:userGuid
+                    try { Remove-ADUser -Identity $script:userGuid -Server $script:domainController -Confirm:$false -ErrorAction Stop }
+                    catch { $removeErrorObserved = $true }
+                }
+                $remainingByGuid = @(Get-ADUser -Filter "ObjectGUID -eq '$($script:userGuid)'" -Server $script:domainController -ErrorAction Stop)
+                $parentAfterCleanup = Get-ADOrganizationalUnit -Identity ([guid]$intent.ParentGuid) -Server $script:domainController -ErrorAction Stop
+                if ($remainingByGuid.Count -ne 0 -or [guid]$parentAfterCleanup.ObjectGUID -ne [guid]$intent.ParentGuid -or
+                    -not [string]::Equals([string]$parentAfterCleanup.DistinguishedName, [string]$intent.ParentDn, [StringComparison]::OrdinalIgnoreCase)) {
+                    throw 'Owned fixture absence and parent preservation were not confirmed.'
+                }
+                Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State AbsenceVerified -ObjectGuid $script:userGuid -OperationErrorObserved:$removeErrorObserved
+                $script:createdUser = $false
             }
-            $script:createdUser = $false
+            catch {
+                $cleanupFailure = $_
+                try { Write-DrunkenADIntegrationJournalEvent -Journal $script:ownershipJournal -State CleanupUnknown -ObjectGuid $script:userGuid }
+                catch { $cleanupFailure.Exception.Data['OwnershipJournalFailure'] = $true }
+                throw $cleanupFailure
+            }
         }
     }
 

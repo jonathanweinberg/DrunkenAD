@@ -70,9 +70,16 @@ It is skipped unless all of the following are present:
 - `DRUNKENAD_TEST_DC`
 - `DRUNKENAD_TEST_DNS_SUFFIX`
 
-Optional:
+Before a writable-directory fixture can be created, also provide:
 
-- `DRUNKENAD_TEST_USER_OU`
+- `DRUNKENAD_TEST_USER_OU`, naming an existing test OU
+- `DRUNKENAD_TEST_JOURNAL_DIRECTORY`, an absolute path to a new, empty,
+  pre-existing private directory outside the checkout
+
+Prepare that directory with owner-only access on the test host. The journal
+helper rejects checkout paths, reparse points and reused/nonempty directories;
+it does not configure or certify filesystem permissions. Discovery and a
+readiness-blocked run create no journal or fixture.
 
 Example:
 
@@ -81,6 +88,7 @@ $env:DRUNKENAD_RUN_INTEGRATION = '1'
 $env:DRUNKENAD_TEST_DC = 'dc01.contoso.com'
 $env:DRUNKENAD_TEST_DNS_SUFFIX = 'contoso.com'
 $env:DRUNKENAD_TEST_USER_OU = 'OU=Drink Ops,DC=contoso,DC=com'
+$env:DRUNKENAD_TEST_JOURNAL_DIRECTORY = 'C:\PrivateTestEvidence\unique-run'
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/tests/Invoke-DrunkenADTests.ps1 -IncludeIntegration
 ```
 
@@ -101,12 +109,38 @@ When the environment is ready, the live integration tests validate:
 - CSV ingestion against a temporary CSV source
 - projection of AD attributes into default namespaces
 
+### Fixture Ownership And Interruption
+
+Setup writes an exclusive, flushed creation-intent record before its single
+create attempt. The disabled fixture carries a run-specific description
+marker. Its returned GUID is recorded and checked before test-data writes.
+Every fixture-producing mode binds the readiness result to a positively
+verified canonical writable DC. Setup also rechecks the original parent GUID
+and the new user's immediate-parent membership before admitting test writes.
+No password is written to the journal. These private records contain directory
+identities and must never be committed or attached to public issues.
+
+Normal cleanup verifies the recorded parent, GUID, description marker and
+disabled state, then removes only that GUID. It never falls back to a name or
+prefix deletion. A delete error is not proof that the delete failed: successful
+same-target absence and parent checks may establish cleanup afterward. Failed
+reads, mismatched ownership, partial journal writes and uncertain creation stay
+explicitly incomplete. Retained journal files are not reusable approval markers.
+
+Forced termination can bypass Pester cleanup. A surviving controller must
+retain process identity and reconcile the journal independently; an absent GUID
+in an interrupted creation record does not mean no account was created. Do not
+retry creation, clear the journal, or delete a same-named object to recover.
+This journal is evidence for narrowly authorized reconciliation, not authority
+to perform it or a guarantee that a timed-out directory call was rolled back.
+The private controller and fresh native recovery evidence remain separate gates.
+
 ### Expanded Single-DC Checks
 
 After separately authorizing the bounded Tier 1 scope, set
 `DRUNKENAD_RUN_TIER1=1` as well as the existing integration variables. Tier 1
 also requires `DRUNKENAD_TEST_USER_OU` to name a pre-existing lab OU. The suite
-uses the same one disabled temporary account, records its GUID, and verifies
+uses the same one disabled temporary account, journals its GUID, and verifies
 cleanup. Fifteen extra cases probe stale Remove, duplicate/case-variant Add,
 live length boundaries, Unicode across write paths, bounded capacity, no-op
 replication metadata, and eight native projection-boundary combinations.

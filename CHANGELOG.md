@@ -38,6 +38,9 @@
   capacity characterization through production scoped Remove/Add. Rejection
   requires unchanged complete values and attribute metadata; this is not a
   large-range retrieval pass or a newly measured storage ceiling.
+- Added private, exclusive fixture-ownership journals to integration setup and
+  GUID-only verified cleanup. Uncertain creation and failed cleanup checks
+  remain incomplete; this is not fresh native interruption-recovery evidence.
 - Clarified common writable-DC guidance and concurrency limits without changing
   accepted endpoint forms. Restricted support scope and release remain pending
   explicit owner decisions; detailed review chronology stays private.
