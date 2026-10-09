@@ -50,7 +50,7 @@ Stores a generic `AppProfile-` record, separate from the built-in projection's
 `Profile-` namespace, in the user's `drink` attribute.
 
 .EXAMPLE
-Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Flags-' = @('Enabled', 'Audited') } -WhatIf
+Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'Flags-' = @('Enabled', 'Audited') } -DomainController 'dc01.contoso.com' -WhatIf
 
 Previews a namespace replacement without writing changes.
 

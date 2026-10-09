@@ -19,18 +19,27 @@ LONG DESCRIPTION
         Get-Help Remove-ADUserDrinkData -Parameter Prefixes
 
 CORE WORKFLOWS
+    Select one common writable DC by its actual hostname for every producer of
+    the affected users' drink attribute. Use that same DC for reads feeding
+    writes and previews. Replace dc01.contoso.com with that designated hostname;
+    domain names, NetBIOS domain names, and aliases do not establish this shared
+    physical target. Same-prefix writers still need external serialization.
+
     Read values:
 
-        Get-ADUserDrinkData -SamAccountName TesterAccount
+        Get-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com'
 
     Write one or more namespaces:
 
         Set-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com' `
             -DataMap @{ 'AppProfile-' = @('Tier=Gold') } -Confirm:$false
 
     Remove a namespace:
 
         Remove-ADUserDrinkData -SamAccountName TesterAccount `
+            -DomainController 'dc01.contoso.com' `
             -Prefixes 'AppProfile-' -Confirm:$false
 
     AppProfile- is separate from the built-in projection's Profile-, Identity-,

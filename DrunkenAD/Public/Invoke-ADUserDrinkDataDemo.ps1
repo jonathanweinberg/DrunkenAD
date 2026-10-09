@@ -52,7 +52,7 @@ Invoke-ADUserDrinkDataDemo -SamAccountName 'TesterAccount' -DomainController 'dc
 Runs the default projection workflow through the compatibility command name.
 
 .EXAMPLE
-Invoke-ADUserDrinkDataDemo -Mail 'tester@contoso.com' -AttributeMap @{ 'Profile-' = @('department') } -WhatIf
+Invoke-ADUserDrinkDataDemo -Mail 'tester@contoso.com' -AttributeMap @{ 'Profile-' = @('department') } -DomainController 'dc01.contoso.com' -WhatIf
 
 Previews a custom projection for a user resolved by exact mail address.
 

@@ -98,6 +98,7 @@ If you write:
 ```powershell
 Set-ADUserDrinkData `
     -SamAccountName 'TesterAccount' `
+    -DomainController 'dc01.contoso.com' `
     -DataMap @{
         'AppProfile-' = @('Tier=Gold')
         'Flags-'      = @('Audited')
@@ -237,6 +238,7 @@ You can also provide your own `AttributeMap`:
 ```powershell
 Set-ADUserDrinkProjection `
     -SamAccountName 'TesterAccount' `
+    -DomainController 'dc01.contoso.com' `
     -AttributeMap @{
         'Org-' = @('department', 'title')
         'Meta-' = @('description')
