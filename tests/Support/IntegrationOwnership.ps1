@@ -7,6 +7,15 @@
 # All directory queries, direct-parent proofs, and operations belong to the caller.
 $script:DrunkenADIntegrationJournalBindings = New-Object 'System.Runtime.CompilerServices.ConditionalWeakTable[object,object]'
 
+function Test-DrunkenADJournalOrdinalMember {
+    param([string]$Value, [string[]]$Allowed)
+
+    foreach ($candidate in $Allowed) {
+        if ([string]::Equals($Value, $candidate, [StringComparison]::Ordinal)) { return $true }
+    }
+    return $false
+}
+
 function Get-DrunkenADJournalDirectory {
     param([string]$Path)
 
@@ -106,8 +115,10 @@ function Get-DrunkenADJournalBinding {
     $properties = @($Journal.PSObject.Properties)
     if ($properties.Count -ne 2 -or $null -eq $Journal.PSObject.Properties['Directory'] -or
         $null -eq $Journal.PSObject.Properties['Intent'] -or
+        -not [string]::Equals($Journal.PSObject.Properties['Directory'].Name, 'Directory', [StringComparison]::Ordinal) -or
+        -not [string]::Equals($Journal.PSObject.Properties['Intent'].Name, 'Intent', [StringComparison]::Ordinal) -or
         @($properties | Where-Object { $_.MemberType -ne 'NoteProperty' }).Count -ne 0 -or
-        $Journal.Directory -isnot [string] -or $Journal.Directory -cne $binding.Directory -or
+        $Journal.Directory -isnot [string] -or -not [string]::Equals($Journal.Directory, $binding.Directory, [StringComparison]::Ordinal) -or
         $null -eq $Journal.Intent) {
         throw 'Integration journal handle was changed.'
     }
@@ -116,9 +127,11 @@ function Get-DrunkenADJournalBinding {
     foreach ($name in $binding.Intent.Keys) {
         $property = $Journal.Intent.PSObject.Properties[$name]
         $expected = $binding.Intent[$name]
+        # Same-type .NET Equals is ordinal for strings; PowerShell -cne is not.
         if ($null -eq $property -or $property.MemberType -ne 'NoteProperty' -or
+            -not [string]::Equals($property.Name, $name, [StringComparison]::Ordinal) -or
             $null -eq $property.Value -or $property.Value.GetType() -ne $expected.GetType() -or
-            $property.Value -cne $expected) {
+            -not $expected.Equals($property.Value)) {
             throw 'Integration journal intent was changed.'
         }
     }
@@ -128,7 +141,7 @@ function Get-DrunkenADJournalBinding {
     foreach ($path in [IO.Directory]::EnumerateFileSystemEntries($directory)) {
         $count++
         $name = [IO.Path]::GetFileName($path)
-        if ($count -gt 5 -or $name -cnotin @($binding.Records.Keys)) {
+        if ($count -gt 5 -or -not (Test-DrunkenADJournalOrdinalMember -Value $name -Allowed @($binding.Records.Keys))) {
             throw 'Integration journal contains unexpected or partial state.'
         }
         # Comparing to bounded, originally serialized records also rejects partial
@@ -220,23 +233,23 @@ function Write-DrunkenADIntegrationJournalEvent {
     }
     # Require canonical spelling as state names and filenames form the protocol.
     $transition = $transitions[$State]
-    if ($State -cnotin @('CreateIssued', 'Created', 'CreationOutcomeUnknown', 'DeleteIssued', 'AbsenceVerified', 'CleanupUnknown') -or
-        $binding.State -notin $transition.From) {
+    if (-not (Test-DrunkenADJournalOrdinalMember -Value $State -Allowed @($transitions.Keys)) -or
+        -not (Test-DrunkenADJournalOrdinalMember -Value $binding.State -Allowed $transition.From)) {
         throw 'Integration journal transition is illegal, duplicated, or terminal.'
     }
     $hasGuid = $PSBoundParameters.ContainsKey('ObjectGuid')
     if ($hasGuid -and $ObjectGuid -eq [guid]::Empty) { throw 'Integration journal object GUID must be nonempty.' }
-    if ($State -eq 'Created') {
+    if ([string]::Equals($State, 'Created', [StringComparison]::Ordinal)) {
         if (-not $hasGuid) { throw 'Created requires the exact returned object GUID.' }
         $eventGuid = $ObjectGuid.ToString('D')
     }
-    elseif ($State -in @('CreateIssued', 'CreationOutcomeUnknown')) {
+    elseif (Test-DrunkenADJournalOrdinalMember -Value $State -Allowed @('CreateIssued', 'CreationOutcomeUnknown')) {
         if ($hasGuid) { throw 'An unconfirmed creation cannot record an owned object GUID.' }
         $eventGuid = $null
     }
     else {
         $eventGuid = $binding.ObjectGuid
-        if ($null -eq $eventGuid -or ($hasGuid -and $ObjectGuid.ToString('D') -cne $eventGuid)) {
+        if ($null -eq $eventGuid -or ($hasGuid -and -not [string]::Equals($ObjectGuid.ToString('D'), $eventGuid, [StringComparison]::Ordinal))) {
             throw 'Cleanup requires the durably recorded created object GUID.'
         }
     }
@@ -279,10 +292,10 @@ function Assert-DrunkenADIntegrationOwnedUser {
     $parsedGuid = [guid]::Empty
     if (($guidValue -isnot [guid] -and $guidValue -isnot [string]) -or
         -not [guid]::TryParse([string]$guidValue, [ref]$parsedGuid) -or $parsedGuid -ne $ExpectedGuid -or
-        ($null -ne $binding.ObjectGuid -and $ExpectedGuid.ToString('D') -cne $binding.ObjectGuid) -or
-        $singleUser.Description -isnot [string] -or $singleUser.Description -cne $binding.Intent.OwnershipToken -or
+        ($null -ne $binding.ObjectGuid -and -not [string]::Equals($ExpectedGuid.ToString('D'), $binding.ObjectGuid, [StringComparison]::Ordinal)) -or
+        $singleUser.Description -isnot [string] -or -not [string]::Equals($singleUser.Description, $binding.Intent.OwnershipToken, [StringComparison]::Ordinal) -or
         $singleUser.Enabled -isnot [bool] -or $singleUser.Enabled -ne $false -or
-        $singleUser.ObjectClass -isnot [string] -or $singleUser.ObjectClass -cne 'user') {
+        $singleUser.ObjectClass -isnot [string] -or -not [string]::Equals($singleUser.ObjectClass, 'user', [StringComparison]::Ordinal)) {
         throw 'User ownership metadata does not match the immutable integration intent.'
     }
 }

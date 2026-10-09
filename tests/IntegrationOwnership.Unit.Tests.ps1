@@ -45,6 +45,28 @@ BeforeAll {
         [IO.File]::WriteAllText((Join-Path $script:journalArguments.Directory $Name), $Text, (New-Object Text.UTF8Encoding $false))
     }
 
+    function Get-TestReceiptSnapshot {
+        $receipts = @(Get-TestReceiptNames | ForEach-Object {
+            [ordered]@{
+                Name = $_
+                Bytes = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $script:journalArguments.Directory $_)))
+            }
+        })
+        ConvertTo-Json -InputObject $receipts -Depth 3 -Compress
+    }
+
+    function Assert-TestOrdinalRejection {
+        param([scriptblock]$Action, [string]$Message)
+        $before = Get-TestReceiptSnapshot
+        $failure = $null
+        try { & $Action }
+        catch { $failure = $_ }
+        Should -Invoke Write-DrunkenADJournalFile -Times 0 -Exactly
+        [string]::Equals((Get-TestReceiptSnapshot), $before, [StringComparison]::Ordinal) | Should -BeTrue
+        $failure | Should -Not -BeNullOrEmpty
+        $failure.Exception.Message | Should -BeLike $Message
+    }
+
     function Initialize-TestJournalCase {
         $script:caseRoot = Join-Path $script:ownershipScratch ([guid]::NewGuid().ToString('N'))
         $directory = Join-Path $script:caseRoot 'journal'
@@ -490,6 +512,129 @@ Describe 'Immutable journal bindings and failure paths' {
             $receiptItem.IsReadOnly | Should -BeTrue
         }
         finally { $receiptItem.IsReadOnly = $false }
+    }
+}
+
+Describe 'Integration ordinal ownership and protocol regressions' -Tag 'OrdinalRegression' {
+    BeforeEach { Initialize-TestJournalCase }
+
+    It 'rejects a soft hyphen <Position> in owned-user <Field>' -ForEach @(
+        @{ Field = 'Description'; Position = 'inserted' }
+        @{ Field = 'Description'; Position = 'appended' }
+        @{ Field = 'ObjectClass'; Position = 'inserted' }
+        @{ Field = 'ObjectClass'; Position = 'appended' }
+    ) {
+        Initialize-TestCreatedJournal
+        $user = New-TestOwnedUser
+        $exact = $user.$Field
+        $offset = $exact.Length
+        if ($Position -eq 'inserted') { $offset = 1 }
+        $user.$Field = $exact.Insert($offset, [string][char]0x00ad)
+        [string]::Equals($user.$Field, $exact, [StringComparison]::Ordinal) | Should -BeFalse
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message '*ownership metadata*' -Action {
+            Assert-DrunkenADIntegrationOwnedUser -Journal $script:journal -User $user -ExpectedGuid $script:fixtureGuid
+        }
+    }
+
+    It 'rejects a soft hyphen in public intent string <Field> before writing' -ForEach @(
+        @{ Field = 'RunId' }
+        @{ Field = 'Server' }
+        @{ Field = 'ParentDn' }
+        @{ Field = 'ParentGuid' }
+        @{ Field = 'UserName' }
+        @{ Field = 'OwnershipToken' }
+        @{ Field = 'TestSourceSHA256' }
+        @{ Field = 'CreatedUtc' }
+    ) {
+        Initialize-TestCreatedJournal
+        $exact = $script:journal.Intent.$Field
+        $script:journal.Intent.$Field = $exact + [char]0x00ad
+        [string]::Equals($script:journal.Intent.$Field, $exact, [StringComparison]::Ordinal) | Should -BeFalse
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message '*intent was changed*' -Action {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State DeleteIssued
+        }
+    }
+
+    It 'rejects a soft hyphen in the public Directory before writing to the bound directory' {
+        Initialize-TestCreatedJournal
+        $exact = $script:journal.Directory
+        $script:journal.Directory = $exact + [char]0x00ad
+        [string]::Equals($script:journal.Directory, $exact, [StringComparison]::Ordinal) | Should -BeFalse
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message '*handle was changed*' -Action {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State DeleteIssued
+        }
+        [IO.Directory]::Exists($script:journal.Directory) | Should -BeFalse
+    }
+
+    It 'rejects <Label> spelling of <Target> property <Field> before writing' -ForEach @(
+        @{ Target = 'handle'; Field = 'Directory'; Label = 'lowercase'; ChangedName = 'directory' }
+        @{ Target = 'handle'; Field = 'Intent'; Label = 'lowercase'; ChangedName = 'intent' }
+        @{ Target = 'intent'; Field = 'Server'; Label = 'lowercase'; ChangedName = 'server' }
+        @{ Target = 'intent'; Field = 'Disabled'; Label = 'lowercase'; ChangedName = 'disabled' }
+        @{ Target = 'handle'; Field = 'Directory'; Label = 'soft-hyphen'; ChangedName = ('Directory' + [char]0x00ad) }
+        @{ Target = 'intent'; Field = 'Server'; Label = 'soft-hyphen'; ChangedName = ('S' + [char]0x00ad + 'erver') }
+    ) {
+        Initialize-TestCreatedJournal
+        $view = $script:journal
+        if ($Target -eq 'intent') { $view = $script:journal.Intent }
+        $value = $view.PSObject.Properties[$Field].Value
+        $view.PSObject.Properties.Remove($Field)
+        $view | Add-Member -NotePropertyName $ChangedName -NotePropertyValue $value
+        [string]::Equals($ChangedName, $Field, [StringComparison]::Ordinal) | Should -BeFalse
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message ('*' + $Target + ' was changed*') -Action {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State DeleteIssued
+        }
+    }
+
+    It 'rejects noncanonical State <Label> from a legal predecessor without writing' -ForEach @(
+        @{ Canonical = 'CreateIssued'; ChangedState = 'createissued'; Label = 'createissued'; From = 'Intent' }
+        @{ Canonical = 'Created'; ChangedState = 'created'; Label = 'created'; From = 'CreateIssued' }
+        @{ Canonical = 'CreationOutcomeUnknown'; ChangedState = 'creationoutcomeunknown'; Label = 'creationoutcomeunknown'; From = 'CreateIssued' }
+        @{ Canonical = 'DeleteIssued'; ChangedState = 'deleteissued'; Label = 'deleteissued'; From = 'Created' }
+        @{ Canonical = 'AbsenceVerified'; ChangedState = 'absenceverified'; Label = 'absenceverified'; From = 'Created' }
+        @{ Canonical = 'CleanupUnknown'; ChangedState = 'cleanupunknown'; Label = 'cleanupunknown'; From = 'Created' }
+        @{ Canonical = 'CreateIssued'; ChangedState = ('C' + [char]0x00ad + 'reateIssued'); Label = 'inserted soft hyphen'; From = 'Intent' }
+        @{ Canonical = 'CreateIssued'; ChangedState = ('CreateIssued' + [char]0x00ad); Label = 'appended soft hyphen'; From = 'Intent' }
+    ) {
+        $script:journal = New-TestOwnershipJournal
+        if ($From -ne 'Intent') {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State CreateIssued
+        }
+        if ($From -eq 'Created') {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State Created -ObjectGuid $script:fixtureGuid
+        }
+        $arguments = @{ Journal = $script:journal; State = $ChangedState }
+        if ($Canonical -eq 'Created') { $arguments.ObjectGuid = $script:fixtureGuid }
+        [string]::Equals($ChangedState, $Canonical, [StringComparison]::Ordinal) | Should -BeFalse
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message '*' -Action {
+            Write-DrunkenADIntegrationJournalEvent @arguments
+        }
+    }
+
+    It 'rejects <Label> receipt filename spelling with unchanged content before writing' -ForEach @(
+        @{ Label = 'uppercase'; ChangedName = '02-CREATED.json' }
+        @{ Label = 'soft-hyphen'; ChangedName = ('02-created' + [char]0x00ad + '.json') }
+    ) {
+        Initialize-TestCreatedJournal
+        $exact = '02-created.json'
+        $path = Join-Path $script:journal.Directory $exact
+        $bytes = [IO.File]::ReadAllBytes($path)
+        # Two moves also preserve the requested spelling on case-insensitive filesystems.
+        $temporary = Join-Path $script:journal.Directory 'rename.tmp'
+        [IO.File]::Move($path, $temporary)
+        [IO.File]::Move($temporary, (Join-Path $script:journal.Directory $ChangedName))
+        [string]::Equals($ChangedName, $exact, [StringComparison]::Ordinal) | Should -BeFalse
+        @(Get-TestReceiptNames | Where-Object { [string]::Equals($_, $ChangedName, [StringComparison]::Ordinal) }).Count | Should -Be 1
+        [IO.File]::ReadAllBytes((Join-Path $script:journal.Directory $ChangedName)) | Should -Be $bytes
+        Mock Write-DrunkenADJournalFile { throw 'Unexpected receipt write.' }
+        Assert-TestOrdinalRejection -Message '*unexpected or partial*' -Action {
+            Write-DrunkenADIntegrationJournalEvent -Journal $script:journal -State DeleteIssued
+        }
     }
 }
 

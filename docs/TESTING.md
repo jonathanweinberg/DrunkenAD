@@ -120,6 +120,10 @@ and the new user's immediate-parent membership before admitting test writes.
 No password is written to the journal. These private records contain directory
 identities and must never be committed or attached to public issues.
 
+Marker, handle and journal-protocol strings require exact ordinal equality.
+Case changes or added invisible Unicode characters are mismatches, not aliases;
+the helper rejects them before admitting a write or ownership assertion.
+
 Normal cleanup verifies the recorded parent, GUID, description marker and
 disabled state, then removes only that GUID. It never falls back to a name or
 prefix deletion. A delete error is not proof that the delete failed: successful
