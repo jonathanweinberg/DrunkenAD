@@ -509,15 +509,24 @@ Describe 'Integration journal reparse rejection' {
             $link = Join-Path $journal.Directory '00-intent.json'
             [IO.File]::Move($link, $source)
             $target = $source
+            $sentinel = $source
         }
+        else {
+            $sentinel = Join-Path $target 'preserve.txt'
+            [IO.File]::WriteAllText($sentinel, 'The link target must survive cleanup.')
+        }
+        $targetBytes = [IO.File]::ReadAllBytes($sentinel)
         try {
             New-Item -ItemType SymbolicLink -Path $link -Target $target -ErrorAction Stop | Out-Null
         }
         catch {
-            Set-ItResult -Skipped -Because 'This platform or account cannot create test-only symbolic links.'
+            $reason = 'Cannot create the {0} symbolic-link fixture: {1} ({2}).' -f $Location, $_.FullyQualifiedErrorId, $_.Exception.GetType().FullName
+            Write-Warning $reason
+            Set-ItResult -Skipped -Because $reason
             return
         }
         try {
+            ([IO.File]::GetAttributes($link) -band [IO.FileAttributes]::ReparsePoint) | Should -Not -Be 0
             if ($Location -eq 'receipt') {
                 { Write-DrunkenADIntegrationJournalEvent -Journal $journal -State CreateIssued } | Should -Throw '*reparse points*'
             }
@@ -530,7 +539,15 @@ Describe 'Integration journal reparse rejection' {
                 { New-TestOwnershipJournal @{ Directory = $directory } } | Should -Throw '*reparse points*'
             }
         }
-        finally { Remove-Item -LiteralPath $link -Force -ErrorAction Stop }
+        finally {
+            # Windows PowerShell 5.1 Remove-Item can fail on a nonempty directory link.
+            if ($Location -eq 'receipt') { [IO.File]::Delete($link) }
+            else { [IO.Directory]::Delete($link, $false) }
+        }
+        [IO.File]::Exists($link) | Should -BeFalse
+        [IO.Directory]::Exists($link) | Should -BeFalse
+        [IO.File]::ReadAllBytes($sentinel) | Should -Be $targetBytes
+        if ($Location -eq 'ancestor') { [IO.Directory]::Exists((Join-Path $target 'child')) | Should -BeTrue }
     }
 }
 
