@@ -30,6 +30,16 @@ trailing fields, extra fields, or malformed quoting fail before directory
 access. Empty cells may be quoted or unquoted; embedded commas and newlines
 must be quoted. Record numbers count CSV records, not physical text lines.
 
+Save sources as **CSV UTF-8**, with or without a byte-order mark (BOM).
+BOM-marked UTF-16 and UTF-32 remain supported in either byte order. Decoding is
+strict: malformed Unicode fails local preflight before any directory access,
+including when the invalid bytes occur in an unused column. Legacy encodings
+such as Windows-1252 are not guessed or repaired; re-export them as UTF-8.
+Plain ASCII is valid UTF-8. Already-corrupted but valid Unicode text cannot be
+recovered by the importer; a literal U+FFFD in a valid source is retained.
+Excel format names vary by version and locale, so verify the actual file's
+encoding instead of assuming that plain "CSV" means UTF-8.
+
 Each import checks schema readiness once and pins one domain controller. It
 resolves every usable row and validates all prefixed value lengths before any
 write. A missing or ambiguous user therefore prevents the whole import from

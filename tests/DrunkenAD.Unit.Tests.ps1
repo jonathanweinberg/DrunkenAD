@@ -880,6 +880,93 @@ Describe 'DrunkenAD unit tests' {
             }
         }
 
+        Context 'CSV byte decoding' {
+            It 'preserves valid Unicode using <Kind>' -TestCases @(
+                @{ Kind = 'UTF-8 without BOM'; CodePage = 65001; Bom = $false }
+                @{ Kind = 'UTF-8 with BOM'; CodePage = 65001; Bom = $true }
+                @{ Kind = 'UTF-16 LE'; CodePage = 1200; Bom = $true }
+                @{ Kind = 'UTF-16 BE'; CodePage = 1201; Bom = $true }
+                @{ Kind = 'UTF-32 LE'; CodePage = 12000; Bom = $true }
+                @{ Kind = 'UTF-32 BE'; CodePage = 12001; Bom = $true }
+            ) {
+                param($Kind, $CodePage, $Bom)
+                $encoding = [System.Text.Encoding]::GetEncoding($CodePage)
+                $identity = 'ren' + [char]0x00e9
+                $value = [string][char]0x6f22 + [char]0x5b57 + [char]::ConvertFromUtf32(0x1f600) + [char]0xfffd
+                $content = "SamAccountName,Tier`r`n$identity,`"$value`r`nsecond line`""
+                [byte[]]$bytes = $encoding.GetBytes($content)
+                if ($Bom) { $bytes = $encoding.GetPreamble() + $bytes }
+                $path = Join-Path $TestDrive 'unicode[0].csv'
+                [System.IO.File]::WriteAllBytes($path, $bytes)
+
+                $rows = @(Read-DrunkenADCsvRows -CsvPath $path)
+                $rows.Count | Should -Be 1
+                $rows[0].SamAccountName | Should -BeExactly $identity
+                $rows[0].Tier | Should -BeExactly "$value`r`nsecond line"
+            }
+
+            It 'rejects <Kind> before any directory access' -TestCases @(
+                @{ Kind = 'Windows-1252 accent'; CodePage = 65001; Bom = $false; InvalidBytes = [byte[]]@(0xe9) }
+                @{ Kind = 'truncated UTF-8'; CodePage = 65001; Bom = $false; InvalidBytes = [byte[]]@(0xe2, 0x82) }
+                @{ Kind = 'overlong UTF-8'; CodePage = 65001; Bom = $false; InvalidBytes = [byte[]]@(0xc0, 0xaf) }
+                @{ Kind = 'UTF-8 encoded surrogate'; CodePage = 65001; Bom = $false; InvalidBytes = [byte[]]@(0xed, 0xa0, 0x80) }
+                @{ Kind = 'invalid BOM-marked UTF-8'; CodePage = 65001; Bom = $true; InvalidBytes = [byte[]]@(0xff) }
+                @{ Kind = 'unpaired UTF-16 LE surrogate'; CodePage = 1200; Bom = $true; InvalidBytes = [byte[]]@(0x00, 0xd8) }
+                @{ Kind = 'unpaired UTF-16 BE surrogate'; CodePage = 1201; Bom = $true; InvalidBytes = [byte[]]@(0xd8, 0x00) }
+                @{ Kind = 'truncated UTF-16'; CodePage = 1200; Bom = $true; InvalidBytes = [byte[]]@(0x41) }
+                @{ Kind = 'invalid UTF-32 LE scalar'; CodePage = 12000; Bom = $true; InvalidBytes = [byte[]]@(0x00, 0x00, 0x11, 0x00) }
+                @{ Kind = 'invalid UTF-32 BE scalar'; CodePage = 12001; Bom = $true; InvalidBytes = [byte[]]@(0x00, 0x11, 0x00, 0x00) }
+                @{ Kind = 'truncated UTF-32'; CodePage = 12001; Bom = $true; InvalidBytes = [byte[]]@(0x00, 0x00, 0x41) }
+            ) {
+                param($Kind, $CodePage, $Bom, $InvalidBytes)
+                $encoding = [System.Text.Encoding]::GetEncoding($CodePage)
+                [byte[]]$bytes = $encoding.GetBytes("SamAccountName,Tier`nvalid,Gold`nbob,") + $InvalidBytes
+                if ($Bom) { $bytes = $encoding.GetPreamble() + $bytes }
+                $path = Join-Path $TestDrive 'invalid-encoding.csv'
+                [System.IO.File]::WriteAllBytes($path, $bytes)
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                Mock Resolve-DrunkenADUser { throw 'User lookup must not occur.' }
+                Mock Set-ADUser { throw 'Directory writes must not occur.' }
+
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false } |
+                    Should -Throw '*CSV encoding is invalid*UTF-8*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+                Assert-MockCalled Resolve-DrunkenADUser -Times 0
+                Assert-MockCalled Set-ADUser -Times 0
+            }
+
+            It 'rejects invalid bytes even in an unmapped column before directory access' {
+                $path = Join-Path $TestDrive 'invalid-unused.csv'
+                [byte[]]$bytes = [System.Text.Encoding]::ASCII.GetBytes("SamAccountName,Tier,Unused`nalice,Gold,") + [byte[]]@(0xe9)
+                [System.IO.File]::WriteAllBytes($path, $bytes)
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false } |
+                    Should -Throw '*CSV encoding is invalid*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+            }
+
+            It 'leaves <Kind> input subject to the empty CSV guard' -TestCases @(
+                @{ Kind = 'empty'; Bytes = [byte[]]@() }
+                @{ Kind = 'BOM only'; Bytes = [byte[]]@(0xef, 0xbb, 0xbf) }
+            ) {
+                param($Kind, $Bytes)
+                $path = Join-Path $TestDrive 'empty.csv'
+                [System.IO.File]::WriteAllBytes($path, $Bytes)
+                Mock New-DrunkenADWriteContext { throw 'Directory access must not occur.' }
+                { Import-ADUserDrinkCsvData -CsvPath $path -NamespaceMap @{ 'Tier-' = @(@{ Column = 'Tier' }) } -Confirm:$false } |
+                    Should -Throw '*does not contain any data rows*'
+                Assert-MockCalled New-DrunkenADWriteContext -Times 0
+            }
+
+            It 'resolves literal relative paths in a PowerShell filesystem drive' {
+                $path = Join-Path $TestDrive 'relative[0].csv'
+                [System.IO.File]::WriteAllText($path, "SamAccountName,Tier`nalice,Gold", [System.Text.UTF8Encoding]::new($false))
+                Push-Location TestDrive:\
+                try { @(Read-DrunkenADCsvRows -CsvPath 'relative[0].csv')[0].Tier | Should -BeExactly 'Gold' }
+                finally { Pop-Location }
+            }
+        }
+
         Context 'CSV record structure' {
             It 'accepts complete empty cells and multiline quoted records' {
                 $path = Join-Path $TestDrive 'complete.csv'
