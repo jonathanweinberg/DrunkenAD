@@ -60,8 +60,10 @@ DrunkenAD is opinionated about the edges that matter when writing application da
 - The module distinguishes between schema presence and actual user-write readiness, so `drink` must both exist and be allowed on the Active Directory `user` class.
 - Updates use PowerShell `ShouldProcess`, so `-WhatIf` and `-Confirm` work naturally.
 - Writes apply only owned value deltas on one selected DC, never a whole-attribute
-  replacement. Same-prefix writers and cross-DC replication still need external
-  coordination; see [concurrency limits](docs/DATA-STORE.md).
+  replacement. Configure one common writable DC by its actual hostname in
+  `-DomainController` across all cooperating writers of the affected users'
+  `drink` attribute, including different prefixes. Same-prefix writers still
+  need external serialization; see [concurrency limits](docs/DATA-STORE.md).
 - The integration validation workflow creates unique test objects and only removes the ones it created.
 
 ## Data Store Model

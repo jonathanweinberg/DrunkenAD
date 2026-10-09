@@ -10,11 +10,24 @@ The source diagram for this page lives at
 
 ## Before Any Live Write
 
-1. Confirm you are targeting the intended domain controller.
+1. For coordinated writes, select one common writable DC by its actual hostname
+   for all producers of the affected users' `drink` attribute, including
+   different prefixes. Use explicit `-DomainController` on each write command.
 2. Import the module.
 3. Check schema readiness.
 4. Confirm the workflow's owned prefixes.
 5. Use `-WhatIf` where the command supports it.
+
+Use that same DC for reads feeding writes. Do not let individual producers
+independently choose a replacement during failover. Domain names, NetBIOS domain
+names and aliases do not establish this shared physical target. This operating
+guidance does not change accepted API parameters or certify multi-DC behavior.
+Same-prefix producers still need external serialization; see
+[concurrency limits](DATA-STORE.md#replacement-semantics).
+
+RODCs are not supported write targets by
+[Set-ADUser](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser?view=windowsserver2025-ps#notes).
+Schema readiness is not a write-permission or writable-controller check.
 
 ```powershell
 Import-Module .\DrunkenAD\DrunkenAD.psd1 -Force

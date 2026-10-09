@@ -121,12 +121,21 @@ server or the domain DNS name is pinned to the RootDSE controller, preserving
 an explicit port. Explicit hosts, IPs, DNS aliases, and NetBIOS names are passed
 through unchanged. A short name cannot safely be guessed to mean a domain
 rather than a specific DC. NetBIOS names and aliases can select different DCs
-between calls. For multiple writers, configure the same actual DC hostname in
-`-DomainController`, not a NetBIOS name or domain-wide alias:
+between calls. For coordinated writers of the affected objects, configure one
+common writable DC using its actual hostname in `-DomainController`, including
+producers of different prefixes. One independently chosen DC per writer is not
+enough. Do not use a NetBIOS domain name or domain-wide alias for this policy:
 independent automatic selections can reach different DCs, and normal AD
 replication of a nonlinked multivalued attribute can still lose updates.
-Concurrent writes to the same prefix are not serialized or transactional; a
-conflicting delta can fail or leave a combined set. Serialize those producers.
+Use the common DC for the reads feeding each write and coordinate failover
+across producers. External writers, delayed replication of projection inputs,
+and lagging readers still matter; this policy is not replication certification.
+The API's accepted endpoint forms are unchanged.
+
+DrunkenAD's read/plan/confirm/write workflow is not a serializable transaction.
+Concurrent same-prefix deltas can fail, replace values or leave a combined set;
+none is a guaranteed semantic merge. Serialize those producers externally.
+This workflow limitation does not deny atomicity of an individual AD modify.
 
 Do not use a missing-value Remove as a concurrency guard. The controlled
 Windows Server 2025 run accepted an already-missing removal and applied the
@@ -142,6 +151,17 @@ be exercised; that case is an evidence gap, not a successful large-set test.
 Microsoft documents [nonlinked attribute storage limits](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/active-directory-domain-services-maximum-limits#maximum-number-of-nonlinked-attribute-values)
 that depend on the directory configuration. Keep payloads compact and do not
 assume that a Windows Server 2025 OS alone enables a higher-capacity forest.
+The [32K-page feature](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/32k-pages-optional-feature)
+has separate database and forest prerequisites; enabling it is not a test
+workaround. The replacement [bounded capacity check](TESTING.md#bounded-capacity-characterization)
+records a fixture-specific accepted/rejected bracket and complete state and
+metadata preservation. No fresh bracket has been measured. Its result will
+not establish an exact per-user quota or close the separate retrieval gap.
+
+Read-only domain controllers are not supported write targets:
+[Set-ADUser does not support them](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser?view=windowsserver2025-ps#notes).
+DrunkenAD-specific RODC reads and failure/referral behavior remain unvalidated.
+Schema readiness alone proves neither controller writability nor permissions.
 
 The prefix and payload together must fit the target schema's `rangeUpper`.
 Readiness reports expose that limit; it is not hard-coded into the writer.
