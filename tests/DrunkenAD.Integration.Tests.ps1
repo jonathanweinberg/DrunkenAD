@@ -9,6 +9,7 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
     BeforeAll {
         $script:createdUser = $false
         $script:userGuid = $null
+        $script:capacityTargetServer = $null
         # Re-read runtime inputs; Pester discovery state is not the execution contract.
         if ($env:DRUNKENAD_RUN_INTEGRATION -ne '1') {
             throw 'Integration execution requires DRUNKENAD_RUN_INTEGRATION=1.'
@@ -26,9 +27,89 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             throw 'Tier1 requires DRUNKENAD_TEST_USER_OU to identify a pre-existing test OU.'
         }
 
+        function Assert-CapacityNativeCommand {
+            param($Command)
+            if ($Command -isnot [System.Management.Automation.CmdletInfo] -or
+                $Command.ModuleName -ne 'ActiveDirectory' -or
+                $Command.ImplementingType.Assembly.GetName().Name -ne 'Microsoft.ActiveDirectory.Management') {
+                throw 'Evidence Gap: capacity preflight requires native ActiveDirectory commands before any directory access.'
+            }
+        }
+
+        function Assert-CapacityTarget {
+            param([string]$Server, $RootDse, $Controller, [string]$OuPath, $Ou)
+            $address = $null
+            $dnsLabel = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
+            if ([string]::IsNullOrWhiteSpace($Server) -or $Server.Length -gt 253 -or
+                $Server -notmatch "^(?i:$dnsLabel(?:\.$dnsLabel)+)$" -or
+                [System.Net.IPAddress]::TryParse($Server, [ref]$address)) {
+                throw 'Evidence Gap: capacity requires a canonical DC DNS hostname without an address, port, or trailing dot.'
+            }
+            if ($null -eq $RootDse -or @($RootDse).Count -ne 1 -or
+                $null -eq $Controller -or @($Controller).Count -ne 1 -or $null -eq $Ou -or @($Ou).Count -ne 1) {
+                throw 'Evidence Gap: capacity preflight requires one resolved RootDSE, controller, and OU.'
+            }
+            $RootDse = @($RootDse)[0]
+            $Controller = @($Controller)[0]
+            $Ou = @($Ou)[0]
+            foreach ($required in @(
+                @{ Object = $RootDse; Fields = @('dnsHostName', 'dsServiceName', 'defaultNamingContext') }
+                @{ Object = $Controller; Fields = @('HostName', 'NTDSSettingsObjectDN', 'DefaultPartition', 'Domain', 'IsReadOnly', 'Enabled') }
+                @{ Object = $Ou; Fields = @('DistinguishedName', 'ObjectClass', 'ObjectGUID') }
+            )) {
+                foreach ($field in $required.Fields) {
+                    $property = $required.Object.PSObject.Properties[$field]
+                    if ($null -eq $property -or @($property.Value).Count -ne 1 -or
+                        [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+                        throw 'Evidence Gap: capacity preflight metadata is missing or ambiguous.'
+                    }
+                }
+            }
+            $comparison = [StringComparison]::OrdinalIgnoreCase
+            if (-not [string]::Equals($Server, [string]$RootDse.dnsHostName, $comparison) -or
+                -not [string]::Equals($Server, [string]$Controller.HostName, $comparison) -or
+                [string]::Equals($Server, [string]$Controller.Domain, $comparison) -or
+                -not [string]::Equals([string]$RootDse.dsServiceName, [string]$Controller.NTDSSettingsObjectDN, $comparison) -or
+                -not [string]::Equals([string]$RootDse.defaultNamingContext, [string]$Controller.DefaultPartition, $comparison)) {
+                throw 'Evidence Gap: capacity target is an alias, domain selector, or inconsistent replica.'
+            }
+            if ($Controller.IsReadOnly -isnot [bool] -or $Controller.IsReadOnly -ne $false -or
+                $Controller.Enabled -isnot [bool] -or $Controller.Enabled -ne $true) {
+                throw 'Evidence Gap: capacity requires an enabled, positively identified writable DC.'
+            }
+            $ouGuid = [guid]::Empty
+            if (-not [string]::Equals($OuPath, [string]$Ou.DistinguishedName, $comparison) -or
+                -not ([string]$Ou.DistinguishedName).StartsWith('OU=', $comparison) -or
+                -not ([string]$Ou.DistinguishedName).EndsWith(',' + [string]$RootDse.defaultNamingContext, $comparison) -or
+                -not [string]::Equals([string]$Ou.ObjectClass, 'organizationalUnit', $comparison) -or
+                -not [guid]::TryParse([string]$Ou.ObjectGUID, [ref]$ouGuid) -or $ouGuid -eq [guid]::Empty) {
+                throw 'Evidence Gap: capacity requires the exact pre-existing OU in the verified DC domain.'
+            }
+            ([string]$RootDse.dnsHostName).ToLowerInvariant()
+        }
+
+        $runCapacity = $script:runTier1 -and $env:DRUNKENAD_RUN_CAPACITY -eq '1'
         $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '../DrunkenAD/DrunkenAD.psd1'
         Import-Module $modulePath -Force -ErrorAction Stop
         Import-Module ActiveDirectory -ErrorAction Stop
+        if ($runCapacity) {
+            # Establish native provenance before readiness, preflight reads, or fixture creation.
+            foreach ($commandName in @('Get-ADRootDSE', 'Get-ADDomainController', 'Get-ADOrganizationalUnit',
+                'New-ADUser', 'Remove-ADUser', 'Get-ADUser', 'Set-ADUser', 'Get-ADReplicationAttributeMetadata')) {
+                Assert-CapacityNativeCommand (Get-Command $commandName -ErrorAction Stop)
+            }
+            $moduleCommands = & (Get-Module DrunkenAD) {
+                foreach ($commandName in @('Get-ADRootDSE', 'Get-ADObject', 'Get-ADUser', 'Set-ADUser')) {
+                    Get-Command $commandName -ErrorAction Stop
+                }
+            }
+            foreach ($command in $moduleCommands) { Assert-CapacityNativeCommand $command }
+            $capacityRootDse = @(Get-ADRootDSE -Server $script:domainController -ErrorAction Stop)
+            $capacityController = @(Get-ADDomainController -Identity $script:domainController -Server $script:domainController -ErrorAction Stop)
+            $capacityOu = @(Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop)
+            $script:domainController = Assert-CapacityTarget -Server $script:domainController -RootDse $capacityRootDse -Controller $capacityController -OuPath $script:testUserOu -Ou $capacityOu
+            $script:capacityTargetServer = $script:domainController
+        }
         $script:readinessStatus = Test-ADDrinkAttributeReadyForUserWrite -Server $script:domainController -PassThru
 
         if ($script:runTier1) {
@@ -36,8 +117,13 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             if ([string]::IsNullOrWhiteSpace($script:readinessStatus.Server)) {
                 throw 'Evidence Gap: Tier1 readiness did not return a pinned server.'
             }
+            if ($runCapacity -and -not [string]::Equals($script:readinessStatus.Server, $script:domainController, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Evidence Gap: readiness changed the verified capacity DC.'
+            }
             $script:domainController = $script:readinessStatus.Server
-            Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop | Out-Null
+            if (-not $runCapacity) {
+                Get-ADOrganizationalUnit -Identity $script:testUserOu -Server $script:domainController -ErrorAction Stop | Out-Null
+            }
         }
 
         function New-IntegrationPassword {
@@ -456,6 +542,36 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
                 [long]$metadata[0].Version
             }
 
+            function Get-Tier1CapacityMetadata {
+                $owned = Get-Tier1OwnedUser
+                $metadata = @(Get-ADReplicationAttributeMetadata -Object $owned.DistinguishedName -Server $script:domainController -Properties drink -ErrorAction Stop |
+                    Where-Object { $_.AttributeName -eq 'drink' })
+                if ($metadata.Count -ne 1 -or $metadata[0].IsLinkValue -ne $false) {
+                    throw 'Evidence Gap: capacity requires one nonlinked drink metadata record.'
+                }
+                $record = $metadata[0]
+                $fields = @('Version', 'LastOriginatingChangeTime', 'LastOriginatingChangeDirectoryServerInvocationId',
+                    'LastOriginatingChangeDirectoryServerIdentity', 'LastOriginatingChangeUsn', 'LocalChangeUsn')
+                foreach ($fieldName in $fields) {
+                    if ($null -eq $record.PSObject.Properties[$fieldName] -or [string]::IsNullOrWhiteSpace([string]$record.$fieldName)) {
+                        throw "Evidence Gap: capacity metadata lacks $fieldName."
+                    }
+                }
+                if ([long]$record.Version -lt 1 -or [long]$record.LastOriginatingChangeUsn -lt 1 -or
+                    [long]$record.LocalChangeUsn -lt 1 -or [guid]$record.LastOriginatingChangeDirectoryServerInvocationId -eq [guid]::Empty) {
+                    throw 'Evidence Gap: capacity metadata is not observable.'
+                }
+                # Copy scalar replication fields; AD value collections are compared independently.
+                [pscustomobject]@{
+                    Version = [long]$record.Version
+                    OriginatingTimeTicks = ([datetime]$record.LastOriginatingChangeTime).Ticks
+                    OriginatingInvocationId = [guid]$record.LastOriginatingChangeDirectoryServerInvocationId
+                    OriginatingServerIdentity = [string]$record.LastOriginatingChangeDirectoryServerIdentity
+                    OriginatingUsn = [long]$record.LastOriginatingChangeUsn
+                    LocalUsn = [long]$record.LocalChangeUsn
+                }
+            }
+
             Assert-Tier1OptIn
             # Validate the installed AD parameter surface; never replace it with test stubs.
             $requiredParameters = @{
@@ -636,29 +752,141 @@ Describe 'DrunkenAD integration tests' -Tag 'Integration' -Skip:(-not $script:ca
             }
         }
 
-        It 'reads all 1600-plus values and preserves a large unrelated prefix during replacement' {
-            if (-not (Initialize-Tier1Case)) { return }
-            # Fixed 1602-value bound; no domain searches, extra accounts, or unbounded growth.
-            $bulk = @(1..1600 | ForEach-Object { 'T1Bulk-{0:D4}' -f $_ })
-            $seed = @('T1Keep-Stable', 'T1Small-Old') + $bulk
-            try { Reset-Tier1Drink -Values $seed }
-            catch {
-                if ($_.FullyQualifiedErrorId -notmatch '^ActiveDirectoryServer:8659,.*SetADUser$') { throw }
-                Assert-Tier1StoredValues @('T1Keep-Stable')
-                Set-ItResult -Skipped -Because 'Evidence Gap: the server rejected the 1602-value fixture at its JET page-size limit before range retrieval could be tested. No directory limits were changed.'
-                return
+        It 'measures bounded scoped-write capacity and preserves whole state on a rejected request' -Tag 'Capacity' -Skip:($env:DRUNKENAD_RUN_CAPACITY -ne '1') {
+            $capacityClock = [System.Diagnostics.Stopwatch]::StartNew()
+            $capacityMaxSeconds = 120
+            function Assert-CapacityTimeBudget {
+                # A synchronous native call still requires the approved launcher's external watchdog.
+                if ($capacityClock.Elapsed.TotalSeconds -ge $capacityMaxSeconds) {
+                    throw 'Evidence Gap: CapacityTimeBoundReached; no further probe writes or capacity pass are permitted.'
+                }
             }
-            Assert-Tier1OrdinalSet -Actual @(Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController -ErrorAction Stop) -Expected $seed
-            Assert-Tier1OrdinalSet -Actual @(Get-AdUserDrinkPrefixedData -SamAccountName $script:userName -DrinkValuePrefix 'T1Bulk-' -DomainController $script:domainController -ErrorAction Stop) -Expected $bulk
+            Assert-Tier1OptIn
+            if ($env:DRUNKENAD_RUN_CAPACITY -ne '1') {
+                throw 'Capacity requires the separate DRUNKENAD_RUN_CAPACITY=1 opt-in at execution time.'
+            }
+            if ([string]::IsNullOrWhiteSpace($script:capacityTargetServer) -or
+                -not [string]::Equals($script:capacityTargetServer, $script:domainController, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'Evidence Gap: capacity target was not verified before fixture creation or the pinned server changed.'
+            }
+            if (-not $script:readinessStatus.ReadyForUserWrite) {
+                throw 'Evidence Gap: capacity was opted in but drink is not ready for user writes.'
+            }
+            # Native-only evidence: reject shadow functions and compatibility proxy commands.
+            $capacityCommands = @(
+                foreach ($capacityCommandName in @('Get-ADUser', 'Set-ADUser', 'Get-ADReplicationAttributeMetadata')) {
+                    Get-Command $capacityCommandName -ErrorAction Stop
+                }
+                & (Get-Module DrunkenAD) { Get-Command Set-ADUser -ErrorAction Stop }
+            )
+            foreach ($capacityCommand in $capacityCommands) {
+                if ($capacityCommand.CommandType -ne 'Cmdlet' -or $capacityCommand.ModuleName -ne 'ActiveDirectory' -or
+                    $capacityCommand.ImplementingType.Assembly.GetName().Name -ne 'Microsoft.ActiveDirectory.Management') {
+                    throw "Evidence Gap: capacity requires native ActiveDirectory provenance for $($capacityCommand.Name), including the production writer scope."
+                }
+            }
 
-            Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'T1Small-' = @('New') } -DomainController $script:domainController -Confirm:$false -ErrorAction Stop
-            $expected = @('T1Keep-Stable', 'T1Small-New') + $bulk
-            Assert-Tier1StoredValues $expected
-            Assert-Tier1OrdinalSet -Actual @(Get-ADUserDrinkData -SamAccountName $script:userName -DomainController $script:domainController -ErrorAction Stop) -Expected $expected
+            # Fixed safety limits, not configurable targets or claims about a forest-wide ceiling.
+            $capacityMaxPayloadValues = 1600
+            $capacityStep = 128
+            $capacityValueLength = 32
+            $capacityMaxAttempts = 13
+            $capacityPrefix = 'T1Capacity-'
+            if ($null -eq $script:readinessStatus.RangeUpper -or $script:readinessStatus.RangeUpper -lt $capacityValueLength) {
+                throw 'Evidence Gap: live rangeUpper must accommodate the fixed 32-code-unit capacity values.'
+            }
+            # Readiness is already the validated write-context shape from this run, on this pinned DC.
+            $capacityContext = $script:readinessStatus
+            $capacityContext.Server | Should -BeExactly $script:domainController
+            Assert-CapacityTimeBudget
+            if (-not (Initialize-Tier1Case)) { return }
+            $capacityBaselineMetadata = Get-Tier1CapacityMetadata
+            $capacityKeep = 'T1Keep-Stable'
+            $capacityMarker = ('T1Capacity-M{0:D4}' -f 0).PadRight($capacityValueLength, 'x')
+            $capacityExpected = @($capacityKeep, $capacityMarker)
+            Assert-CapacityTimeBudget
+            Reset-Tier1Drink -Values $capacityExpected
+            $capacitySeedMetadata = Get-Tier1CapacityMetadata
+            $capacitySeedMetadata.Version | Should -BeGreaterThan $capacityBaselineMetadata.Version -Because 'the seed must demonstrate observable replication metadata'
+            $capacityPayload = @(1..$capacityMaxPayloadValues | ForEach-Object {
+                ('T1Capacity-V{0:D4}' -f $_).PadRight($capacityValueLength, 'x')
+            })
+            $capacityAccepted = 0
+            $capacityLastAcceptedWriteKind = 'SeedReplace'
+            $capacityRejected = $null
+            $capacityVerified = $false
+            $capacityAttempts = 0
 
-            # Replacing the large slice also detects an incomplete writer snapshot.
-            Set-ADUserDrinkData -SamAccountName $script:userName -DataMap @{ 'T1Bulk-' = @('Replacement') } -DomainController $script:domainController -Confirm:$false -ErrorAction Stop
-            Assert-Tier1StoredValues @('T1Keep-Stable', 'T1Small-New', 'T1Bulk-Replacement')
+            while ($capacityAttempts -lt $capacityMaxAttempts) {
+                Assert-CapacityTimeBudget
+                Assert-Tier1OptIn
+                if ($env:DRUNKENAD_RUN_CAPACITY -ne '1') { throw 'Capacity opt-in was withdrawn; no further probe writes are permitted.' }
+                # Stop at the first recognized rejection; do not assume monotonic capacity under changing record history.
+                $capacityNext = [Math]::Min($capacityMaxPayloadValues, $capacityAccepted + $capacityStep)
+                if ($capacityNext -le $capacityAccepted -or $capacityNext -gt $capacityMaxPayloadValues) {
+                    throw 'Evidence Gap: capacity search exceeded its fixed value bounds.'
+                }
+                $capacityAttempts++
+                $capacityBefore = Get-Tier1OwnedUser
+                Assert-Tier1OrdinalSet -Actual @($capacityBefore.drink) -Expected $capacityExpected
+                $capacityBeforeMetadata = Get-Tier1CapacityMetadata
+                $capacityNewMarker = ('T1Capacity-M{0:D4}' -f $capacityAttempts).PadRight($capacityValueLength, 'x')
+                $capacityAdd = @($capacityNewMarker) + @($capacityPayload[$capacityAccepted..($capacityNext - 1)])
+                $capacityProposed = @($capacityKeep, $capacityNewMarker) + @($capacityPayload[0..($capacityNext - 1)])
+                $capacityProposed.Count | Should -Be ($capacityNext + 2)
+                $capacityProposed.Count | Should -BeLessOrEqual ($capacityMaxPayloadValues + 2)
+                foreach ($capacityValue in @($capacityMarker) + $capacityAdd) {
+                    $capacityValue.Length | Should -Be $capacityValueLength
+                }
+                $capacitySuffixes = @($capacityProposed | Where-Object { $_.StartsWith($capacityPrefix, [StringComparison]::Ordinal) } |
+                    ForEach-Object { $_.Substring($capacityPrefix.Length) })
+                $capacityMap = @{ $capacityPrefix = $capacitySuffixes }
+                $capacityPlan = Get-Tier1Plan $capacityBefore $capacityMap $capacityContext
+                Assert-Tier1OrdinalSet -Actual $capacityPlan.Remove -Expected @($capacityMarker)
+                Assert-Tier1OrdinalSet -Actual $capacityPlan.Add -Expected $capacityAdd
+                Assert-Tier1OrdinalSet -Actual $capacityPlan.FinalDrinkValues -Expected $capacityProposed
+
+                # A real Remove/Add tests rollback of an existing value as well as absence of partial additions.
+                Assert-CapacityTimeBudget
+                $capacityFailure = $null
+                try {
+                    Invoke-Tier1SnapshotWrite $capacityBefore $capacityMap $capacityContext
+                }
+                catch { $capacityFailure = $_ }
+                $capacityAfter = Get-Tier1OwnedUser
+                $capacityAfterMetadata = Get-Tier1CapacityMetadata
+                if ($null -ne $capacityFailure) {
+                    Assert-Tier1OrdinalSet -Actual @($capacityAfter.drink) -Expected @($capacityBefore.drink)
+                    foreach ($capacityProperty in $capacityBeforeMetadata.PSObject.Properties) {
+                        $capacityAfterMetadata.($capacityProperty.Name) | Should -BeExactly $capacityProperty.Value -Because 'a rejected request must preserve every captured replication field'
+                    }
+                    # 8659 = JET record too big; 8304 = maximum object size exceeded.
+                    # Generic admin, constraint, permission, transport, and binding errors are not capacity proof.
+                    Assert-Tier1DirectoryFailure $capacityFailure @(8659, 8304)
+                    $capacityRejected = $capacityNext
+                    Assert-CapacityTimeBudget
+                    $capacityVerified = $true
+                    break
+                }
+                else {
+                    Assert-Tier1OrdinalSet -Actual @($capacityAfter.drink) -Expected $capacityProposed
+                    $capacityAfterMetadata.Version | Should -BeGreaterThan $capacityBeforeMetadata.Version
+                    Assert-CapacityTimeBudget
+                    $capacityAccepted = $capacityNext
+                    $capacityLastAcceptedWriteKind = 'ScopedRemoveAdd'
+                    $capacityMarker = $capacityNewMarker
+                    $capacityExpected = $capacityProposed
+                    if ($capacityAccepted -eq $capacityMaxPayloadValues) {
+                        throw "Evidence Gap: BoundReachedWithoutRejection; accepted $($capacityAccepted + 2) total drink values, including $($capacityAccepted + 1) values of $capacityValueLength UTF-16 code units. This is a lower bound, not a discovered ceiling or a passed rejection test."
+                    }
+                }
+            }
+            if (-not $capacityVerified) {
+                throw "Evidence Gap: OperationBoundReached after $capacityAttempts requests; no verified capacity rejection."
+            }
+            Assert-CapacityTimeBudget
+            Write-Information ("Capacity RejectionVerified: lastAcceptedTotal={0}; firstRejectedTotal={1}; namespaceValueUtf16Units={2}; unrelatedValues=1; unrelatedValueUtf16Units={3}; scopedProbeRequests={4}; elapsedSeconds={5:F1}; lastAcceptedWriteKind={6}; wholeDrinkAndMetadataUnchanged=True. Observed bracket for this fixture, history, and request shape only; not an exact or general AD ceiling. Large-range retrieval remains unverified." -f
+                ($capacityAccepted + 2), ($capacityRejected + 2), $capacityValueLength, $capacityKeep.Length, $capacityAttempts, $capacityClock.Elapsed.TotalSeconds, $capacityLastAcceptedWriteKind) -InformationAction Continue
         }
 
         It 'leaves the drink replication metadata version unchanged for no-op CSV and projection' {
