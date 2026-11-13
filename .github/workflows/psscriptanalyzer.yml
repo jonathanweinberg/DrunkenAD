@@ -1,0 +1,28 @@
+name: PowerShell static analysis
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyzer:
+    name: Analyze shipped PowerShell module
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned PSScriptAnalyzer
+        run: |
+          $version = (Import-PowerShellDataFile ./.github/analyzer-policy.psd1).RequiredVersion
+          Install-Module PSScriptAnalyzer -Repository PSGallery -RequiredVersion $version -Scope CurrentUser -Force -ErrorAction Stop
+      - name: Check module warnings and errors
+        run: ./scripts/Test-DrunkenADAnalyzer.ps1
+      - name: Verify new warnings fail the gate
+        run: ./tests/analyzer/Test-AnalyzerGate.ps1
