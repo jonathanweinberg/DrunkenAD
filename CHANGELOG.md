@@ -1,9 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.14.0
 
+- Pipe AD user objects into `Get-ADUserDrinkData`, `Set-ADUserDrinkData`, and
+  `Remove-ADUserDrinkData` with one explicit directory endpoint. Pipeline
+  writes preserve per-user confirmation, stable GUID targeting, and results.
+
+- Added `Export-ADUserDrinkData` to write a new UTF-8 JSON review file for one
+  namespace and an explicit list of users on a selected directory endpoint.
+- Directory-facing commands accept an optional `PSCredential`; omitting it
+  preserves default authentication. Local file operations use the caller's identity.
 - Added `Find-ADUserByDrinkData` to find users by one literal namespaced
   drink entry, optionally scoped to a domain controller and search base.
+- CI checks the shipped module with a pinned PSScriptAnalyzer version. The
+  tag-triggered PowerShell Gallery workflow skips without a publishing key;
+  Gallery publication is explicitly disabled for v0.14.0.
+- These features have mocked unit coverage, not live directory certification.
+  The delegated-access test is opt-in and unrun against AD. Member-server RSAT,
+  live PowerShell 7, schema enablement, and authentic Excel exports remain
+  unverified. Compatibility commands stay supported through 0.x; same-prefix
+  writers still need external coordination.
 
 ## 0.13.2
 

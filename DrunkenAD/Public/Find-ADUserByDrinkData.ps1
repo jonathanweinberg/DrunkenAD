@@ -75,7 +75,7 @@ function Find-ADUserByDrinkData {
         [ValidatePattern('\S')]
         [string]$SearchBase,
 
-        [ValidateNotNull()]
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
         [pscredential]$Credential
     )
 
@@ -85,8 +85,8 @@ function Find-ADUserByDrinkData {
     }
     if ($PSBoundParameters.ContainsKey('DomainController')) { $query.Server = $DomainController }
     if ($PSBoundParameters.ContainsKey('SearchBase')) { $query.SearchBase = $SearchBase }
-    if ($PSBoundParameters.ContainsKey('Credential')) { $query.Credential = $Credential }
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
 
     Initialize-DrunkenADModule
-    Get-ADUser @query
+    Get-ADUser @query @auth
 }
