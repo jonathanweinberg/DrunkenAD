@@ -29,8 +29,8 @@ jobs:
               $env:GITHUB_REF -cne "refs/tags/v$version") {
               throw 'Gallery tags must match v<ModuleVersion> exactly.'
           }
-          if ($version.StartsWith('0.14.')) {
-              Write-Output '::notice::Gallery publication is held for 0.14.x; skipping.'
+          if ($env:GITHUB_REF -ceq 'refs/tags/v0.14.0') {
+              Write-Output '::notice::Gallery publication is held for v0.14.0; skipping.'
               'eligible=false' >> $env:GITHUB_OUTPUT
           } else {
               'eligible=true' >> $env:GITHUB_OUTPUT
@@ -46,19 +46,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Publish only the authorized tag
+      - name: Publish when the Gallery key is available
         shell: pwsh
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
-          PSGALLERY_PUBLISH_TAG: ${{ vars.PSGALLERY_PUBLISH_TAG }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:PSGALLERY_API_KEY)) {
               Write-Output '::notice::PSGALLERY_API_KEY is absent; skipping Gallery publication.'
-              return
-          }
-          if ($env:GITHUB_REF -cne "refs/tags/$env:PSGALLERY_PUBLISH_TAG") {
-              Write-Output '::notice::This tag is not authorized; skipping Gallery publication.'
               return
           }
           try {

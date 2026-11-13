@@ -67,8 +67,7 @@ class GalleryWorkflowTest < Minitest::Test
       assert_equal 'pwsh', step.fetch('shell')
       refute_includes step.fetch('run'), '${{'
     end
-    assert_equal({'PSGALLERY_API_KEY' => '${{ secrets.PSGALLERY_API_KEY }}',
-                  'PSGALLERY_PUBLISH_TAG' => '${{ vars.PSGALLERY_PUBLISH_TAG }}'},
+    assert_equal({'PSGALLERY_API_KEY' => '${{ secrets.PSGALLERY_API_KEY }}'},
                  @publish.fetch('steps').last.fetch('env'))
     assert_equal 1, File.read(FILE).scan(/secrets\./i).size
   end
@@ -91,40 +90,32 @@ class GalleryWorkflowTest < Minitest::Test
     File.write(@manifest, File.read(@manifest).sub("ModuleVersion = '1.2.3'", "ModuleVersion = '0.14.0'"))
     log, ok = run_step(@validate, 'refs/tags/v0.14.0')
     assert ok, log
-    assert_match(/::notice::.*0\.14/, log)
+    assert_match(/::notice::.*v0\.14\.0/, log)
     assert_equal ['eligible=false'], File.readlines(File.join(@tmp, 'outputs'), chomp: true)
   end
 
   def test_no_key_and_blank_key_notice_without_publishing
     [nil, '   '].each do |key|
-      log, ok = run_step(@publish, 'refs/tags/v1.2.3', 'PSGALLERY_API_KEY' => key,
-                         'PSGALLERY_PUBLISH_TAG' => 'v1.2.3')
+      log, ok = run_step(@publish, 'refs/tags/v1.2.3', 'PSGALLERY_API_KEY' => key)
       assert ok, log
       assert_match(/::notice::.*PSGALLERY_API_KEY.*skip/i, log)
       refute File.exist?(File.join(@tmp, 'calls'))
     end
   end
 
-  def test_a_key_alone_or_another_authorized_tag_cannot_publish
-    [nil, 'v1.2.4'].each do |allowed|
-      log, ok = run_step(@publish, 'refs/tags/v1.2.3', 'PSGALLERY_API_KEY' => KEY,
-                         'PSGALLERY_PUBLISH_TAG' => allowed)
-      assert ok, log
-      assert_match(/::notice::.*skip/i, log)
-      refute File.exist?(File.join(@tmp, 'calls'))
-    end
-  end
-
-  def test_explicitly_authorized_tag_passes_opaque_key_once_to_recorder
-    log, ok = run_step(@publish, 'refs/tags/v1.2.3', 'PSGALLERY_API_KEY' => KEY,
-                       'PSGALLERY_PUBLISH_TAG' => 'v1.2.3')
+  def test_next_patch_is_eligible_and_key_alone_reaches_recorder
+    File.write(@manifest, File.read(@manifest).sub("ModuleVersion = '1.2.3'", "ModuleVersion = '0.14.1'"))
+    log, ok = run_step(@validate, 'refs/tags/v0.14.1')
+    assert ok, log
+    assert_equal ['eligible=true'], File.readlines(File.join(@tmp, 'outputs'), chomp: true)
+    log, ok = run_step(@publish, 'refs/tags/v0.14.1', 'PSGALLERY_API_KEY' => KEY)
     assert ok, log
     assert_equal ['called'], File.readlines(File.join(@tmp, 'calls'), chomp: true)
   end
 
   def test_publisher_error_is_sanitized_and_not_retried
     _, ok = run_step(@publish, 'refs/tags/v1.2.3', 'PSGALLERY_API_KEY' => KEY,
-                     'PSGALLERY_PUBLISH_TAG' => 'v1.2.3', 'SIMULATE_FAILURE' => '1')
+                     'SIMULATE_FAILURE' => '1')
     refute ok
     assert_equal ['called'], File.readlines(File.join(@tmp, 'calls'), chomp: true)
   end
