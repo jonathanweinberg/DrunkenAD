@@ -22,11 +22,16 @@ Finds the user by exact `mail`.
 .PARAMETER Pager
 Finds the user by exact `pager`.
 
+.PARAMETER InputObject
+ADUser from Get-ADUser. Requires an explicit DomainController (or Server).
+Only ObjectGUID is used from the input; directory values are read on that controller.
+
 .PARAMETER Prefixes
 One or more literal prefixes to remove from the user's stored `drink` data.
 
 .PARAMETER DomainController
-Optional domain controller to use consistently for validation, lookup, and write.
+Controller for schema validation and reads and writes. Required for ADUser input;
+optional when using an explicit identifier.
 
 .PARAMETER LogPath
 Optional log file path for appended activity records.
@@ -36,10 +41,17 @@ Returns the computed `drink` values, including previews. This is based on the
 initial read and is not a fresh directory read after the removal.
 
 .INPUTS
-None. This command does not accept pipeline input.
+Microsoft.ActiveDirectory.Management.ADUser
 
 .OUTPUTS
-System.String[]. Returned when `PassThru` is specified.
+Explicit identifiers: computed strings with PassThru, otherwise no output.
+ADUser input: with PassThru, one object per user with ObjectGUID, SamAccountName,
+Status (Written, WhatIf, Declined or NoChange), and planned FinalDrinkValues.
+
+.EXAMPLE
+Get-ADUser -Filter "Department -eq 'Example'" -Server 'dc01.contoso.com' | Remove-ADUserDrinkData -Prefixes 'App-' -WhatIf -PassThru -DomainController 'dc01.contoso.com'
+
+Previews each user separately and returns the planned values with the user identity.
 
 .EXAMPLE
 Remove-ADUserDrinkData -SamAccountName 'TesterAccount' -Prefixes 'AppProfile-', 'Flags-' -DomainController 'dc01.contoso.com' -Confirm:$false
@@ -88,6 +100,10 @@ function Remove-ADUserDrinkData {
         [Parameter(Mandatory = $true, ParameterSetName = 'Pager')]
         [string]$Pager,
 
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ADUser')]
+        [PSTypeName('Microsoft.ActiveDirectory.Management.ADUser')]
+        [psobject]$InputObject,
+
         [Parameter(Mandatory = $true)]
         [string[]]$Prefixes,
 
@@ -99,11 +115,26 @@ function Remove-ADUserDrinkData {
         [switch]$PassThru
     )
 
-    Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes
-    $dataMap = @{}
-    foreach ($prefix in $Prefixes) { $dataMap[$prefix] = @() }
-    $parameters = @{} + $PSBoundParameters
-    $parameters.Remove('Prefixes')
-    $parameters['PrefixMap'] = $dataMap
-    Set-ADUserDrinkPrefixedData @parameters
+    begin {
+        $context = $null
+        Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes
+        $dataMap = @{}
+        foreach ($prefix in $Prefixes) { $dataMap[$prefix] = @() }
+    }
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'ADUser') {
+            $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController
+            if ($null -eq $context) {
+                $context = New-DrunkenADWriteContext -Server $DomainController
+            }
+            $user = Read-DrunkenADPipelineUser $guid $context.Server
+            Invoke-DrunkenADPrefixWrite -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
+        }
+        else {
+            $parameters = @{} + $PSBoundParameters
+            $parameters.Remove('Prefixes')
+            $parameters['PrefixMap'] = $DataMap
+            Set-ADUserDrinkPrefixedData @parameters
+        }
+    }
 }

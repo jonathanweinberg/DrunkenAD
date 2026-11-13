@@ -60,6 +60,22 @@ If you only want the parser gate:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
+### Issue #22: ADUser pipeline (unit evidence only)
+
+The `PipelineUser` cases in [WriteOperation.Unit.Tests.ps1](../tests/WriteOperation.Unit.Tests.ps1)
+exercise Get, Set, and Remove with synthetic ADUser objects, mocked directory
+commands, and a scripted confirmation host. Against the unchanged base
+(`92e8f15`), 1 passed and 9 failed; with pipeline support, all 10 passed
+under Pester 5.7.1. The passing baseline case rejected unsupported or conflicting
+input; it did not establish pipeline support. A follow-up test for an omitted
+`drink` property failed before handling an unset attribute as an empty store
+(0 passed, 1 failed). The final focused run passed all 11 with no failures or skips.
+
+The tests distinguish stored values from stale input, check per-user identity
+and result order, and cover empty matches, no change, preview, decline, and
+Yes to All. These results do not establish native ADUser binding or directory
+behavior on Windows. No live AD or integration test was run for this change.
+
 ## Integration Tests
 
 The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1).

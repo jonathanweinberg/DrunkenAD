@@ -14,6 +14,37 @@ function Get-DrunkenADIdentityParameters {
     return $identity
 }
 
+function Get-DrunkenADPipelineUserGuid {
+    param($InputObject, [string]$DomainController)
+
+    if ([string]::IsNullOrWhiteSpace($DomainController)) {
+        throw 'Specify DomainController (or Server) for ADUser input.'
+    }
+    $property = $InputObject.PSObject.Properties['ObjectGUID']
+    $guid = [guid]::Empty
+    if (-not $property -or -not [guid]::TryParse([string]$property.Value, [ref]$guid) -or $guid -eq [guid]::Empty) {
+        throw 'An ADUser with a nonempty ObjectGUID is required.'
+    }
+    $guid
+}
+
+function Read-DrunkenADPipelineUser {
+    param([guid]$Guid, [string]$Server)
+
+    if ([string]::IsNullOrWhiteSpace($Server)) { throw 'A pinned domain controller is required.' }
+    $user = Get-ADUser -Identity $Guid -Server $Server -Properties drink -ErrorAction Stop
+    if ($null -eq $user -or $user.ObjectGUID -ne $Guid) {
+        throw 'The directory did not return the requested ADUser.'
+    }
+    # An unset multivalued attribute may be absent even when requested.
+    $drink = $user.PSObject.Properties['drink']
+    [pscustomobject]@{
+        ObjectGUID = $Guid
+        SamAccountName = $user.SamAccountName
+        drink = @(if ($null -ne $drink) { $drink.Value })
+    }
+}
+
 function New-DrunkenADWriteContext {
     [CmdletBinding()]
     param([string]$Server)
@@ -93,7 +124,9 @@ function Invoke-DrunkenADPrefixWrite {
 
         [string]$LogPath,
         [switch]$PassThru,
-        [switch]$ResultObject
+        [switch]$ResultObject,
+
+        [System.Management.Automation.PSCmdlet]$PipelineCmdlet
     )
 
     if (-not $Context.ReadyForUserWrite -or [string]::IsNullOrWhiteSpace($Context.Server)) {
@@ -110,9 +143,11 @@ function Invoke-DrunkenADPrefixWrite {
     if ($plan.Remove.Count -gt 0 -or $plan.Add.Count -gt 0) {
         $reason = [System.Management.Automation.ShouldProcessReason]::None
         $description = "Remove $($plan.Remove.Count) and add $($plan.Add.Count) drink value(s) for $($User.SamAccountName)"
-        if ($PSCmdlet.ShouldProcess($description, $description + '?', 'Confirm drink write', [ref]$reason)) {
+        # Keep Yes/No to All on the public invocation across pipeline records.
+        $confirmation = if ($PipelineCmdlet) { $PipelineCmdlet } else { $PSCmdlet }
+        if ($confirmation.ShouldProcess($description, $description + '?', 'Confirm drink write', [ref]$reason)) {
             $parameters = @{
-                Identity = $User.DistinguishedName
+                Identity = if ($PipelineCmdlet) { $objectGuid } else { $User.DistinguishedName }
                 Server = $Context.Server
                 ErrorAction = 'Stop'
                 Confirm = $false
@@ -129,6 +164,12 @@ function Invoke-DrunkenADPrefixWrite {
         Write-Verbose 'No drink attribute changes are required.'
         Write-DrunkenADLog -LogPath $LogPath -Message "objectGUID=$accountCorrelation No drink attribute changes were required: removed 0, added 0 value(s)."
     }
-    if ($ResultObject) { [pscustomobject]@{ Status = $status; FinalDrinkValues = $plan.FinalDrinkValues } }
+    if ($PipelineCmdlet -and $PassThru) {
+        [pscustomobject]@{
+            ObjectGUID = $objectGuid; SamAccountName = $User.SamAccountName
+            Status = $status; FinalDrinkValues = $plan.FinalDrinkValues
+        }
+    }
+    elseif ($ResultObject) { [pscustomobject]@{ Status = $status; FinalDrinkValues = $plan.FinalDrinkValues } }
     elseif ($PassThru) { $plan.FinalDrinkValues }
 }
