@@ -29,6 +29,9 @@ One or more suffix values to apply.
 .PARAMETER Prefixes
 One or more literal prefixes to apply.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for validation, lookup, and write.
 
@@ -117,7 +120,10 @@ function Update-ADUserDrinkAttribute {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $prefixMap = ConvertTo-DrunkenADPrefixMap -Prefixes $Prefixes -DrinkValues $DrinkValues

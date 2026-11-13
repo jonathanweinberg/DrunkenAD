@@ -30,6 +30,9 @@ and optional `Label` or `SplitOn` fields.
 Path to a JSON file containing the same namespace map structure used by
 `NamespaceMap`.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for validation and writes.
 
@@ -105,7 +108,10 @@ function Import-ADUserDrinkCsvData {
 
         [string]$LogPath,
 
-        [switch]$ClearBlankNamespaces
+        [switch]$ClearBlankNamespaces,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     if (-not (Test-Path -LiteralPath $CsvPath)) {
@@ -128,7 +134,8 @@ function Import-ADUserDrinkCsvData {
     Assert-DrunkenADCsvColumns -CsvPath $CsvPath -Rows $rows -Mappings $mappings
     Assert-DrunkenADCsvIdentities -Rows $rows
 
-    $context = New-DrunkenADWriteContext -Server $DomainController
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $context = New-DrunkenADWriteContext @auth -Server $DomainController
     $preparedRows = New-Object 'System.Collections.Generic.List[object]'
     $rowNumber = 1
     foreach ($row in $rows) {
@@ -145,7 +152,7 @@ function Import-ADUserDrinkCsvData {
         }
 
         # Resolve and validate the entire input before the first directory write.
-        $user = Resolve-DrunkenADUser -SamAccountName $samAccountName -Server $context.Server -Properties @('drink')
+        $user = Resolve-DrunkenADUser @auth -SamAccountName $samAccountName -Server $context.Server -Properties @('drink')
         Get-DrunkenADPrefixWritePlan -CurrentValues $user.drink -PrefixMap $dataMap -RangeUpper $context.RangeUpper | Out-Null
         $preparedRows.Add([pscustomobject]@{ RowNumber = $rowNumber; User = $user; DataMap = $dataMap })
     }
@@ -167,7 +174,7 @@ function Import-ADUserDrinkCsvData {
             if ($prepared.User.PSObject.Properties['ObjectGUID'] -and $prepared.User.ObjectGUID) {
                 $resolvedIdentity = $prepared.User.ObjectGUID
             }
-            $freshUser = Get-ADUser -Identity $resolvedIdentity -Server $context.Server -Properties @('drink') -ErrorAction Stop
+            $freshUser = Get-ADUser @auth -Identity $resolvedIdentity -Server $context.Server -Properties @('drink') -ErrorAction Stop
             if ($null -eq $freshUser) { throw 'The resolved CSV user could not be refreshed.' }
             $approvedPlan = Get-DrunkenADPrefixWritePlan -CurrentValues $freshUser.drink -PrefixMap $prepared.DataMap -RangeUpper $context.RangeUpper
             $hasChanges = $approvedPlan.Remove.Count -gt 0 -or $approvedPlan.Add.Count -gt 0
@@ -177,7 +184,7 @@ function Import-ADUserDrinkCsvData {
             $description = "Write CSV drink data for $($freshUser.SamAccountName): remove $($approvedPlan.Remove.Count), add $($approvedPlan.Add.Count) value(s)"
             if (-not $hasChanges -or $PSCmdlet.ShouldProcess($description, $description + '?', 'Confirm CSV drink write', [ref]$reason)) {
                 if ($hasChanges) {
-                    $writeParams.User = Get-ADUser -Identity $resolvedIdentity -Server $context.Server -Properties @('drink') -ErrorAction Stop
+                    $writeParams.User = Get-ADUser @auth -Identity $resolvedIdentity -Server $context.Server -Properties @('drink') -ErrorAction Stop
                     if ($null -eq $writeParams.User) { throw 'The resolved CSV user could not be refreshed.' }
                     $writePlan = Get-DrunkenADPrefixWritePlan -CurrentValues $writeParams.User.drink -PrefixMap $prepared.DataMap -RangeUpper $context.RangeUpper
                     foreach ($operation in @('Remove', 'Add')) {
@@ -188,7 +195,7 @@ function Import-ADUserDrinkCsvData {
                     }
                 }
                 if ($null -eq $writeParams.User) { throw 'The resolved CSV user could not be refreshed.' }
-                $writeResult = Invoke-DrunkenADPrefixWrite @writeParams
+                $writeResult = Invoke-DrunkenADPrefixWrite @auth @writeParams
                 $status = $writeResult.Status
                 $finalDrinkValues = @($writeResult.FinalDrinkValues)
             }
