@@ -7,6 +7,7 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
         $stubDefinitions = @{
             'Get-ADForest' = {
                 param(
+                    $Credential,
                     $Server,
                     $ErrorAction
                 )
@@ -15,6 +16,7 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
             }
             'Get-ADDomain' = {
                 param(
+                    $Credential,
                     $Server,
                     $ErrorAction
                 )
@@ -23,6 +25,7 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
             }
             'Set-ADObject' = {
                 param(
+                    $Credential,
                     $Identity,
                     $Server,
                     $Add,
@@ -167,7 +170,11 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
         (Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json).Status | Should -Be 'AlreadyReady'
     }
 
-    It 'applies mayContain, refreshes the chosen schema master, then verifies readiness' {
+    It 'applies, refreshes, and verifies with explicit credential=<Explicit>' -ForEach @(
+        @{ Explicit = $false }; @{ Explicit = $true }
+    ) {
+        $script:selected = [pscredential]::new('fixture-admin', (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force))
+        if ($Explicit) { $script:applyParams.Credential = $script:selected }
         $script:readinessCallCount = 0
         $script:enablementOperations = New-Object 'System.Collections.Generic.List[string]'
         Mock Test-ADDrinkAttributeReadyForUserWrite {
@@ -201,6 +208,14 @@ Describe 'Enable-ADDrinkAttributeOnUserClass admin script' {
         $reportPath = Join-Path $TestDrive 'applied.json'
         $result = Enable-ADDrinkAttributeOnUserClass @script:applyParams -ReportPath $reportPath
 
+        foreach ($pair in @{ 'Get-ADForest' = 2; 'Get-ADDomain' = 1; 'Set-ADObject' = 1;
+            'Update-DrunkenADSchemaCache' = 1; 'Test-ADDrinkAttributeReadyForUserWrite' = 2 }.GetEnumerator()) {
+            Should -Invoke $pair.Key -Times $pair.Value -Exactly -ParameterFilter {
+                $PesterBoundParameters.ContainsKey('Credential') -eq $Explicit -and
+                (-not $Explicit -or [object]::ReferenceEquals($Credential, $script:selected))
+            }
+        }
+        (Get-Content $reportPath -Raw) | Should -Not -Match 'fixture-admin|fixture-secret|PSCredential'
         $result.Status | Should -Be 'Applied'
         $result.Applied | Should -BeTrue
         $result.After.ReadyForUserWrite | Should -BeTrue
@@ -330,6 +345,9 @@ Describe 'Update-DrunkenADSchemaCache RootDSE binding' {
 
     BeforeEach {
         $script:rootDse = [pscustomobject]@{
+            Username           = $null
+            Password           = $null
+            Path               = $null
             AuthenticationType = $null
             PropertyName       = $null
             PropertyValue      = $null
@@ -378,6 +396,26 @@ Describe 'Update-DrunkenADSchemaCache RootDSE binding' {
         { Update-DrunkenADSchemaCache -Server 'dc09.lab.example.test' } | Should -Throw "*RootDSE $Stage failed*"
 
         ($script:rootDse.Operations -join ',') | Should -Be $Operations
+    }
+
+    It 'selects the explicit ADSI identity before the first directory operation' {
+        $selected = [pscredential]::new('EXAMPLE\fixture', (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force))
+        Mock New-Object {
+            if ($PesterBoundParameters.ContainsKey('ArgumentList')) {
+                throw 'Explicit bind must not pass a password or LDAP path as a cmdlet argument'
+            }
+            $script:rootDse
+        } -ParameterFilter { $TypeName -eq 'System.DirectoryServices.DirectoryEntry' }
+        $script:rootDse | Add-Member ScriptMethod Put {
+            if ($this.Username -cne 'EXAMPLE\fixture' -or $this.Password -cne 'fixture-secret' -or
+                $this.Path -ne 'LDAP://dc.example.test/RootDSE' -or
+                $this.AuthenticationType -ne [System.DirectoryServices.AuthenticationTypes]::Secure) {
+                throw 'Unexpected LDAP bind parameters'
+            }
+            $this.Operations.Add('Put')
+        } -Force
+        Update-DrunkenADSchemaCache -Server 'dc.example.test' -Credential $selected
+        ($script:rootDse.Operations -join ',') | Should -Be 'Put,SetInfo,Dispose'
     }
 
     It 'propagates construction failure without using a connection' {
