@@ -16,9 +16,10 @@ function Get-DrunkenADIdentityParameters {
 
 function New-DrunkenADWriteContext {
     [CmdletBinding()]
-    param([string]$Server)
+    param([string]$Server, [pscredential]$Credential)
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $status = Get-DrunkenADDrinkAttributeStatus @auth -Server $Server
     if (-not $status.ReadyForUserWrite) {
         throw $status.BlockingMessage
     }
@@ -93,7 +94,8 @@ function Invoke-DrunkenADPrefixWrite {
 
         [string]$LogPath,
         [switch]$PassThru,
-        [switch]$ResultObject
+        [switch]$ResultObject,
+        [pscredential]$Credential
     )
 
     if (-not $Context.ReadyForUserWrite -or [string]::IsNullOrWhiteSpace($Context.Server)) {
@@ -119,7 +121,8 @@ function Invoke-DrunkenADPrefixWrite {
             }
             if ($plan.Remove.Count -gt 0) { $parameters['Remove'] = @{ drink = $plan.Remove } }
             if ($plan.Add.Count -gt 0) { $parameters['Add'] = @{ drink = $plan.Add } }
-            Set-ADUser @parameters
+            $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+            Set-ADUser @auth @parameters
             $status = 'Written'
             Write-DrunkenADLog -LogPath $LogPath -Message "objectGUID=$accountCorrelation Updated drink attribute: removed $($plan.Remove.Count), added $($plan.Add.Count) value(s)."
         }

@@ -12,6 +12,9 @@ are null because write readiness was not assessed. Use
 `Test-ADDrinkAttributeReadyForUserWrite` when you need to know whether the
 attribute is also allowed on the Active Directory `user` class.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER Server
 Optional host, IP address, alias, or tunnel endpoint, used exactly as supplied.
 When omitted or when the supplied DNS name matches RootDSE's default domain,
@@ -59,10 +62,14 @@ function Test-ADDrinkAttributeEnabled {
     param(
         [string]$Server,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $status = Get-DrunkenADDrinkAttributeStatus @auth -Server $Server -PresenceOnly
 
     if ($PassThru) {
         $status
@@ -80,6 +87,9 @@ Tests whether the Active Directory `drink` attribute is ready for user writes.
 Queries the schema naming context on the target domain controller and verifies
 that the `drink` attribute exists, is not defunct, and is allowed on the
 Active Directory `user` class.
+
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
 
 .PARAMETER Server
 Optional host, IP address, alias, or tunnel endpoint, used exactly as supplied.
@@ -128,10 +138,14 @@ function Test-ADDrinkAttributeReadyForUserWrite {
     param(
         [string]$Server,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $status = Get-DrunkenADDrinkAttributeStatus @auth -Server $Server
 
     if ($PassThru) {
         $status

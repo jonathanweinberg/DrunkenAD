@@ -74,7 +74,7 @@ function Export-ADUserDrinkData {
         [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_) })]
         [string]$DomainController,
 
-        [ValidateNotNull()]
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
         [pscredential]$Credential,
 
         [Parameter(Mandatory)]
@@ -96,8 +96,7 @@ function Export-ADUserDrinkData {
     $parent = [IO.Path]::GetDirectoryName($target)
     if (-not [IO.Directory]::Exists($parent)) { throw 'Export directory does not exist.' }
 
-    $auth = @{}
-    if ($PSBoundParameters.ContainsKey('Credential')) { $auth.Credential = $Credential }
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
     $status = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru @auth
     $records = @(foreach ($name in $SamAccountName) {
         $user = Resolve-DrunkenADUser -SamAccountName $name -Server $status.Server @auth

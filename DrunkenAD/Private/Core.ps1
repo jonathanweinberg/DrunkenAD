@@ -1,3 +1,12 @@
+function Get-DrunkenADCredentialParameters {
+    param([System.Collections.IDictionary]$BoundParameters)
+
+    if ($BoundParameters.ContainsKey('Credential')) {
+        return @{ Credential = $BoundParameters['Credential'] }
+    }
+    return @{}
+}
+
 function Initialize-DrunkenADModule {
     [CmdletBinding()]
     param()
@@ -298,9 +307,8 @@ function Resolve-DrunkenADUser {
 
         [string[]]$Properties = @('drink'),
 
-        [pscredential]$Credential,
-
-        [string]$Server
+        [string]$Server,
+        [pscredential]$Credential
     )
 
     Initialize-DrunkenADModule
@@ -346,8 +354,8 @@ function Resolve-DrunkenADUser {
         $userParams['Server'] = $Server
     }
 
-    if ($PSBoundParameters.ContainsKey('Credential')) { $userParams.Credential = $Credential }
-    $users = @(Get-ADUser @userParams)
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $users = @(Get-ADUser @auth @userParams)
 
     if ($users.Count -eq 0) {
         throw "No Active Directory user matched $identityDescription."

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `Export-ADUserDrinkData` to write a new UTF-8 JSON review file for one
+  namespace and an explicit list of users on a selected directory endpoint.
+- Directory-facing commands accept an optional `PSCredential`; omitting it
+  preserves default authentication. Local file operations use the caller's identity.
 - Added `Find-ADUserByDrinkData` to find users by one literal namespaced
   drink entry, optionally scoped to a domain controller and search base.
 

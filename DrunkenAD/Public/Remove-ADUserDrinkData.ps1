@@ -25,6 +25,9 @@ Finds the user by exact `pager`.
 .PARAMETER Prefixes
 One or more literal prefixes to remove from the user's stored `drink` data.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for validation, lookup, and write.
 
@@ -96,7 +99,10 @@ function Remove-ADUserDrinkData {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes

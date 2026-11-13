@@ -40,6 +40,29 @@ Test-ADDrinkAttributeReadyForUserWrite `
 If `ReadyForUserWrite` is not `True`, stop and follow
 [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md).
 
+## Select a Directory Identity
+
+All directory-facing module commands, their compatibility wrappers, and the CSV
+import example accept an optional `-Credential` (`PSCredential`). For example:
+
+```powershell
+$operator = Get-Credential
+Get-ADUserDrinkData -SamAccountName 'alice.bennett' -DomainController 'dc01.contoso.com' -Credential $operator
+```
+
+The same identity is used for schema discovery, inherited-class checks, user
+lookups, CSV refreshes and writes. Omit the parameter to retain the AD cmdlets'
+normal authentication behavior; a failed credential is not retried as the caller.
+The credential grants no additional rights and does not change the selected DC.
+It does not impersonate the operator for local CSV, config, report or log files.
+Credentials are not included in DrunkenAD activity logs or results.
+Do not serialize raw PowerShell diagnostic records: their invocation metadata
+can include bound parameters even when the displayed message does not.
+
+The offline CSV splitter needs no credential. Live validation harnesses are
+not operator entrypoints for alternate credentials. Propagation has mock coverage;
+it is not a native Windows authentication or permission test.
+
 ## Generic Namespace Write
 
 Use `Set-ADUserDrinkData` for direct namespace writes:
