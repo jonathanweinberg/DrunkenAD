@@ -76,6 +76,25 @@ behavior. Prior live results for other commands do not cover export.
 
 ## Integration Tests
 
+### Delegated and read-only accounts (not live-verified)
+
+The separate [delegation test](../tests/Integration/DelegatedAccess.Tests.ps1)
+is not in the default suite. On an explicitly approved lab run, provision one
+disabled, disposable user directly inside the delegated OU with description
+`DrunkenAD: delegated access test fixture`. Record the user and OU GUIDs.
+Use the same writable DC by its actual hostname and keep other writers away
+from the fixture. Do not grant the test account account-management rights.
+
+Use Pester 5's `New-PesterContainer -Path` with the test file and a `-Data`
+hashtable containing `RunDelegatedAccess = $true`, `DomainController`,
+`FixtureGuid`, `ParentOuGuid`, `Credential` (a PSCredential entered locally),
+and `Role` (Writer or Reader). Invoke Pester with that container separately for
+each role. It checks the module read under the supplied identity, then attempts
+one unique attribute value by GUID and verifies cleanup. A reader denial counts
+only on an access-denied error; lookup, transport and unrelated errors fail.
+A forcibly terminated process can leave a marker; independently verify cleanup.
+No live result is claimed for either role, member-server RSAT, or PowerShell 7.
+
 The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1).
 
 It is skipped unless all of the following are present:
