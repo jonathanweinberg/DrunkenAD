@@ -17,6 +17,7 @@
         'Private/SchemaStatus.ps1',
         'Private/WriteOperation.ps1',
         'Public/Export-ADUserDrinkData.ps1',
+        'Public/Find-ADUserByDrinkData.ps1',
         'Public/Get-ADUserDrinkData.ps1',
         'Public/Get-AdUserDrinkPrefixedData.ps1',
         'Public/Import-ADUserDrinkCsvData.ps1',
@@ -32,6 +33,7 @@
     )
     FunctionsToExport = @(
         'Export-ADUserDrinkData',
+        'Find-ADUserByDrinkData',
         'Get-ADUserDrinkData',
         'Set-ADUserDrinkData',
         'Remove-ADUserDrinkData',

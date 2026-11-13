@@ -114,6 +114,7 @@ list that must stay aligned with the module manifest.
 | --- | --- |
 | `Get-ADUserDrinkData` | Returns all stored values, or only those under one literal prefix namespace. |
 | `Export-ADUserDrinkData` | Writes one namespace for explicitly named accounts to a new [JSON review file](docs/OPERATIONS.md#export-for-review). |
+| `Find-ADUserByDrinkData` | Returns users with a complete `drink` entry equal to the supplied prefix and value. |
 | `Set-ADUserDrinkData` | Writes one or more namespaces of generic data into the `drink` attribute. |
 | `Remove-ADUserDrinkData` | Removes one or more namespaces while preserving unrelated stored values. |
 | `Set-ADUserDrinkProjection` | Projects selected user attributes into namespaced `drink` records. |

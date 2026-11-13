@@ -9,6 +9,7 @@ foreach ($sourceDirectory in @('Private', 'Public')) {
 
 Export-ModuleMember -Function @(
     'Export-ADUserDrinkData',
+    'Find-ADUserByDrinkData',
     'Get-ADUserDrinkData',
     'Set-ADUserDrinkData',
     'Remove-ADUserDrinkData',
