@@ -1,0 +1,63 @@
+name: PowerShell Gallery
+
+'on':
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event.created && !github.event.deleted
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.tag.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check tag against the module manifest
+        id: tag
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Import-PowerShellDataFile -LiteralPath ./DrunkenAD/DrunkenAD.psd1
+          $version = [string]$manifest.ModuleVersion
+          if ($version -cnotmatch '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z' -or
+              $env:GITHUB_REF -cne "refs/tags/v$version") {
+              throw 'Gallery tags must match v<ModuleVersion> exactly.'
+          }
+          if ($env:GITHUB_REF -ceq 'refs/tags/v0.14.0') {
+              Write-Output '::notice::Gallery publication is held for v0.14.0; skipping.'
+              'eligible=false' >> $env:GITHUB_OUTPUT
+          } else {
+              'eligible=true' >> $env:GITHUB_OUTPUT
+          }
+
+  publish:
+    needs: validate
+    if: needs.validate.outputs.eligible == 'true'
+    environment: powershell-gallery
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Publish when the Gallery key is available
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:PSGALLERY_API_KEY)) {
+              Write-Output '::notice::PSGALLERY_API_KEY is absent; skipping Gallery publication.'
+              return
+          }
+          try {
+              Publish-Module -Path ./DrunkenAD -Repository PSGallery -NuGetApiKey $env:PSGALLERY_API_KEY -ErrorAction Stop
+          } catch {
+              throw 'Gallery publication failed; verify the Gallery version before considering a retry.'
+          }
