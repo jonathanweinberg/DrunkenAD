@@ -108,7 +108,15 @@ Use [scripts/Enable-ADDrinkAttributeOnUserClass.ps1](../scripts/Enable-ADDrinkAt
 
 Default behavior is preview only. No schema change or cache refresh happens unless you pass `-Apply` and approve the operation. `-Apply -WhatIf` performs neither the schema write nor the refresh. An already-ready result also skips both operations. Preview can still write the explicitly requested local JSON report; `-WhatIf` suppresses that file write as well.
 
-Apply requires Windows with the ActiveDirectory module and ADSI (`System.DirectoryServices`), using the current operator's Windows identity. The refresh binds directly over LDAP to the selected schema master's RootDSE, so that LDAP endpoint must be reachable in addition to the connectivity needed by the AD cmdlets. No separate credential parameter is introduced; Windows PowerShell 5.1 remains supported.
+Apply requires Windows with the ActiveDirectory module and ADSI (`System.DirectoryServices`).
+The refresh binds directly over LDAP to the selected schema master's RootDSE, so
+that endpoint must be reachable in addition to the connectivity needed by the AD cmdlets.
+Pass an optional `-Credential` to select one directory identity for forest and domain
+discovery, both readiness checks, the schema write, and the RootDSE cache refresh.
+Supply a password-based `PSCredential` for apply: the DirectoryEntry password setter
+requires the password as a string in process memory. The password is not written to the
+report or activity log. Omitting the parameter retains the normal bind identity.
+The same apply guards and confirmation requirements still apply.
 
 Preview mode:
 

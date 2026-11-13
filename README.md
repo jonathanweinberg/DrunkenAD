@@ -113,6 +113,7 @@ list that must stay aligned with the module manifest.
 | Command | Purpose |
 | --- | --- |
 | `Get-ADUserDrinkData` | Returns all stored values, or only those under one literal prefix namespace. |
+| `Find-ADUserByDrinkData` | Returns users with a complete `drink` entry equal to the supplied prefix and value. |
 | `Set-ADUserDrinkData` | Writes one or more namespaces of generic data into the `drink` attribute. |
 | `Remove-ADUserDrinkData` | Removes one or more namespaces while preserving unrelated stored values. |
 | `Set-ADUserDrinkProjection` | Projects selected user attributes into namespaced `drink` records. |

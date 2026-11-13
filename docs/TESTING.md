@@ -12,6 +12,11 @@ DrunkenAD now has four validation layers:
 
 The parser gate lives at [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1). The unit suite lives at [tests/DrunkenAD.Unit.Tests.ps1](../tests/DrunkenAD.Unit.Tests.ps1), with additional schema-enable coverage in [tests/SchemaEnablement.Unit.Tests.ps1](../tests/SchemaEnablement.Unit.Tests.ps1).
 
+`Find-ADUserByDrinkData` has unit-only coverage. A stub records the LDAP filter
+and connection options and supplies synthetic results. These tests do not
+contact a domain controller or verify live AD matching rules, permissions, or
+search scope.
+
 Those tests focus on the safety-critical behavior:
 
 - exact LDAP user resolution
@@ -60,7 +65,59 @@ If you only want the parser gate:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
+### Issue #22: ADUser pipeline (unit evidence only)
+
+The `PipelineUser` cases in [WriteOperation.Unit.Tests.ps1](../tests/WriteOperation.Unit.Tests.ps1)
+exercise Get, Set, and Remove with synthetic ADUser objects, mocked directory
+commands, and a scripted confirmation host. Against the unchanged base
+(`92e8f15`), 1 passed and 9 failed; with pipeline support, all 10 passed
+under Pester 5.7.1. The passing baseline case rejected unsupported or conflicting
+input; it did not establish pipeline support. A follow-up test for an omitted
+`drink` property failed before handling an unset attribute as an empty store
+(0 passed, 1 failed). The final focused run passed all 11 with no failures or skips.
+
+The tests distinguish stored values from stale input, check per-user identity
+and result order, and cover empty matches, no change, preview, decline, and
+Yes to All. These results do not establish native ADUser binding or directory
+behavior on Windows. No live AD or integration test was run for this change.
+
+### Issues #22 and #23: pipeline credentials (unit evidence only)
+
+The original unit gate discovered before the unset-attribute case finished
+with 658 passed, 0 failed and 27 integration cases not run. That gate predates
+the credential merge; it is not evidence for the combined branch.
+
+Before merging credential support from `944087d`, the six `PipelineCredential`
+cases had 3 passes (omitted) and 3 failures (explicit credential not accepted).
+After integration, all 6 passed. Each command processes two GUIDs. The fixtures
+check the credential's identity or the complete absence of its parameter at
+RootDSE, schema reads, GUID reads and, for changes, GUID writes. They also check
+that the resolved controller is used after the initial domain lookup.
+
+The combined WriteOperation, SchemaEnablement, DrunkenAD and Help unit suites
+passed 211/211 with Pester 5.7.1, with no skips. This targeted regression run
+used no live directory or credentials.
+
 ## Integration Tests
+
+### Delegated and read-only accounts (not live-verified)
+
+The separate [delegation test](../tests/Integration/DelegatedAccess.Tests.ps1)
+is not in the default suite. On an explicitly approved lab run, provision one
+disabled, disposable user directly inside the delegated OU with description
+`DrunkenAD: delegated access test fixture`. Record the user and OU GUIDs.
+Use the same writable DC by its actual hostname and keep other writers away
+from the fixture. Do not grant the test account account-management rights.
+
+Use Pester 5's `New-PesterContainer -Path` with the test file and a `-Data`
+hashtable containing `RunDelegatedAccess = $true`, `DomainController`,
+`FixtureGuid`, `ParentOuGuid`, `Credential` (a PSCredential entered locally),
+and `Role` (Writer or Reader). Invoke Pester with that container separately for
+each role. It checks the module read under the supplied identity, then attempts
+one unique attribute value by GUID and verifies cleanup. A reader denial counts
+only on an access-denied error; lookup, transport and unrelated errors fail.
+A forcibly terminated process can leave a marker; independently verify cleanup.
+No live result is claimed for either role, member-server RSAT, or PowerShell 7.
 
 The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1).
 
@@ -296,10 +353,11 @@ For module changes, the clean loop is:
 
 ## CI Notes
 
-The repository includes two GitHub Actions workflows:
+The repository includes two CI workflows and a separate gated release workflow:
 
 - [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core gate on Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 Desktop with pinned Pester 5.7.1.
 - [.github/workflows/documentation-ci.yml](../.github/workflows/documentation-ci.yml) runs documentation hygiene checks.
+- [.github/workflows/powershell-gallery.yml](../.github/workflows/powershell-gallery.yml) handles release tags only.
 
 The PowerShell workflow:
 
@@ -317,3 +375,13 @@ The documentation workflow:
 - fails if live campaign output under `tests/Live/results/` is tracked
 
 That keeps default CI fast while the environment-dependent integration suite and live campaign remain opt-in operator workflows.
+
+## PowerShell Gallery Release Controls
+
+The Gallery workflow considers newly created version tags only. The tag must exactly match `v<ModuleVersion>` in the tagged commit. Only `v0.14.0` is held before the environment job, even if a publishing key exists. Do not remove the hold as part of tagging. Other matching tags, including `v0.14.1`, proceed to the environment gate.
+
+Before enabling a later release, the repository owner should configure the `powershell-gallery` GitHub environment with a required owner reviewer, disallow protection-rule bypass, restrict deployment to release tags, and protect creation/update/deletion of those tags. Configure these rules before adding credentials: naming an environment in YAML does not enforce approval by itself. Where independent approval is required, prevent self-review and have someone other than the reviewer create the tag. If required protections are unavailable, leave publication disabled.
+
+Keep `PSGALLERY_API_KEY` only as an environment secret (no repository or organization fallback). Review the tagged SHA, manifest, module contents, and CI evidence before approving. Once the environment job can run, an absent or blank key produces a skip notice; a present key publishes the matching module with no second variable required. Do not rerun a failed upload until the owner checks whether that version already exists.
+
+Run `ruby tests/workflows/gallery_test.rb` with Ruby, Minitest and PowerShell Core to test the actual workflow steps offline. The test substitutes a local recorder for the publisher; it neither exercises hosted approval rules nor establishes a Gallery publication receipt.

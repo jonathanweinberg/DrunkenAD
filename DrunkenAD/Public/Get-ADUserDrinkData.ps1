@@ -23,17 +23,32 @@ Finds the user by exact `mail`.
 .PARAMETER Pager
 Finds the user by exact `pager`.
 
+.PARAMETER InputObject
+ADUser from Get-ADUser. Requires an explicit DomainController (or Server).
+Only ObjectGUID is used from the input; directory values are read on that controller.
+
 .PARAMETER Prefix
 Optional nonblank literal prefix used to filter the returned `drink` values.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
-Optional domain controller to use for both schema validation and user lookup.
+Controller for schema validation and reads. Required for ADUser input;
+optional when using an explicit identifier.
 
 .INPUTS
-None. This command does not accept pipeline input.
+Microsoft.ActiveDirectory.Management.ADUser
 
 .OUTPUTS
-System.String[]. Returns the matching `drink` values for the resolved user.
+Explicit identifiers: matching drink strings.
+ADUser input: one object per user with ObjectGUID, SamAccountName and a DrinkValues
+array, even when no values match.
+
+.EXAMPLE
+Get-ADUser -Filter "Department -eq 'Example'" -Server 'dc01.contoso.com' | Get-ADUserDrinkData -Prefix 'App-' -DomainController 'dc01.contoso.com'
+
+Returns one named result per user, including users with no matching values.
 
 .EXAMPLE
 Get-ADUserDrinkData -SamAccountName 'TesterAccount' -DomainController 'dc01.contoso.com'
@@ -81,29 +96,49 @@ function Get-ADUserDrinkData {
         [Parameter(Mandatory = $true, ParameterSetName = 'Pager')]
         [string]$Pager,
 
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ADUser')]
+        [PSTypeName('Microsoft.ActiveDirectory.Management.ADUser')]
+        [psobject]$InputObject,
+
         [string]$Prefix,
 
         [Alias('Server')]
-        [string]$DomainController
+        [string]$DomainController,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
-    if ($PSBoundParameters.ContainsKey('Prefix') -and [string]::IsNullOrWhiteSpace($Prefix)) {
-        throw 'Prefix cannot be null, empty, or blank when supplied.'
+    begin {
+        if ($PSBoundParameters.ContainsKey('Prefix') -and [string]::IsNullOrWhiteSpace($Prefix)) {
+            throw 'Prefix cannot be null, empty, or blank when supplied.'
+        }
+        $schemaStatus = $null
+        $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
     }
 
-    $schemaStatus = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru
-
-    $resolveUserParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
-    $resolveUserParams.Server = $schemaStatus.Server
-    $resolveUserParams.Properties = @('drink')
-
-    $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
-
-    if ($PSBoundParameters.ContainsKey('Prefix')) {
-        $values = @($values | Where-Object {
-            $_.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)
-        })
+    process {
+        $fromUser = $PSCmdlet.ParameterSetName -eq 'ADUser'
+        if ($fromUser) { $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController }
+        if ($null -eq $schemaStatus) {
+            $schemaStatus = Assert-ADDrinkAttributeEnabled @auth -Server $DomainController -PassThru
+        }
+        if ($fromUser) {
+            $user = Read-DrunkenADPipelineUser @auth -Guid $guid -Server $schemaStatus.Server
+        }
+        else {
+            $identity = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
+            $user = Resolve-DrunkenADUser @auth @identity -Server $schemaStatus.Server -Properties @('drink')
+        }
+        $values = ConvertTo-DrunkenADStringArray -Values $user.drink -SkipBlank
+        if ($PSBoundParameters.ContainsKey('Prefix')) {
+            $values = @($values | Where-Object {
+                $_.StartsWith($Prefix, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+        }
+        if ($fromUser) {
+            [pscustomobject]@{ ObjectGUID = $guid; SamAccountName = $user.SamAccountName; DrinkValues = [string[]]$values }
+        }
+        else { @($values) }
     }
-
-    @($values)
 }

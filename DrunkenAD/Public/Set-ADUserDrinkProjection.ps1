@@ -32,6 +32,9 @@ more user attribute names to read and store beneath that prefix.
 Merges the supplied `AttributeMap` into the built-in default projection map instead of
 replacing it.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for lookup and write operations.
 
@@ -121,7 +124,10 @@ function Set-ADUserDrinkProjection {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $defaultAttributeMap = Get-DrunkenADDefaultProjectionAttributeMap
@@ -138,14 +144,15 @@ function Set-ADUserDrinkProjection {
     }
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($effectiveAttributeMap.Keys | ForEach-Object { [string]$_ })
-    $context = New-DrunkenADWriteContext -Server $DomainController
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $context = New-DrunkenADWriteContext @auth -Server $DomainController
     $attributeNames = @(
         foreach ($prefix in $effectiveAttributeMap.Keys) {
             foreach ($attributeName in @($effectiveAttributeMap[$prefix])) { $attributeName }
         }
     ) | Select-Object -Unique
     $identity = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
-    $user = Resolve-DrunkenADUser @identity -Server $context.Server -Properties $attributeNames
+    $user = Resolve-DrunkenADUser @auth @identity -Server $context.Server -Properties $attributeNames
     $dataMap = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap $effectiveAttributeMap
     $writeParams = @{
         User = $user
@@ -157,7 +164,7 @@ function Set-ADUserDrinkProjection {
     foreach ($name in @('WhatIf', 'Confirm')) {
         if ($PSBoundParameters.ContainsKey($name)) { $writeParams[$name] = $PSBoundParameters[$name] }
     }
-    $writeResult = Invoke-DrunkenADPrefixWrite @writeParams
+    $writeResult = Invoke-DrunkenADPrefixWrite @auth @writeParams
     if ($PassThru) {
         [pscustomobject]@{
             SamAccountName = $user.SamAccountName

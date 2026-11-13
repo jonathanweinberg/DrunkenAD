@@ -30,6 +30,9 @@ more user attribute names to project.
 .PARAMETER IncludeDefaultAttributeMap
 Merges the supplied `AttributeMap` into the built-in default projection map.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for lookup and write operations.
 
@@ -104,7 +107,10 @@ function Invoke-ADUserDrinkDataDemo {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     Set-ADUserDrinkProjection @PSBoundParameters
