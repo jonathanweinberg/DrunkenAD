@@ -5,6 +5,7 @@
     # Each entry can excuse only one occurrence. No rules are disabled.
     ReviewedWarnings = @(
         # Private collection helpers: keep existing names and their callers unchanged.
+        'Private/Core.ps1|PSUseSingularNouns|Get-DrunkenADCredentialParameters'
         'Private/CsvMapping.ps1|PSUseSingularNouns|Read-DrunkenADCsvRows'
         'Private/CsvMapping.ps1|PSUseSingularNouns|Get-DrunkenADCsvMappings'
         'Private/CsvMapping.ps1|PSUseSingularNouns|Assert-DrunkenADCsvColumns'
