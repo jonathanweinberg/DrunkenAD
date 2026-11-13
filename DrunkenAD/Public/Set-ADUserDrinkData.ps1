@@ -31,6 +31,9 @@ Only ObjectGUID is used from the input; directory values are read on that contro
 Hashtable whose keys are literal prefixes and whose values are arrays of suffix
 values to store beneath each prefix.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Controller for schema validation and reads and writes. Required for ADUser input;
 optional when using an explicit identifier.
@@ -117,21 +120,25 @@ function Set-ADUserDrinkData {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     begin {
         $context = $null
+        $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
     }
     process {
         if ($PSCmdlet.ParameterSetName -eq 'ADUser') {
             $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController
             if ($null -eq $context) {
                 Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($DataMap.Keys)
-                $context = New-DrunkenADWriteContext -Server $DomainController
+                $context = New-DrunkenADWriteContext @auth -Server $DomainController
             }
-            $user = Read-DrunkenADPipelineUser $guid $context.Server
-            Invoke-DrunkenADPrefixWrite -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
+            $user = Read-DrunkenADPipelineUser @auth -Guid $guid -Server $context.Server
+            Invoke-DrunkenADPrefixWrite @auth -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
         }
         else {
             $parameters = @{} + $PSBoundParameters

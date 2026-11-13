@@ -76,6 +76,23 @@ and result order, and cover empty matches, no change, preview, decline, and
 Yes to All. These results do not establish native ADUser binding or directory
 behavior on Windows. No live AD or integration test was run for this change.
 
+### Issues #22 and #23: pipeline credentials (unit evidence only)
+
+The original unit gate discovered before the unset-attribute case finished
+with 658 passed, 0 failed and 27 integration cases not run. That gate predates
+the credential merge; it is not evidence for the combined branch.
+
+Before merging credential support from `944087d`, the six `PipelineCredential`
+cases had 3 passes (omitted) and 3 failures (explicit credential not accepted).
+After integration, all 6 passed. Each command processes two GUIDs. The fixtures
+check the credential's identity or the complete absence of its parameter at
+RootDSE, schema reads, GUID reads and, for changes, GUID writes. They also check
+that the resolved controller is used after the initial domain lookup.
+
+The combined WriteOperation, SchemaEnablement, DrunkenAD and Help unit suites
+passed 211/211 with Pester 5.7.1, with no skips. This targeted regression run
+used no live directory or credentials.
+
 ## Integration Tests
 
 The integration suite lives in [tests/DrunkenAD.Integration.Tests.ps1](../tests/DrunkenAD.Integration.Tests.ps1).

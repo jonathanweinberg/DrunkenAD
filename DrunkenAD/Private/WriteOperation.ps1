@@ -29,10 +29,11 @@ function Get-DrunkenADPipelineUserGuid {
 }
 
 function Read-DrunkenADPipelineUser {
-    param([guid]$Guid, [string]$Server)
+    param([guid]$Guid, [string]$Server, [pscredential]$Credential)
 
     if ([string]::IsNullOrWhiteSpace($Server)) { throw 'A pinned domain controller is required.' }
-    $user = Get-ADUser -Identity $Guid -Server $Server -Properties drink -ErrorAction Stop
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $user = Get-ADUser @auth -Identity $Guid -Server $Server -Properties drink -ErrorAction Stop
     if ($null -eq $user -or $user.ObjectGUID -ne $Guid) {
         throw 'The directory did not return the requested ADUser.'
     }
@@ -47,9 +48,10 @@ function Read-DrunkenADPipelineUser {
 
 function New-DrunkenADWriteContext {
     [CmdletBinding()]
-    param([string]$Server)
+    param([string]$Server, [pscredential]$Credential)
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $status = Get-DrunkenADDrinkAttributeStatus @auth -Server $Server
     if (-not $status.ReadyForUserWrite) {
         throw $status.BlockingMessage
     }
@@ -125,8 +127,8 @@ function Invoke-DrunkenADPrefixWrite {
         [string]$LogPath,
         [switch]$PassThru,
         [switch]$ResultObject,
-
-        [System.Management.Automation.PSCmdlet]$PipelineCmdlet
+        [System.Management.Automation.PSCmdlet]$PipelineCmdlet,
+        [pscredential]$Credential
     )
 
     if (-not $Context.ReadyForUserWrite -or [string]::IsNullOrWhiteSpace($Context.Server)) {
@@ -154,7 +156,8 @@ function Invoke-DrunkenADPrefixWrite {
             }
             if ($plan.Remove.Count -gt 0) { $parameters['Remove'] = @{ drink = $plan.Remove } }
             if ($plan.Add.Count -gt 0) { $parameters['Add'] = @{ drink = $plan.Add } }
-            Set-ADUser @parameters
+            $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+            Set-ADUser @auth @parameters
             $status = 'Written'
             Write-DrunkenADLog -LogPath $LogPath -Message "objectGUID=$accountCorrelation Updated drink attribute: removed $($plan.Remove.Count), added $($plan.Add.Count) value(s)."
         }

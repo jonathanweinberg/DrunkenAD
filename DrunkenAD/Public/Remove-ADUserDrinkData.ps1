@@ -29,6 +29,9 @@ Only ObjectGUID is used from the input; directory values are read on that contro
 .PARAMETER Prefixes
 One or more literal prefixes to remove from the user's stored `drink` data.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Controller for schema validation and reads and writes. Required for ADUser input;
 optional when using an explicit identifier.
@@ -112,11 +115,15 @@ function Remove-ADUserDrinkData {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     begin {
         $context = $null
+        $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
         Assert-DrunkenADNonOverlappingPrefixes -Prefixes $Prefixes
         $dataMap = @{}
         foreach ($prefix in $Prefixes) { $dataMap[$prefix] = @() }
@@ -125,10 +132,10 @@ function Remove-ADUserDrinkData {
         if ($PSCmdlet.ParameterSetName -eq 'ADUser') {
             $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController
             if ($null -eq $context) {
-                $context = New-DrunkenADWriteContext -Server $DomainController
+                $context = New-DrunkenADWriteContext @auth -Server $DomainController
             }
-            $user = Read-DrunkenADPipelineUser $guid $context.Server
-            Invoke-DrunkenADPrefixWrite -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
+            $user = Read-DrunkenADPipelineUser @auth -Guid $guid -Server $context.Server
+            Invoke-DrunkenADPrefixWrite @auth -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
         }
         else {
             $parameters = @{} + $PSBoundParameters

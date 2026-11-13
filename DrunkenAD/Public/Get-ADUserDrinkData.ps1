@@ -30,6 +30,9 @@ Only ObjectGUID is used from the input; directory values are read on that contro
 .PARAMETER Prefix
 Optional nonblank literal prefix used to filter the returned `drink` values.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Controller for schema validation and reads. Required for ADUser input;
 optional when using an explicit identifier.
@@ -100,7 +103,10 @@ function Get-ADUserDrinkData {
         [string]$Prefix,
 
         [Alias('Server')]
-        [string]$DomainController
+        [string]$DomainController,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     begin {
@@ -108,20 +114,21 @@ function Get-ADUserDrinkData {
             throw 'Prefix cannot be null, empty, or blank when supplied.'
         }
         $schemaStatus = $null
+        $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
     }
 
     process {
         $fromUser = $PSCmdlet.ParameterSetName -eq 'ADUser'
         if ($fromUser) { $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController }
         if ($null -eq $schemaStatus) {
-            $schemaStatus = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru
+            $schemaStatus = Assert-ADDrinkAttributeEnabled @auth -Server $DomainController -PassThru
         }
         if ($fromUser) {
-            $user = Read-DrunkenADPipelineUser $guid $schemaStatus.Server
+            $user = Read-DrunkenADPipelineUser @auth -Guid $guid -Server $schemaStatus.Server
         }
         else {
             $identity = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
-            $user = Resolve-DrunkenADUser @identity -Server $schemaStatus.Server -Properties @('drink')
+            $user = Resolve-DrunkenADUser @auth @identity -Server $schemaStatus.Server -Properties @('drink')
         }
         $values = ConvertTo-DrunkenADStringArray -Values $user.drink -SkipBlank
         if ($PSBoundParameters.ContainsKey('Prefix')) {
