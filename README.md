@@ -21,7 +21,7 @@ for review.
 | Area | Infographic | Start Here |
 | --- | --- | --- |
 | Use cases | <img src="docs/images/documentation-suite-2026-05-07/use-case-map.png" alt="DrunkenAD use cases" width="260"> | [docs/USE-CASES.md](docs/USE-CASES.md) |
-| Module layout | <img src="docs/images/documentation-suite-2026-10-08/module-layout.png" alt="Illustrated module layout with shared helpers and 12 public commands" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Module layout | <img src="docs/images/documentation-suite-2026-10-08/module-layout.png" alt="Illustrated module layout with shared helpers and public commands" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Write model | <img src="docs/images/documentation-suite-2026-10-08/namespace-write-model.png" alt="Illustrated scoped Remove/Add update preserving unrelated values" width="260"> | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | CSV ingestion | <img src="docs/images/documentation-suite-2026-10-08/csv-ingestion-flow.png" alt="Illustrated CSV validation, confirmation, scoped writes, and explicit outcomes" width="260"> | [docs/HOW-TO-INGEST-CSV.md](docs/HOW-TO-INGEST-CSV.md) |
 | Schema readiness | <img src="docs/images/documentation-suite-2026-10-08/schema-readiness-flow.png" alt="Illustrated schema checks separated from authorized schema changes" width="260"> | [docs/SCHEMA-ENABLEMENT.md](docs/SCHEMA-ENABLEMENT.md) |
@@ -113,6 +113,7 @@ list that must stay aligned with the module manifest.
 | Command | Purpose |
 | --- | --- |
 | `Get-ADUserDrinkData` | Returns all stored values, or only those under one literal prefix namespace. |
+| `Export-ADUserDrinkData` | Writes one namespace for explicitly named accounts to a new [JSON review file](docs/OPERATIONS.md#export-for-review). |
 | `Set-ADUserDrinkData` | Writes one or more namespaces of generic data into the `drink` attribute. |
 | `Remove-ADUserDrinkData` | Removes one or more namespaces while preserving unrelated stored values. |
 | `Set-ADUserDrinkProjection` | Projects selected user attributes into namespaced `drink` records. |

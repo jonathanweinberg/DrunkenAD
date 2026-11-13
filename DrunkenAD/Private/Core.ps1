@@ -298,6 +298,8 @@ function Resolve-DrunkenADUser {
 
         [string[]]$Properties = @('drink'),
 
+        [pscredential]$Credential,
+
         [string]$Server
     )
 
@@ -344,6 +346,7 @@ function Resolve-DrunkenADUser {
         $userParams['Server'] = $Server
     }
 
+    if ($PSBoundParameters.ContainsKey('Credential')) { $userParams.Credential = $Credential }
     $users = @(Get-ADUser @userParams)
 
     if ($users.Count -eq 0) {

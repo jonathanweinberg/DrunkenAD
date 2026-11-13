@@ -102,6 +102,7 @@ function Get-DrunkenADDrinkAttributeStatus {
     [CmdletBinding()]
     param(
         [string]$Server,
+        [pscredential]$Credential,
         [switch]$PresenceOnly
     )
 
@@ -144,6 +145,7 @@ function Get-DrunkenADDrinkAttributeStatus {
         }
     }
 
+    if ($PSBoundParameters.ContainsKey('Credential')) { $rootDseParams.Credential = $Credential }
     $rootDse = Get-ADRootDSE @rootDseParams
     # Compare a DNS candidate's DN to authoritative domain metadata, never a hostname suffix.
     $defaultNamingContext = [string](Get-DrunkenADSchemaPropertyValue -InputObject $rootDse -Name 'defaultNamingContext')
@@ -172,6 +174,7 @@ function Get-DrunkenADDrinkAttributeStatus {
         Server      = $Server
     }
 
+    if ($PSBoundParameters.ContainsKey('Credential')) { $commonSchemaParams.Credential = $Credential }
     $attributeMatches = @(Get-ADObject @commonSchemaParams -LDAPFilter '(&(objectClass=attributeSchema)(lDAPDisplayName=drink))' -Properties @('isDefunct', 'lDAPDisplayName', 'distinguishedName', 'attributeID', 'rangeUpper'))
     if ($attributeMatches.Count -gt 1) {
         throw "Multiple schema entries named 'drink' were returned. Aborting because the schema lookup is ambiguous."
@@ -268,10 +271,13 @@ function Assert-ADDrinkAttributeEnabled {
     [CmdletBinding()]
     param(
         [string]$Server,
+        [pscredential]$Credential,
         [switch]$PassThru
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly
+    $auth = @{}
+    if ($PSBoundParameters.ContainsKey('Credential')) { $auth.Credential = $Credential }
+    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly @auth
 
     if (-not $status.Enabled) {
         throw "The 'drink' attribute is not enabled in the target Active Directory schema."
