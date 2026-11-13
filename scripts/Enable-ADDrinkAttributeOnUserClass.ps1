@@ -10,7 +10,10 @@ param(
 
     [string]$ExpectedSchemaMaster,
 
-    [string]$ReportPath
+    [string]$ReportPath,
+
+    [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+    [pscredential]$Credential
 )
 
 Set-StrictMode -Version Latest
@@ -21,13 +24,28 @@ function Update-DrunkenADSchemaCache {
     param(
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$Server
+        [string]$Server,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $rootDse = $null
     try {
-        $rootDse = New-Object -TypeName System.DirectoryServices.DirectoryEntry -ArgumentList "LDAP://$Server/RootDSE" -ErrorAction Stop
-        $rootDse.AuthenticationType = [System.DirectoryServices.AuthenticationTypes]::Secure
+        $path = "LDAP://$Server/RootDSE"
+        $secure = [System.DirectoryServices.AuthenticationTypes]::Secure
+        if ($PSBoundParameters.ContainsKey('Credential')) {
+            # Configure the unbound entry before assigning the target. Never splat a password.
+            $rootDse = New-Object -TypeName System.DirectoryServices.DirectoryEntry -ErrorAction Stop
+            $rootDse.AuthenticationType = $secure
+            $rootDse.Username = $Credential.UserName
+            $rootDse.Password = $Credential.GetNetworkCredential().Password
+            $rootDse.Path = $path
+        }
+        else {
+            $rootDse = New-Object -TypeName System.DirectoryServices.DirectoryEntry -ArgumentList $path -ErrorAction Stop
+            $rootDse.AuthenticationType = $secure
+        }
 
         # This write-only RootDSE operation blocks until the server cache is updated.
         $rootDse.Put('schemaUpdateNow', 1)
@@ -74,7 +92,10 @@ function Enable-ADDrinkAttributeOnUserClass {
 
         [string]$ExpectedSchemaMaster,
 
-        [string]$ReportPath
+        [string]$ReportPath,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $projectRoot = Split-Path -Path $PSScriptRoot -Parent
@@ -82,6 +103,8 @@ function Enable-ADDrinkAttributeOnUserClass {
     Import-Module $modulePath -Force -ErrorAction Stop
     Import-Module ActiveDirectory -ErrorAction Stop
 
+    $auth = @{}
+    if ($PSBoundParameters.ContainsKey('Credential')) { $auth['Credential'] = $Credential }
     $forestLookupParams = @{
         ErrorAction = 'Stop'
     }
@@ -90,11 +113,11 @@ function Enable-ADDrinkAttributeOnUserClass {
         $forestLookupParams['Server'] = $Server
     }
 
-    $initialForest = Get-ADForest @forestLookupParams
+    $initialForest = Get-ADForest @auth @forestLookupParams
     $effectiveServer = if (-not [string]::IsNullOrWhiteSpace($Server)) { $Server } else { $initialForest.SchemaMaster }
-    $forest = Get-ADForest -Server $effectiveServer -ErrorAction Stop
-    $domain = Get-ADDomain -Server $effectiveServer -ErrorAction Stop
-    $before = Test-ADDrinkAttributeReadyForUserWrite -Server $effectiveServer -PassThru
+    $forest = Get-ADForest @auth -Server $effectiveServer -ErrorAction Stop
+    $domain = Get-ADDomain @auth -Server $effectiveServer -ErrorAction Stop
+    $before = Test-ADDrinkAttributeReadyForUserWrite @auth -Server $effectiveServer -PassThru
 
     $report = [ordered]@{
         GeneratedAt          = (Get-Date).ToString('s')
@@ -150,17 +173,17 @@ function Enable-ADDrinkAttributeOnUserClass {
     }
 
     if ($PSCmdlet.ShouldProcess($effectiveServer, "Add 'drink' to the Active Directory user class mayContain list and refresh the schema cache")) {
-        Set-ADObject -Identity $before.UserClassDistinguishedName -Server $effectiveServer -Add @{ mayContain = 'drink' } -ErrorAction Stop
+        Set-ADObject @auth -Identity $before.UserClassDistinguishedName -Server $effectiveServer -Add @{ mayContain = 'drink' } -ErrorAction Stop
 
         try {
             Write-Verbose "Refreshing the schema cache on '$effectiveServer' through RootDSE schemaUpdateNow. This call blocks until the refresh completes."
-            Update-DrunkenADSchemaCache -Server $effectiveServer
+            Update-DrunkenADSchemaCache @auth -Server $effectiveServer
         }
         catch {
             throw "The 'drink' mayContain update completed on '$effectiveServer', but the schema cache refresh (RootDSE schemaUpdateNow) failed. The schema change has not been rolled back; readiness was not verified. Resolve the refresh failure and recheck readiness before user writes. Details: $($_.Exception.Message)"
         }
 
-        $after = Test-ADDrinkAttributeReadyForUserWrite -Server $effectiveServer -PassThru
+        $after = Test-ADDrinkAttributeReadyForUserWrite @auth -Server $effectiveServer -PassThru
         if (-not $after.ReadyForUserWrite) {
             throw "The schema update completed, but 'drink' is still not ready for user writes on '$effectiveServer'."
         }

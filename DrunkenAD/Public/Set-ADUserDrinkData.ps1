@@ -27,6 +27,9 @@ Finds the user by exact `pager`.
 Hashtable whose keys are literal prefixes and whose values are arrays of suffix
 values to store beneath each prefix.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for validation, lookup, and write.
 
@@ -101,7 +104,10 @@ function Set-ADUserDrinkData {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $parameters = @{} + $PSBoundParameters

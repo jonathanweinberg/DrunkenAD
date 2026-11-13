@@ -26,6 +26,9 @@ Finds the user by exact `pager`.
 .PARAMETER Prefix
 Optional nonblank literal prefix used to filter the returned `drink` values.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use for both schema validation and user lookup.
 
@@ -84,20 +87,24 @@ function Get-ADUserDrinkData {
         [string]$Prefix,
 
         [Alias('Server')]
-        [string]$DomainController
+        [string]$DomainController,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     if ($PSBoundParameters.ContainsKey('Prefix') -and [string]::IsNullOrWhiteSpace($Prefix)) {
         throw 'Prefix cannot be null, empty, or blank when supplied.'
     }
 
-    $schemaStatus = Assert-ADDrinkAttributeEnabled -Server $DomainController -PassThru
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $schemaStatus = Assert-ADDrinkAttributeEnabled @auth -Server $DomainController -PassThru
 
     $resolveUserParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
     $resolveUserParams.Server = $schemaStatus.Server
     $resolveUserParams.Properties = @('drink')
 
-    $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @resolveUserParams).drink -SkipBlank
+    $values = ConvertTo-DrunkenADStringArray -Values (Resolve-DrunkenADUser @auth @resolveUserParams).drink -SkipBlank
 
     if ($PSBoundParameters.ContainsKey('Prefix')) {
         $values = @($values | Where-Object {

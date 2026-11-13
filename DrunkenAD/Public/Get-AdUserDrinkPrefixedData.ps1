@@ -25,6 +25,9 @@ Finds the user by exact `pager`.
 .PARAMETER DrinkValuePrefix
 The literal prefix to match at the beginning of each `drink` value.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use for both schema validation and user lookup.
 
@@ -88,12 +91,16 @@ function Get-AdUserDrinkPrefixedData {
         [string]$DrinkValuePrefix,
 
         [Alias('Server')]
-        [string]$DomainController
+        [string]$DomainController,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     $getParams = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
     $getParams.Prefix = $DrinkValuePrefix
     $getParams.DomainController = $DomainController
 
-    Get-ADUserDrinkData @getParams
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    Get-ADUserDrinkData @auth @getParams
 }
