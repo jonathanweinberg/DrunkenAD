@@ -40,6 +40,20 @@ Test-ADDrinkAttributeReadyForUserWrite `
 If `ReadyForUserWrite` is not `True`, stop and follow
 [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md).
 
+## Delegated Access
+
+Delegate only **Write drink** on descendant user objects in one designated OU
+to the writer. It also needs directory visibility, schema reads, and read access
+to the user identity and `drink` values. The reader needs those reads but no
+write grant. Check effective rights, including inherited group grants. Neither
+role needs account creation, deletion, schema changes, or broad write access.
+The permission applies to the whole attribute: prefixes are application rules,
+not an AD authorization boundary.
+
+Delegated and read-only accounts, a member server with RSAT, and live AD under
+PowerShell 7 have **not** been validated. The October live evidence was collected
+as an administrator on a domain controller under native Windows PowerShell 5.1.
+
 ## Generic Namespace Write
 
 Use `Set-ADUserDrinkData` for direct namespace writes:
