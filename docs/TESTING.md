@@ -296,10 +296,11 @@ For module changes, the clean loop is:
 
 ## CI Notes
 
-The repository includes two GitHub Actions workflows:
+The repository includes two CI workflows and a separate gated release workflow:
 
 - [.github/workflows/powershell-ci.yml](../.github/workflows/powershell-ci.yml) runs the core gate on Ubuntu, macOS, Windows PowerShell Core, and Windows PowerShell 5.1 Desktop with pinned Pester 5.7.1.
 - [.github/workflows/documentation-ci.yml](../.github/workflows/documentation-ci.yml) runs documentation hygiene checks.
+- [.github/workflows/powershell-gallery.yml](../.github/workflows/powershell-gallery.yml) handles release tags only.
 
 The PowerShell workflow:
 
@@ -317,3 +318,13 @@ The documentation workflow:
 - fails if live campaign output under `tests/Live/results/` is tracked
 
 That keeps default CI fast while the environment-dependent integration suite and live campaign remain opt-in operator workflows.
+
+## PowerShell Gallery Release Controls
+
+The Gallery workflow considers newly created version tags only. The tag must exactly match `v<ModuleVersion>` in the tagged commit. All matching `v0.14.*` releases are held before the environment job; the upcoming tag must not publish, even if a key and a matching opt-in already exist. Do not remove the hold as part of tagging.
+
+Before enabling a later release, the repository owner should configure the `powershell-gallery` GitHub environment with a required owner reviewer, disallow protection-rule bypass, restrict deployment to release tags, and protect creation/update/deletion of those tags. Configure these rules before adding credentials: naming an environment in YAML does not enforce approval by itself. Where independent approval is required, prevent self-review and have someone other than the reviewer create the tag. If required protections are unavailable, leave publication disabled.
+
+Keep `PSGALLERY_API_KEY` only as an environment secret (no repository or organization fallback). Leave the environment variable `PSGALLERY_PUBLISH_TAG` unset by default; for an authorized later release set it to the exact tag, then clear it after the run. Review the tagged SHA, manifest, module contents, and CI evidence before approving. An eligible run with no key emits a skip notice after the environment gate. Do not rerun a failed upload until the owner checks whether that version already exists.
+
+Run `ruby tests/workflows/gallery_test.rb` with Ruby, Minitest and PowerShell Core to test the actual workflow steps offline. The test substitutes a local recorder for the publisher; it neither exercises hosted approval rules nor establishes a Gallery publication receipt.

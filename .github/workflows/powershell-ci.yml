@@ -55,6 +55,10 @@ jobs:
               Select-Object Name, Version, PowerShellVersion, RootModule |
               Format-List
 
+      - name: Test Gallery gates offline
+        if: runner.os == 'Linux'
+        run: ruby tests/workflows/gallery_test.rb
+
       - name: Parse PowerShell files
         shell: pwsh
         run: ./scripts/Test-DrunkenADSyntax.ps1
