@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added `Find-ADUserByDrinkData` to find users by one literal namespaced
+  drink entry, optionally scoped to a domain controller and search base.
+
 ## 0.13.2
 
 - Restored imagegen illustrations and README thumbnails with corrected workflow

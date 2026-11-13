@@ -84,6 +84,7 @@ SEE ALSO
     Get-Command
     Get-Help
     Get-ADUserDrinkData
+    Find-ADUserByDrinkData
     Set-ADUserDrinkData
     Remove-ADUserDrinkData
     Import-ADUserDrinkCsvData

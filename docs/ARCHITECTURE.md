@@ -23,6 +23,7 @@ The main public commands are:
 | Command | Responsibility |
 | --- | --- |
 | `Get-ADUserDrinkData` | Read all `drink` values or one literal prefix. |
+| `Find-ADUserByDrinkData` | Search across users with one server-side LDAP equality filter on `drink`; no schema walk or client-side scan. |
 | `Set-ADUserDrinkData` | Replace one or more owned prefixes. |
 | `Remove-ADUserDrinkData` | Remove one or more owned prefixes. |
 | `Set-ADUserDrinkProjection` | Project AD attributes into namespaced records. |
