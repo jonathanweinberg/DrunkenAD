@@ -1,6 +1,6 @@
 @{
     RootModule        = 'DrunkenAD.psm1'
-    ModuleVersion     = '0.13.2'
+    ModuleVersion     = '0.14.0'
     GUID              = '1c86d181-178a-4a7e-8345-3bd739139dcb'
     Author            = 'Jonathan Weinberg'
     CompanyName       = 'None'
@@ -55,7 +55,7 @@
             Tags         = @('ActiveDirectory', 'PowerShell', 'drink', 'AD')
             ProjectUri   = 'https://github.com/jonathanweinberg/DrunkenAD'
             LicenseUri   = 'https://github.com/jonathanweinberg/DrunkenAD/blob/main/LICENSE'
-            ReleaseNotes = '0.13.2 safety patch: scoped writes, inherited schema readiness, preserved explicit endpoints, payload-minimized logging, and trusted cross-platform tests. CSV blank namespaces remain unchanged by default; ClearBlankNamespaces opts into clearing. Malformed CSV records fail before directory access, and changed deltas stop after confirmation. Sample and generic example prefixes avoid default projection ownership; existing data is not automatically migrated.'
+            ReleaseNotes = '0.14.0 adds ADUser pipeline input for Get/Set/Remove, optional directory credentials, literal prefix/value lookup, and scoped UTF-8 JSON export. These features have mocked unit coverage only. Existing compatibility commands and external same-prefix coordination are unchanged.'
         }
     }
 }
