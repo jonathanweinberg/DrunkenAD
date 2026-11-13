@@ -2,7 +2,7 @@
 
 Status: source input prepared; authentic Excel exports and live import remain
 unproven. This protocol supplies case 13 of the
-[post-merge matrix](POST-MERGE-VALIDATION.md). It is not permission to create
+[post-merge matrix](https://github.com/jonathanweinberg/DrunkenAD/blob/v0.13.2/docs/POST-MERGE-VALIDATION.md). It is not permission to create
 directory objects, import data, install Excel, or publish a release.
 
 ## Source Workbook
