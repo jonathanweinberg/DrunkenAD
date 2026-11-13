@@ -32,9 +32,7 @@ Start with the path that matches your job:
   [WinServer live validation run](WINSERVER-LIVE-VALIDATION-2026-05-07.md).
 - Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md), then open the
   [interactive architecture atlas](drunkenad-architecture-map.html).
-- Reviewing the October changes: read the
-  [external-review adjudication](issues/013-october-review-hardening.md) and
-  [post-merge validation matrix](POST-MERGE-VALIDATION.md).
+- Reviewing historical changes and validation: see [release records](RELEASE-RECORDS.md).
 
 ## Document Map
 
@@ -47,11 +45,8 @@ Start with the path that matches your job:
 | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) | CSV ingestion workflow and mapping format. |
 | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) | Safe schema-readiness enablement path. |
 | [TESTING.md](TESTING.md) | Parser, unit, integration, and live campaign test layers. |
-| [POST-MERGE-VALIDATION.md](POST-MERGE-VALIDATION.md) | Post-merge review decisions and all 26 proposed live evidence gates. |
+| [RELEASE-RECORDS.md](RELEASE-RECORDS.md) | Historical validation matrices, decisions, and dated artwork by release. |
 | [EXCEL-CSV-VALIDATION.md](EXCEL-CSV-VALIDATION.md) | Synthetic source cells, authentic Excel export intake, and separate offline/live acceptance. |
-| [SINGLE-DC-ACCEPTANCE-PROPOSAL.md](SINGLE-DC-ACCEPTANCE-PROPOSAL.md) | Proposed single-DC evidence envelope, acceptance conditions and explicit environment deferrals. |
-| [SINGLE-DC-VALIDATION-2026-10-08.md](SINGLE-DC-VALIDATION-2026-10-08.md) | Interrupted one-user attempt, offline/CI evidence and independently verified cleanup. |
-| [POST-MERGE-LIVE-EXPANSION.md](POST-MERGE-LIVE-EXPANSION.md) | Bounded single-controller receipts, cleanup, three review methods, and remaining evidence gaps. |
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
 | [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |
 | [DIAGRAMS.md](DIAGRAMS.md) | Mermaid source plus information-dense infographic plates. |

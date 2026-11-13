@@ -30,9 +30,8 @@ Describe 'Invoke-DrunkenADLiveCampaign portability' {
             'docs/TESTING.md'
             'docs/LIVE-VALIDATION.md'
             'docs/OPERATIONS.md'
+            'docs/RELEASE-RECORDS.md'
         )
-        $publicDocPaths += @(Get-ChildItem -LiteralPath (Join-Path -Path $projectRoot -ChildPath 'docs/issues') -Filter '*.md' |
-            ForEach-Object { 'docs/issues/{0}' -f $_.Name })
         $script:publicLiveCampaignDocContent = ($publicDocPaths | ForEach-Object {
             Get-Content -LiteralPath (Join-Path -Path $projectRoot -ChildPath $_) -Raw
         }) -join [Environment]::NewLine

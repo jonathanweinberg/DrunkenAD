@@ -223,7 +223,7 @@ The capacity case requires its own additional opt-in below; without it only
 an ordinary twelve-case run.
 
 Do not count a skipped boundary test or an unknown AD error as a pass. The
-full [post-merge matrix](POST-MERGE-VALIDATION.md) distinguishes these automated
+full [post-merge matrix](https://github.com/jonathanweinberg/DrunkenAD/blob/v0.13.2/docs/POST-MERGE-VALIDATION.md) distinguishes these automated
 areas from identity, interactive-host, ACL, exporter, multi-DC, and environment
 checks that need separate protocols and evidence. Run the final candidate,
 retain private raw results, and publish only sanitized receipts.
