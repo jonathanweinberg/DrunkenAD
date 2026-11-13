@@ -13,7 +13,10 @@ param(
 
     [string]$LogPath,
 
-    [switch]$ClearBlankNamespaces
+    [switch]$ClearBlankNamespaces,
+
+    [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+    [pscredential]$Credential
 )
 
 $modulePath = Join-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath '..') -ChildPath 'DrunkenAD/DrunkenAD.psd1'
@@ -23,6 +26,10 @@ $importParams = @{
     CsvPath          = $CsvPath
     DomainController = $DomainController
     ClearBlankNamespaces = $ClearBlankNamespaces
+}
+
+if ($PSBoundParameters.ContainsKey('Credential')) {
+    $importParams['Credential'] = $Credential
 }
 
 if ($PSBoundParameters.ContainsKey('LogPath')) {

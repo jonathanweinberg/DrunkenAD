@@ -102,12 +102,14 @@ function Get-DrunkenADDrinkAttributeStatus {
     [CmdletBinding()]
     param(
         [string]$Server,
-        [switch]$PresenceOnly
+        [switch]$PresenceOnly,
+        [pscredential]$Credential
     )
 
     Initialize-DrunkenADModule
 
-    $rootDseParams = @{
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $rootDseParams = $auth + @{
         ErrorAction = 'Stop'
     }
 
@@ -166,7 +168,7 @@ function Get-DrunkenADDrinkAttributeStatus {
         throw 'RootDSE did not return the schema naming context.'
     }
 
-    $commonSchemaParams = @{
+    $commonSchemaParams = $auth + @{
         SearchBase  = $schemaNamingContext
         ErrorAction = 'Stop'
         Server      = $Server
@@ -268,10 +270,12 @@ function Assert-ADDrinkAttributeEnabled {
     [CmdletBinding()]
     param(
         [string]$Server,
-        [switch]$PassThru
+        [switch]$PassThru,
+        [pscredential]$Credential
     )
 
-    $status = Get-DrunkenADDrinkAttributeStatus -Server $Server -PresenceOnly
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $status = Get-DrunkenADDrinkAttributeStatus @auth -Server $Server -PresenceOnly
 
     if (-not $status.Enabled) {
         throw "The 'drink' attribute is not enabled in the target Active Directory schema."
