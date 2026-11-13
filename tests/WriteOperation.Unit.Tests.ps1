@@ -410,6 +410,70 @@ Describe 'Projection value culture contracts' {
     }
 }
 
+Describe 'ADUser pipeline credential selection' -Tag 'PipelineCredential' {
+    It 'preserves directory targeting and credential binding for <Command> (explicit=<Explicit>)' -ForEach @(
+        foreach ($command in 'Get-ADUserDrinkData', 'Set-ADUserDrinkData', 'Remove-ADUserDrinkData') {
+            foreach ($explicit in $false, $true) { @{ Command = $command; Explicit = $explicit } }
+        }
+    ) {
+        & (Get-Module DrunkenAD) {
+            param($Command, $Explicit)
+            $selectedCredential = [pscredential]::new('fixture', [securestring]::new())
+            $calls = [System.Collections.Generic.List[string]]::new()
+            $ids = @([guid]::NewGuid(), [guid]::NewGuid())
+            function Assert-DirectoryCall($Step, $Bound, $ExpectedServer) {
+                $Bound.Server | Should -BeExactly $ExpectedServer
+                $Bound.ContainsKey('Credential') | Should -Be $Explicit
+                if ($Explicit) { [object]::ReferenceEquals($selectedCredential, $Bound.Credential) | Should -BeTrue }
+                $calls.Add($Step)
+            }
+            function Initialize-DrunkenADModule {}
+            function Get-ADRootDSE {
+                param($Server, $Credential, $ErrorAction)
+                Assert-DirectoryCall Root $PSBoundParameters 'example.test'
+                [pscustomobject]@{ schemaNamingContext = 'CN=Schema'; defaultNamingContext = 'DC=example,DC=test'; dnsHostName = 'dc01.example.test' }
+            }
+            function Get-ADObject {
+                param($Server, $Credential, $LDAPFilter, $Properties, $SearchBase, $ErrorAction)
+                if ($LDAPFilter -like '*attributeSchema*') {
+                    Assert-DirectoryCall Attribute $PSBoundParameters 'dc01.example.test'
+                    [pscustomobject]@{ lDAPDisplayName = 'drink' }
+                } else {
+                    Assert-DirectoryCall Class $PSBoundParameters 'dc01.example.test'
+                    [pscustomobject]@{ distinguishedName = 'CN=user'; mayContain = 'drink' }
+                }
+            }
+            function Get-ADUser {
+                param($Server, $Credential, $Identity, $Properties, $ErrorAction)
+                Assert-DirectoryCall "Read:$Identity" $PSBoundParameters 'dc01.example.test'
+                $Properties | Should -Contain 'drink'
+                [pscustomobject]@{ ObjectGUID = $Identity; SamAccountName = "user-$Identity"; drink = @('App-old') }
+            }
+            function Set-ADUser {
+                param($Server, $Credential, $Identity, $Add, $Remove, $Confirm, $ErrorAction)
+                Assert-DirectoryCall "Write:$Identity" $PSBoundParameters 'dc01.example.test'
+            }
+            $users = foreach ($id in $ids) {
+                [pscustomobject]@{ PSTypeName = 'Microsoft.ActiveDirectory.Management.ADUser'; ObjectGUID = $id }
+            }
+            $params = @{ Server = 'example.test' }
+            if ($Explicit) { $params.Credential = $selectedCredential }
+            $write = $Command -ne 'Get-ADUserDrinkData'
+            if ($write) {
+                $params.PassThru = $true
+                $params.Confirm = $false
+                if ($Command -like 'Set-*') { $params.DataMap = @{ 'App-' = 'new' } }
+                else { $params.Prefixes = 'App-' }
+            }
+            $rows = @($users | & $Command @params -ErrorAction Stop)
+            $rows.Count | Should -Be 2
+            $rows.ObjectGUID | Should -Be $ids
+            $expected = @('Root'; 'Attribute'; if ($write) { 'Class' }; foreach ($id in $ids) { "Read:$id"; if ($write) { "Write:$id" } })
+            $calls.ToArray() | Should -Be $expected
+        } $Command $Explicit
+    }
+}
+
 Describe 'ADUser pipeline contracts' -Tag 'PipelineUser' {
     InModuleScope DrunkenAD {
         BeforeEach {
