@@ -1,5 +1,119 @@
 Import-Module (Join-Path $PSScriptRoot '../DrunkenAD/DrunkenAD.psd1') -Force
 
+Describe 'Credential selection across directory operations' {
+    It 'rejects empty or null credentials before performing directory access' {
+        & (Get-Module DrunkenAD) {
+            function Initialize-DrunkenADModule { throw 'Unexpected directory access' }
+            foreach ($invalid in @([pscredential]::Empty, $null)) {
+                { Test-ADDrinkAttributeEnabled -Credential $invalid } | Should -Throw '*validate argument*Credential*'
+            }
+        }
+    }
+
+    It 'forwards the CSV example credential only when supplied (explicit=<Explicit>)' -ForEach @(
+        @{ Explicit = $true }; @{ Explicit = $false }
+    ) {
+        Mock Import-Module {}
+        Mock Import-ADUserDrinkCsvData {}
+        $selected = [pscredential]::new('fixture', (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force))
+        $params = @{ DomainController = 'dc.example.test' }
+        if ($Explicit) { $params.Credential = $selected }
+        & (Join-Path $PSScriptRoot '../examples/Import-DrunkenADCsv.ps1') @params
+        Should -Invoke Import-ADUserDrinkCsvData -Times 1 -Exactly -ParameterFilter {
+            $PesterBoundParameters.ContainsKey('Credential') -eq $Explicit -and
+            (-not $Explicit -or [object]::ReferenceEquals($Credential, $selected))
+        }
+    }
+
+    It 'preserves bound state for <Command> (explicit=<Explicit>)' -ForEach @(
+        foreach ($command in @('Test-ADDrinkAttributeEnabled', 'Test-ADDrinkAttributeReadyForUserWrite',
+            'Get-ADUserDrinkData', 'Get-AdUserDrinkPrefixedData', 'Set-ADUserDrinkData',
+            'Set-ADUserDrinkPrefixedData', 'Remove-ADUserDrinkData', 'Update-ADUserDrinkAttribute',
+            'Set-ADUserDrinkProjection', 'Invoke-ADUserDrinkDataDemo', 'Import-ADUserDrinkCsvData')) {
+            foreach ($explicit in @($false, $true)) { @{ Command = $command; Explicit = $explicit } }
+        }
+    ) {
+        & (Get-Module DrunkenAD) {
+            param($Command, $Explicit, $Directory)
+            $secret = 'synthetic-only-marker'
+            $selected = [pscredential]::new('fixture-operator', (ConvertTo-SecureString $secret -AsPlainText -Force))
+            $calls = [System.Collections.Generic.List[string]]::new()
+            function Record-Call($Name, $Bound) {
+                if ($Bound.ContainsKey('Credential') -ne $Explicit -or
+                    ($Explicit -and -not [object]::ReferenceEquals($selected, $Bound['Credential']))) {
+                    throw "Wrong credential binding at $Name"
+                }
+                $calls.Add($Name)
+            }
+            function Initialize-DrunkenADModule {}
+            function Get-ADRootDSE {
+                param($Credential, $Server, $ErrorAction)
+                Record-Call Root $PSBoundParameters
+                [pscustomobject]@{ schemaNamingContext = 'CN=Schema'; dnsHostName = 'dc.example.test' }
+            }
+            function Get-ADObject {
+                param($Credential, $Server, $LDAPFilter, $Properties, $ErrorAction, $SearchBase)
+                if ($LDAPFilter -like '*attributeSchema*') {
+                    Record-Call Attribute $PSBoundParameters
+                    [pscustomobject]@{ lDAPDisplayName = 'drink' }
+                } elseif ($LDAPFilter -like '*lDAPDisplayName=user*') {
+                    Record-Call Class $PSBoundParameters
+                    [pscustomobject]@{ distinguishedName = 'CN=user'; subClassOf = 'parent' }
+                } else {
+                    Record-Call Parent $PSBoundParameters
+                    [pscustomobject]@{ distinguishedName = 'CN=parent'; mayContain = 'drink' }
+                }
+            }
+            function Get-ADUser {
+                param($Credential, $LDAPFilter, $Identity, $Server, $Properties, $ErrorAction)
+                Record-Call $(if ($Identity) { 'Refresh' } else { 'Lookup' }) $PSBoundParameters
+                [pscustomobject]@{ SamAccountName = 'fixture'; DistinguishedName = 'CN=fixture'; drink = @('X-old') }
+            }
+            function Set-ADUser {
+                param($Credential, $Identity, $Server, $Add, $Remove, $Confirm, $ErrorAction)
+                Record-Call Write $PSBoundParameters
+            }
+            $params = @{ Server = 'dc.example.test' }
+            if ($Explicit) { $params.Credential = $selected }
+            $expected = 'Root,Attribute,Class,Parent,Lookup,Write'
+            if ($Command -like 'Test-*') {
+                $params.PassThru = $true
+                $expected = if ($Command -like '*Enabled') { 'Root,Attribute' } else { 'Root,Attribute,Class,Parent' }
+            } elseif ($Command -like 'Get-*') {
+                $params.SamAccountName = 'fixture'
+                if ($Command -like '*PrefixedData') { $params.DrinkValuePrefix = 'X-' }
+                $expected = 'Root,Attribute,Lookup'
+            } else {
+                $params.Confirm = $false
+                $params.LogPath = Join-Path $Directory 'activity.log'
+                if ($Command -notlike 'Import-*') { $params.SamAccountName = 'fixture' }
+                switch ($Command) {
+                    'Import-ADUserDrinkCsvData' {
+                        $params.CsvPath = Join-Path $Directory 'input.csv'
+                        Set-Content $params.CsvPath "SamAccountName,Tier`nfixture,Gold"
+                        $params.NamespaceMap = @{ 'X-' = @{ Column = 'Tier' } }
+                        $expected = 'Root,Attribute,Class,Parent,Lookup,Refresh,Refresh,Write'
+                    }
+                    'Remove-ADUserDrinkData' { $params.Prefixes = 'X-' }
+                    'Update-ADUserDrinkAttribute' { $params.Prefixes = 'X-'; $params.DrinkValues = 'new' }
+                    'Set-ADUserDrinkData' { $params.DataMap = @{ 'X-' = 'new' } }
+                    'Set-ADUserDrinkPrefixedData' { $params.PrefixMap = @{ 'X-' = 'new' } }
+                    default { $params.AttributeMap = @{ 'X-' = 'samAccountName' } }
+                }
+            }
+            $result = & $Command @params -Verbose 4>&1
+            ($calls -join ',') | Should -Be $expected
+            # Check emitted messages, not PowerShell's own InvocationInfo.BoundParameters.
+            $output = ($result | ForEach-Object {
+                if ($_ -is [System.Management.Automation.VerboseRecord]) { $_.Message }
+                else { $_ | ConvertTo-Json -Depth 5 }
+            }) -join [Environment]::NewLine
+            if ($params.ContainsKey('LogPath')) { $output += Get-Content $params.LogPath -Raw }
+            $output | Should -Not -Match 'synthetic-only-marker|fixture-operator|PSCredential'
+        } $Command $Explicit $TestDrive
+    }
+}
+
 BeforeAll {
     $existingFunction = Get-Item Function:\Get-ADUser -ErrorAction SilentlyContinue
     $script:originalGetADUser = if ($existingFunction) { $existingFunction.ScriptBlock } else { $null }

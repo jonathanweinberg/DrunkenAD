@@ -27,6 +27,9 @@ Finds the user by exact `pager`.
 Hashtable whose keys are literal prefixes and whose values are arrays of suffix
 values to store under each prefix.
 
+.PARAMETER Credential
+Optional directory credential. Omit to use the normal Active Directory authentication context.
+
 .PARAMETER DomainController
 Optional domain controller to use consistently for validation, lookup, and write.
 
@@ -105,13 +108,17 @@ function Set-ADUserDrinkPrefixedData {
 
         [string]$LogPath,
 
-        [switch]$PassThru
+        [switch]$PassThru,
+
+        [ValidateScript({ -not [string]::IsNullOrWhiteSpace($_.UserName) })]
+        [pscredential]$Credential
     )
 
     Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($PrefixMap.Keys | ForEach-Object { [string]$_ })
-    $context = New-DrunkenADWriteContext -Server $DomainController
+    $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    $context = New-DrunkenADWriteContext @auth -Server $DomainController
     $identity = Get-DrunkenADIdentityParameters -BoundParameters $PSBoundParameters
-    $user = Resolve-DrunkenADUser @identity -Server $context.Server -Properties @('drink')
+    $user = Resolve-DrunkenADUser @auth @identity -Server $context.Server -Properties @('drink')
     $writeParams = @{
         User = $user
         PrefixMap = $PrefixMap
@@ -122,5 +129,5 @@ function Set-ADUserDrinkPrefixedData {
     foreach ($name in @('WhatIf', 'Confirm')) {
         if ($PSBoundParameters.ContainsKey($name)) { $writeParams[$name] = $PSBoundParameters[$name] }
     }
-    Invoke-DrunkenADPrefixWrite @writeParams
+    Invoke-DrunkenADPrefixWrite @auth @writeParams
 }
