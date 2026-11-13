@@ -138,6 +138,7 @@ retry creation, clear the journal, or delete a same-named object to recover.
 This journal is evidence for narrowly authorized reconciliation, not authority
 to perform it or a guarantee that a timed-out directory call was rolled back.
 The private controller and fresh native recovery evidence remain separate gates.
+Fixture recovery after a deliberately interrupted live run remains unverified.
 
 ### Expanded Single-DC Checks
 

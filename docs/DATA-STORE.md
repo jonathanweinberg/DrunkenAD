@@ -156,8 +156,12 @@ The [32K-page feature](https://learn.microsoft.com/en-us/windows-server/identity
 has separate database and forest prerequisites; enabling it is not a test
 workaround. The replacement [bounded capacity check](TESTING.md#bounded-capacity-characterization)
 records a fixture-specific accepted/rejected bracket and complete state and
-metadata preservation. No fresh bracket has been measured. Its result will
-not establish an exact per-user quota or close the separate retrieval gap.
+metadata preservation. In the Windows Server 2025 lab, one user with
+32-character namespace values and one shorter sentinel accepted 1,154 total
+values; the first larger total tested and rejected was 1,282. The exact limit
+between those points was not measured. For planning, aim for well under 1,000
+values per user. This is guidance, not a guaranteed quota or proof of large-range
+retrieval.
 
 Read-only domain controllers are not supported write targets:
 [Set-ADUser does not support them](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser?view=windowsserver2025-ps#notes).
