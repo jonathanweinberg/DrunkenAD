@@ -7,6 +7,8 @@ Joins Prefix and Value without a separator, escapes the result as literal LDAP
 data, and runs one server-side equality query. A wildcard is an ordinary
 character here. Equality uses the directory's matching rule, not a case-sensitive
 PowerShell comparison. No schema checks or writes are performed.
+This command has mocked unit-test coverage only; it has not been validated
+against a live directory.
 
 .PARAMETER Prefix
 Literal namespace prefix, including any delimiter used when storing the entry.
