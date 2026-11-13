@@ -2,6 +2,8 @@
 
 ## 0.13.2
 
+- Restored imagegen illustrations and README thumbnails with corrected workflow
+  content, retaining editable Mermaid details and historical artwork references.
 - Fail closed on malformed CSV byte sequences before AD access, preserving
   UTF-8 and BOM-marked UTF-16/UTF-32 without silently replacing damaged text.
 - Replaced whole-attribute writes with prefix-scoped Remove/Add deltas on one
@@ -29,6 +31,19 @@
   without misreporting an already completed directory write.
 - Expanded the explicit trusted test allowlist, failed discovery/container
   errors reliably, and checked manifest FileList completeness.
+- Restored unit-test function and handler state after execution, with repeated-run
+  isolation regressions. Excluded integration discovery no longer initializes
+  directory modules or performs readiness reads, even with live flags set.
+- Replaced the large-set setup-dependent test with separately opted-in, bounded
+  capacity characterization through production scoped Remove/Add. Rejection
+  requires unchanged complete values and attribute metadata; this is not a
+  large-range retrieval pass or a newly measured storage ceiling.
+- Added private, exclusive fixture-ownership journals to integration setup and
+  GUID-only verified cleanup. Uncertain creation and failed cleanup checks
+  remain incomplete; this is not fresh native interruption-recovery evidence.
+- Clarified common writable-DC guidance and concurrency limits without changing
+  accepted endpoint forms. Restricted support scope and release remain pending
+  explicit owner decisions; detailed review chronology stays private.
 - Refreshed current Mermaid flows and atlas data; dated infographic plates are
   retained as historical rather than presented as current write contracts.
 - Added sample/projection coexistence and smoke-cleanup regressions; campaign

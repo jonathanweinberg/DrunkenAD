@@ -1,9 +1,11 @@
 Import-Module (Join-Path $PSScriptRoot '../DrunkenAD/DrunkenAD.psd1') -Force
 
 BeforeAll {
-    $script:originalGetADUser = Get-Item Function:\global:Get-ADUser -ErrorAction SilentlyContinue
+    $existingFunction = Get-Item Function:\Get-ADUser -ErrorAction SilentlyContinue
+    $script:originalGetADUser = if ($existingFunction) { $existingFunction.ScriptBlock } else { $null }
     function global:Get-ADUser { param($Identity, $Server, $Properties, $ErrorAction) throw 'Unmocked read.' }
-    $script:originalSetADUser = Get-Item Function:\global:Set-ADUser -ErrorAction SilentlyContinue
+    $existingFunction = Get-Item Function:\Set-ADUser -ErrorAction SilentlyContinue
+    $script:originalSetADUser = if ($existingFunction) { $existingFunction.ScriptBlock } else { $null }
     function global:Set-ADUser {
         param($Identity, $Server, $Remove, $Add, $Replace, $Clear, $Confirm, $ErrorAction)
         throw 'An unmocked directory write is not permitted in unit tests.'
@@ -11,12 +13,12 @@ BeforeAll {
 }
 
 AfterAll {
-    if ($script:originalGetADUser) { Set-Item Function:\global:Get-ADUser $script:originalGetADUser.ScriptBlock }
-    else { Remove-Item Function:\global:Get-ADUser -ErrorAction SilentlyContinue }
+    if ($script:originalGetADUser) { Set-Item Function:\global:Get-ADUser $script:originalGetADUser }
+    else { Remove-Item Function:\Get-ADUser -ErrorAction SilentlyContinue }
     if ($script:originalSetADUser) {
-        Set-Item Function:\global:Set-ADUser $script:originalSetADUser.ScriptBlock
+        Set-Item Function:\global:Set-ADUser $script:originalSetADUser
     }
-    else { Remove-Item Function:\global:Set-ADUser -ErrorAction SilentlyContinue }
+    else { Remove-Item Function:\Set-ADUser -ErrorAction SilentlyContinue }
 }
 
 Describe 'CSV confirmation state across rows' {
@@ -271,6 +273,95 @@ Describe 'Freshness and projection confirmation outcomes' {
     }
 }
 
+Describe 'Projection value culture contracts' {
+    InModuleScope DrunkenAD {
+        It 'preserves invariant date and numeric rendering under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US'; CultureAmount = '1234.56' }
+            @{ CultureName = 'de-DE'; CultureAmount = '1234,56' }
+        ) {
+            param($CultureName, $CultureAmount)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $user = [pscustomobject]@{
+                    whenCreated = [datetime]::new(2026, 10, 8, 13, 14, 15)
+                    offsetDate = [datetimeoffset]::new(2026, 10, 8, 13, 14, 15, [timespan]::FromHours(2))
+                    amount = [decimal]1234.56
+                    ratio = [double]1234.56
+                    largeInteger = [long]9223372036854775807
+                    zero = 0
+                    negative = [decimal](-12.5)
+                    enabled = $false
+                }
+                [cultureinfo]::CurrentCulture.Name | Should -BeExactly $CultureName
+                $user.amount.ToString() | Should -BeExactly $CultureAmount
+                $map = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap @{
+                    'Values-' = @('whenCreated', 'offsetDate', 'amount', 'ratio', 'largeInteger', 'zero', 'negative', 'enabled')
+                }
+                $map['Values-'] | Should -BeExactly @(
+                    'whenCreated=10/08/2026 13:14:15'
+                    'offsetDate=10/08/2026 13:14:15 +02:00'
+                    'amount=1234.56'
+                    'ratio=1234.56'
+                    'largeInteger=9223372036854775807'
+                    'zero=0'
+                    'negative=-12.5'
+                    'enabled=False'
+                )
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+
+        It 'preserves multivalue strings and DNs while retaining blank namespaces under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US' }
+            @{ CultureName = 'de-DE' }
+        ) {
+            param($CultureName)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $user = [pscustomobject]@{
+                    mixed = @([decimal]1234.56, [datetime]::new(2026, 10, 8), 'First', 'first', '  ordinary  ', '1.234,56', $null, '', " `t")
+                    memberOf = @('CN=Example\, Group,OU=People,DC=example,DC=test', 'CN=Other,DC=example,DC=test')
+                    emptyScalar = $null
+                    emptyArray = @()
+                    blankValues = @($null, '', ' ', "`t`r`n")
+                }
+                $map = ConvertTo-DrunkenADProjectionDataMap -User $user -AttributeMap @{
+                    'Values-' = @('mixed', 'memberOf')
+                    'Null-' = @('emptyScalar')
+                    'Empty-' = @('emptyArray')
+                    'Blank-' = @('blankValues')
+                }
+                $map['Values-'] | Should -BeExactly @(
+                    'mixed=1234.56'
+                    'mixed=10/08/2026 00:00:00'
+                    'mixed=First'
+                    'mixed=  ordinary  '
+                    'mixed=1.234,56'
+                    'memberOf=CN=Example\, Group,OU=People,DC=example,DC=test'
+                    'memberOf=CN=Other,DC=example,DC=test'
+                )
+                foreach ($prefix in @('Null-', 'Empty-', 'Blank-')) {
+                    $map.Contains($prefix) | Should -BeTrue
+                    @($map[$prefix]).Count | Should -Be 0
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+    }
+}
+
 Describe 'DrunkenAD write operation contracts' {
     InModuleScope DrunkenAD {
         BeforeEach {
@@ -397,6 +488,118 @@ Describe 'DrunkenAD write operation contracts' {
             Assert-MockCalled Resolve-DrunkenADUser -Times 1 -Exactly
             Assert-MockCalled Get-DrunkenADDrinkAttributeStatus -Times 1 -Exactly
             Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter { $Identity -eq 'CN=demo,DC=example,DC=test' }
+        }
+
+        It 'validates complete <SourceKind> projection lengths through <CommandName> under <CultureName>' -TestCases @(
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; SourceKind = 'DateTime' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'en-US'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Set-ADUserDrinkProjection'; CultureName = 'de-DE'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'en-US'; SourceKind = 'UnicodeDN' }
+            @{ CommandName = 'Invoke-ADUserDrinkDataDemo'; CultureName = 'de-DE'; SourceKind = 'UnicodeDN' }
+        ) {
+            param($CommandName, $CultureName, $SourceKind)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                if ($SourceKind -eq 'DateTime') {
+                    $script:boundaryProperty = 'whenCreated'
+                    $sourceValue = [datetime]::new(2024, 1, 2, 3, 4, 5)
+                    $rendered = '01/02/2024 03:04:05'
+                }
+                else {
+                    $script:boundaryProperty = 'memberOf'
+                    $rendered = 'CN=Example\, ' + [char]0xe9 + [char]0x6f22 + [char]::ConvertFromUtf32(0x1f680) + '=QA,DC=example,DC=test'
+                    $sourceValue = $rendered
+                }
+                $script:boundaryExpected = 'Bound-' + $script:boundaryProperty + '=' + $rendered
+                $script:boundaryLimit = $script:boundaryExpected.Length
+                $script:boundarySource = @($sourceValue)
+                if ($SourceKind -eq 'DateTime') {
+                    # Keep the native single-valued source typed while crossing its rendered limit.
+                    $script:boundaryLimit--
+                }
+                else { $script:boundarySource += $rendered + 'X' }
+                $script:directoryValues = @('Bound-old', 'Keep-stable')
+                Mock Get-DrunkenADDrinkAttributeStatus {
+                    [pscustomobject]@{ ReadyForUserWrite = $true; Server = 'dc01.example.test'; RangeUpper = $script:boundaryLimit }
+                }
+                Mock Resolve-DrunkenADUser {
+                    $properties = @{
+                        SamAccountName = 'demo'
+                        DistinguishedName = 'CN=demo,DC=example,DC=test'
+                        drink = @($script:directoryValues)
+                    }
+                    $properties[$script:boundaryProperty] = $script:boundarySource
+                    [pscustomobject]$properties
+                }
+                $parameters = @{ SamAccountName = 'demo'; AttributeMap = @{ 'Bound-' = @($script:boundaryProperty) }; Confirm = $false; PassThru = $true; ErrorAction = 'Stop' }
+                { & $CommandName @parameters } | Should -Throw "*has $($script:boundaryLimit + 1) characters*at most $script:boundaryLimit*including the prefix*"
+                Assert-MockCalled Set-ADUser -Times 0 -Exactly
+                $script:directoryValues | Should -BeExactly @('Bound-old', 'Keep-stable')
+
+                $script:boundarySource = @($sourceValue)
+                $script:boundaryLimit = $script:boundaryExpected.Length
+                $result = & $CommandName @parameters
+                $result.Status | Should -Be 'Written'
+                $script:directoryValues | Should -BeExactly @('Keep-stable', $script:boundaryExpected)
+                Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                    $Server -eq 'dc01.example.test' -and -not $Replace -and -not $Clear -and
+                    @($Remove.drink).Count -eq 1 -and $Remove.drink[0] -ceq 'Bound-old' -and
+                    @($Add.drink).Count -eq 1 -and $Add.drink[0] -ceq $script:boundaryExpected
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
+        }
+
+        It 'clears only mapped namespaces for blank projection values under <CultureName>' -TestCases @(
+            @{ CultureName = 'en-US' }
+            @{ CultureName = 'de-DE' }
+        ) {
+            param($CultureName)
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            $originalUICulture = [System.Threading.Thread]::CurrentThread.CurrentUICulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [cultureinfo]::GetCultureInfo($CultureName)
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = [cultureinfo]::GetCultureInfo($CultureName)
+                $script:directoryValues = @('Org-old', 'Flags-old', 'Keep-stable')
+                Mock Resolve-DrunkenADUser {
+                    [pscustomobject]@{
+                        SamAccountName = 'demo'
+                        DistinguishedName = 'CN=demo,DC=example,DC=test'
+                        drink = @($script:directoryValues)
+                        department = $null
+                        title = @($null, '', ' ', "`t")
+                        company = @()
+                    }
+                }
+                $result = Set-ADUserDrinkProjection -SamAccountName 'demo' -AttributeMap @{
+                    'Org-' = @('department', 'title')
+                    'Flags-' = @('company')
+                } -Confirm:$false -PassThru
+                $result.Status | Should -Be 'Written'
+                $result.DataMap.Contains('Org-') | Should -BeTrue
+                $result.DataMap.Contains('Flags-') | Should -BeTrue
+                @($result.DataMap['Org-']).Count | Should -Be 0
+                @($result.DataMap['Flags-']).Count | Should -Be 0
+                $result.FinalDrinkValues | Should -BeExactly @('Keep-stable')
+                $script:directoryValues | Should -BeExactly @('Keep-stable')
+                Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                    @($Remove.drink).Count -eq 2 -and $Remove.drink -contains 'Org-old' -and
+                    $Remove.drink -contains 'Flags-old' -and -not $Add -and -not $Clear -and -not $Replace
+                }
+            }
+            finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+                [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
+            }
         }
 
         It 'honors WhatIf through every write wrapper including AutoConfirm' {

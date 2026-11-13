@@ -195,17 +195,18 @@ Describe 'Isolated smoke account cleanup behavior' {
         }
         $script:cleanupOriginalFunctions = @{}
         foreach ($name in @('Remove-ADUser', 'Get-ADUser')) {
-            $script:cleanupOriginalFunctions[$name] = Get-Item "Function:\global:$name" -ErrorAction SilentlyContinue
+            $existingFunction = Get-Item -LiteralPath "Function:\$name" -ErrorAction SilentlyContinue
+            if ($existingFunction) { $script:cleanupOriginalFunctions[$name] = $existingFunction.ScriptBlock }
         }
         function global:Remove-ADUser { param($Identity, $Server, $Confirm, $ErrorAction) throw 'Unmocked removal is forbidden.' }
         function global:Get-ADUser { param($LDAPFilter, $Server, $ErrorAction) throw 'Unmocked lookup is forbidden.' }
     }
     AfterAll {
         foreach ($name in @('Remove-ADUser', 'Get-ADUser')) {
-            if ($script:cleanupOriginalFunctions[$name]) {
-                Set-Item "Function:\global:$name" $script:cleanupOriginalFunctions[$name].ScriptBlock
+            if ($script:cleanupOriginalFunctions.ContainsKey($name)) {
+                Set-Item "Function:\global:$name" $script:cleanupOriginalFunctions[$name]
             }
-            else { Remove-Item "Function:\global:$name" -ErrorAction SilentlyContinue }
+            else { Remove-Item -LiteralPath "Function:\$name" -ErrorAction SilentlyContinue }
         }
     }
     BeforeEach {

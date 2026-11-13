@@ -69,7 +69,7 @@ Set-ADUserDrinkProjection @projectionParams -Confirm:$false
 Runs the projection with a custom attribute map provided via splatting.
 
 .EXAMPLE
-Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -AttributeMap @{ 'Custom-' = @('description') } -IncludeDefaultAttributeMap -Confirm:$false
+Set-ADUserDrinkProjection -SamAccountName 'TesterAccount' -AttributeMap @{ 'Custom-' = @('description') } -IncludeDefaultAttributeMap -DomainController 'dc01.contoso.com' -Confirm:$false
 
 Adds a custom namespace on top of the built-in projection map.
 

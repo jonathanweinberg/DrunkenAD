@@ -82,6 +82,7 @@ jobs:
       contents: read
 
     env:
+      PESTER_RESULT_PATH: pester-results-windows-powershell-51.xml
       PESTER_VERSION: 5.7.1
 
     steps:
@@ -113,4 +114,14 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($pesterManifest)) {
               throw "Pester $env:PESTER_VERSION was not found."
           }
+          $PSDefaultParameterValues['Invoke-DrunkenADTests.ps1:TestResultPath'] = $env:PESTER_RESULT_PATH
           .\scripts\Test-DrunkenADRelease.ps1 -PesterManifestPath $pesterManifest
+
+      - name: Upload Pester results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-results-windows-powershell-51
+          path: ${{ env.PESTER_RESULT_PATH }}
+          if-no-files-found: ignore
+          retention-days: 14

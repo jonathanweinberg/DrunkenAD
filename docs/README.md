@@ -7,11 +7,11 @@ namespaced data store for user-attached operational metadata.
   <img src="images/documentation-suite-2026-05-07/drunkenad-overview.png" alt="DrunkenAD overview">
 </p>
 
-The generated infographic plates are dated illustrations. Current behavior is
-shown by the Mermaid flows and interactive atlas; historical plates are not
-write or release contracts.
-The 2026-05-11 image suite adds the 0.11.0 module split, campaign profiles, and
-release-readiness gate to the same visual style.
+The October imagegen refresh restores the illustrated documentation style with
+current write, CSV, schema, and validation contracts. The Mermaid flows and
+interactive atlas remain the detailed technical views. Artwork explains the
+process; it does not establish a passing test or a published release. Older
+image suites remain historical references.
 The 0.12.1 docs keep the seeded live campaign flow host-method neutral. Use the
 integration suite for generic live AD validation, and use
 [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) when adding or replacing a host
@@ -33,7 +33,8 @@ Start with the path that matches your job:
 - Reviewing diagrams: read [DIAGRAMS.md](DIAGRAMS.md), then open the
   [interactive architecture atlas](drunkenad-architecture-map.html).
 - Reviewing the October changes: read the
-  [external-review adjudication](issues/013-october-review-hardening.md).
+  [external-review adjudication](issues/013-october-review-hardening.md) and
+  [post-merge validation matrix](POST-MERGE-VALIDATION.md).
 
 ## Document Map
 
@@ -46,6 +47,11 @@ Start with the path that matches your job:
 | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) | CSV ingestion workflow and mapping format. |
 | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) | Safe schema-readiness enablement path. |
 | [TESTING.md](TESTING.md) | Parser, unit, integration, and live campaign test layers. |
+| [POST-MERGE-VALIDATION.md](POST-MERGE-VALIDATION.md) | Post-merge review decisions and all 26 proposed live evidence gates. |
+| [EXCEL-CSV-VALIDATION.md](EXCEL-CSV-VALIDATION.md) | Synthetic source cells, authentic Excel export intake, and separate offline/live acceptance. |
+| [SINGLE-DC-ACCEPTANCE-PROPOSAL.md](SINGLE-DC-ACCEPTANCE-PROPOSAL.md) | Proposed single-DC evidence envelope, acceptance conditions and explicit environment deferrals. |
+| [SINGLE-DC-VALIDATION-2026-10-08.md](SINGLE-DC-VALIDATION-2026-10-08.md) | Interrupted one-user attempt, offline/CI evidence and independently verified cleanup. |
+| [POST-MERGE-LIVE-EXPANSION.md](POST-MERGE-LIVE-EXPANSION.md) | Bounded single-controller receipts, cleanup, three review methods, and remaining evidence gaps. |
 | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) | Live validation guide and recorded lab run index. |
 | [LIVE-CAMPAIGN-HOSTS.md](LIVE-CAMPAIGN-HOSTS.md) | Generic host-method contract for seeded live campaign wrappers. |
 | [DIAGRAMS.md](DIAGRAMS.md) | Mermaid source plus information-dense infographic plates. |
@@ -58,12 +64,12 @@ Start with the path that matches your job:
 | Question | Infographic | Documentation |
 | --- | --- | --- |
 | What is this for? | <img src="images/documentation-suite-2026-05-07/use-case-map.png" alt="Use-case map" width="260"> | [USE-CASES.md](USE-CASES.md) |
-| How is the module organized? | [Current Mermaid flow](DIAGRAMS.md#module-layout) | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| How are writes kept scoped? | [Current Mermaid flow](DIAGRAMS.md#namespace-write-model) | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| How does flat-file data get into AD? | [Current Mermaid flow](DIAGRAMS.md#csv-ingestion-flow) | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) |
-| What must be true before writes? | [Current Mermaid flow](DIAGRAMS.md#schema-readiness-flow) | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) |
-| How do we pick live validation scale? | <img src="images/documentation-suite-2026-05-11/live-campaign-profiles.png" alt="Live campaign profiles" width="260"> | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) |
-| How do we prove release readiness? | [Current Mermaid flow](DIAGRAMS.md#release-readiness) | [TESTING.md](TESTING.md) |
+| How is the module organized? | <img src="images/documentation-suite-2026-10-08/module-layout.png" alt="Illustrated module layout" width="260"> | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How are writes kept scoped? | <img src="images/documentation-suite-2026-10-08/namespace-write-model.png" alt="Illustrated scoped write model" width="260"> | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| How does flat-file data get into AD? | <img src="images/documentation-suite-2026-10-08/csv-ingestion-flow.png" alt="Illustrated CSV workflow" width="260"> | [HOW-TO-INGEST-CSV.md](HOW-TO-INGEST-CSV.md) |
+| What must be true before writes? | <img src="images/documentation-suite-2026-10-08/schema-readiness-flow.png" alt="Illustrated schema readiness" width="260"> | [SCHEMA-ENABLEMENT.md](SCHEMA-ENABLEMENT.md) |
+| How do we pick live validation scale? | <img src="images/documentation-suite-2026-10-08/live-campaign-profiles.png" alt="Illustrated campaign profiles and planned counts" width="260"> | [LIVE-VALIDATION.md](LIVE-VALIDATION.md) |
+| How do we prove release readiness? | <img src="images/documentation-suite-2026-10-08/release-readiness.png" alt="Illustrated release gates" width="260"> | [TESTING.md](TESTING.md) |
 
 ## PowerShell Help
 

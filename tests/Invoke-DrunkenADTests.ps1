@@ -84,6 +84,8 @@ Write-Host ('Pester {0} from {1}' -f $requiredPesterVersion, $resolvedPesterMani
 $trustedTestNames = @(
     'DrunkenAD.Unit.Tests.ps1'
     'Help.Unit.Tests.ps1'
+    'IntegrationLifecycle.Unit.Tests.ps1'
+    'IntegrationOwnership.Unit.Tests.ps1'
     'LiveCampaign.Unit.Tests.ps1'
     'Logging.Unit.Tests.ps1'
     'Release.Unit.Tests.ps1'

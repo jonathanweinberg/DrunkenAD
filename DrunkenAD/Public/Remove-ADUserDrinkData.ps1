@@ -48,7 +48,7 @@ Removes all `AppProfile-` and `Flags-` records from the user's `drink` attribute
 leaving the built-in projection's namespaces untouched.
 
 .EXAMPLE
-Remove-ADUserDrinkData -Mail 'tester@contoso.com' -Prefixes 'Temp-' -WhatIf
+Remove-ADUserDrinkData -Mail 'tester@contoso.com' -Prefixes 'Temp-' -DomainController 'dc01.contoso.com' -WhatIf
 
 Previews removal of the `Temp-` namespace for a user resolved by exact mail.
 

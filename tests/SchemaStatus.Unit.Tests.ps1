@@ -17,7 +17,8 @@ Describe 'Schema readiness inheritance and metadata' {
 
         foreach ($functionName in $stubDefinitions.Keys) {
             $functionPath = 'Function:\global:{0}' -f $functionName
-            $existingFunction = Get-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+            # Get-Item and Remove-Item do not resolve the global: prefix used by Set-Item.
+            $existingFunction = Get-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             if ($existingFunction) {
                 $script:SchemaStatusUnitOriginalFunctions[$functionName] = $existingFunction.ScriptBlock
             }
@@ -32,7 +33,7 @@ Describe 'Schema readiness inheritance and metadata' {
                 Set-Item -LiteralPath $functionPath -Value $script:SchemaStatusUnitOriginalFunctions[$functionName]
             }
             else {
-                Remove-Item -LiteralPath $functionPath -ErrorAction SilentlyContinue
+                Remove-Item -LiteralPath ('Function:\{0}' -f $functionName) -ErrorAction SilentlyContinue
             }
         }
     }
@@ -330,6 +331,7 @@ Describe 'Schema readiness inheritance and metadata' {
             @{ Endpoint = 'EXPLICIT.Contoso.Com' }
             @{ Endpoint = 'alias.contoso.com' }
             @{ Endpoint = 'dc-alias' }
+            @{ Endpoint = 'CONTOSO' }
             @{ Endpoint = 'explicit.contoso.com:50000' }
             @{ Endpoint = 'localhost:50000' }
             @{ Endpoint = '192.0.2.10' }

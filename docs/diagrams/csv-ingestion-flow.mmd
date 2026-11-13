@@ -1,5 +1,5 @@
 flowchart TD
-    CSV["CSV rows"] --> LOCAL["Local preflight<br/>complete records + required columns"]
+    CSV["CSV rows"] --> LOCAL["Local preflight<br/>strict Unicode decoding<br/>complete records + required columns"]
     MAP["JSON or hashtable namespace map"] --> LOCAL
     LOCAL --> OWNERSHIP["Validate map shape<br/>nonblank, non-overlapping prefixes"]
     OWNERSHIP --> IDENTITIES["Normalize SamAccountName<br/>trim + case-insensitive uniqueness"]

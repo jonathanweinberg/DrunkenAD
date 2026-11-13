@@ -713,7 +713,7 @@
           "id": "csvMapping",
           "label": "CsvMapping.ps1",
           "kind": "private",
-          "summary": "Validates complete CSV records using the framework parser, normalizes maps and SplitOn values, and emits DataMaps. Blank namespace clearing is opt-in.",
+          "summary": "Strictly decodes Unicode and validates complete CSV records using the framework parser, then normalizes maps and SplitOn values into DataMaps. Blank namespace clearing is opt-in.",
           "files": ["DrunkenAD/Private/CsvMapping.ps1"]
         },
         {
@@ -880,7 +880,7 @@
       "description": "Batch import rows into namespaced drink records using JSON or hashtable maps.",
       "path": ["csvSource", "csvImport", "csvMapping", "splitCsv", "schemaStatus", "coreHelpers", "prefixedWriter", "drinkStore", "examples"],
       "steps": [
-        "Validate complete CSV records, paths, mapping shape, columns, non-overlapping prefixes, and unique normalized identities locally.",
+        "Strictly decode Unicode and validate complete CSV records, paths, mapping shape, columns, non-overlapping prefixes, and unique normalized identities locally.",
         "Create one readiness context and pin the domain controller.",
         "Retain all-blank namespaces unless ClearBlankNamespaces opts into clearing. Skip blank identities and empty default-mode rows; resolve usable users and validate lengths before writing.",
         "Refresh the resolved object before confirmation. After approval, refresh again and stop if the exact Remove/Add delta changed; unrelated namespace changes remain safe.",
