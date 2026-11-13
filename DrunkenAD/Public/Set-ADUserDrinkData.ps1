@@ -23,6 +23,10 @@ Finds the user by exact `mail`.
 .PARAMETER Pager
 Finds the user by exact `pager`.
 
+.PARAMETER InputObject
+ADUser from Get-ADUser. Requires an explicit DomainController (or Server).
+Only ObjectGUID is used from the input; directory values are read on that controller.
+
 .PARAMETER DataMap
 Hashtable whose keys are literal prefixes and whose values are arrays of suffix
 values to store beneath each prefix.
@@ -31,7 +35,8 @@ values to store beneath each prefix.
 Optional directory credential. Omit to use the normal Active Directory authentication context.
 
 .PARAMETER DomainController
-Optional domain controller to use consistently for validation, lookup, and write.
+Controller for schema validation and reads and writes. Required for ADUser input;
+optional when using an explicit identifier.
 
 .PARAMETER LogPath
 Optional log file path for appended activity records.
@@ -41,10 +46,17 @@ Returns the computed `drink` values, including previews. This is based on the
 initial read and is not a fresh directory read after the write.
 
 .INPUTS
-None. This command does not accept pipeline input.
+Microsoft.ActiveDirectory.Management.ADUser
 
 .OUTPUTS
-System.String[]. Returned when `PassThru` is specified.
+Explicit identifiers: computed strings with PassThru, otherwise no output.
+ADUser input: with PassThru, one object per user with ObjectGUID, SamAccountName,
+Status (Written, WhatIf, Declined or NoChange), and planned FinalDrinkValues.
+
+.EXAMPLE
+Get-ADUser -Filter "Department -eq 'Example'" -Server 'dc01.contoso.com' | Set-ADUserDrinkData -DataMap @{ 'App-' = 'new' } -WhatIf -PassThru -DomainController 'dc01.contoso.com'
+
+Previews each user separately and returns the planned values with the user identity.
 
 .EXAMPLE
 Set-ADUserDrinkData -SamAccountName 'TesterAccount' -DataMap @{ 'AppProfile-' = @('Tier=Gold') } -DomainController 'dc01.contoso.com' -Confirm:$false
@@ -96,6 +108,10 @@ function Set-ADUserDrinkData {
         [Parameter(Mandatory = $true, ParameterSetName = 'Pager')]
         [string]$Pager,
 
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = 'ADUser')]
+        [PSTypeName('Microsoft.ActiveDirectory.Management.ADUser')]
+        [psobject]$InputObject,
+
         [Parameter(Mandatory = $true)]
         [hashtable]$DataMap,
 
@@ -110,8 +126,25 @@ function Set-ADUserDrinkData {
         [pscredential]$Credential
     )
 
-    $parameters = @{} + $PSBoundParameters
-    $parameters.Remove('DataMap')
-    $parameters['PrefixMap'] = $DataMap
-    Set-ADUserDrinkPrefixedData @parameters
+    begin {
+        $context = $null
+        $auth = Get-DrunkenADCredentialParameters $PSBoundParameters
+    }
+    process {
+        if ($PSCmdlet.ParameterSetName -eq 'ADUser') {
+            $guid = Get-DrunkenADPipelineUserGuid $InputObject $DomainController
+            if ($null -eq $context) {
+                Assert-DrunkenADNonOverlappingPrefixes -Prefixes @($DataMap.Keys)
+                $context = New-DrunkenADWriteContext @auth -Server $DomainController
+            }
+            $user = Read-DrunkenADPipelineUser @auth -Guid $guid -Server $context.Server
+            Invoke-DrunkenADPrefixWrite @auth -User $user -Context $context -PrefixMap $DataMap -LogPath $LogPath -PassThru:$PassThru -PipelineCmdlet $PSCmdlet
+        }
+        else {
+            $parameters = @{} + $PSBoundParameters
+            $parameters.Remove('DataMap')
+            $parameters['PrefixMap'] = $DataMap
+            Set-ADUserDrinkPrefixedData @parameters
+        }
+    }
 }

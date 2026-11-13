@@ -210,6 +210,54 @@ namespace DrunkenAD.Tests {
         ) | Export-Csv -LiteralPath $script:csvConfirmationPath -NoTypeInformation
     }
 
+    It 'honors <Choice> across user pipeline records' -Tag PipelineUser -TestCases @(
+        @{ Choice = 'No'; Prompts = 2; Status = 'Declined'; Writes = 0 }
+        @{ Choice = 'Yes to All'; Prompts = 1; Status = 'Written'; Writes = 2 }
+    ) {
+        param($Choice, $Prompts, $Status, $Writes)
+        $ui = New-Object DrunkenAD.Tests.CsvConfirmationHost -ArgumentList $Choice
+        $runspace = [runspacefactory]::CreateRunspace($ui)
+        $pipeline = [powershell]::Create()
+        try {
+            $runspace.Open()
+            $pipeline.Runspace = $runspace
+            $scenario = {
+                param($ModulePath)
+                $ErrorActionPreference = 'Stop'
+                $module = Import-Module $ModulePath -Force -PassThru
+                $PSModuleAutoLoadingPreference = 'None'
+                & $module {
+                    $script:writes = 0
+                    function script:Get-DrunkenADDrinkAttributeStatus {
+                        [pscustomobject]@{ ReadyForUserWrite = $true; Server = 'dc01.example.test'; RangeUpper = 256 }
+                    }
+                    function script:Get-ADUser {
+                        param($Identity)
+                        [pscustomobject]@{ ObjectGUID = $Identity; SamAccountName = "user-$Identity"; DistinguishedName = "CN=$Identity,DC=example,DC=test"; drink = @('App-old') }
+                    }
+                    function script:Set-ADUser { $script:writes++ }
+                }
+                $users = foreach ($n in 1..2) {
+                    [pscustomobject]@{ PSTypeName = 'Microsoft.ActiveDirectory.Management.ADUser'; ObjectGUID = [guid]::NewGuid() }
+                }
+                $users | Remove-ADUserDrinkData -Prefixes 'App-' -Server dc01.example.test -Confirm -PassThru
+                & $module { $script:writes }
+            }
+            [void]$pipeline.AddScript($scenario.ToString()).AddArgument($script:csvConfirmationModulePath)
+            $output = @($pipeline.Invoke())
+            $pipeline.Streams.Error.Count | Should -Be 0 -Because ($pipeline.Streams.Error -join '; ')
+            $ui.PromptCount | Should -Be $Prompts
+            $output.Count | Should -Be 3
+            $output[0].Status | Should -Be $Status
+            $output[1].Status | Should -Be $Status
+            $output[2] | Should -Be $Writes
+        }
+        finally {
+            $pipeline.Dispose()
+            $runspace.Dispose()
+        }
+    }
+
     It 'honors <Choice> for both CSV rows with one prompt and <ExpectedWrites> writes' -TestCases @(
         @{ Choice = 'Yes to All'; ExpectedWrites = 2 }
         @{ Choice = 'No to All'; ExpectedWrites = 0 }
@@ -472,6 +520,172 @@ Describe 'Projection value culture contracts' {
                 [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
                 [System.Threading.Thread]::CurrentThread.CurrentUICulture = $originalUICulture
             }
+        }
+    }
+}
+
+Describe 'ADUser pipeline credential selection' -Tag 'PipelineCredential' {
+    It 'preserves directory targeting and credential binding for <Command> (explicit=<Explicit>)' -ForEach @(
+        foreach ($command in 'Get-ADUserDrinkData', 'Set-ADUserDrinkData', 'Remove-ADUserDrinkData') {
+            foreach ($explicit in $false, $true) { @{ Command = $command; Explicit = $explicit } }
+        }
+    ) {
+        & (Get-Module DrunkenAD) {
+            param($Command, $Explicit)
+            $selectedCredential = [pscredential]::new('fixture', [securestring]::new())
+            $calls = [System.Collections.Generic.List[string]]::new()
+            $ids = @([guid]::NewGuid(), [guid]::NewGuid())
+            function Assert-DirectoryCall($Step, $Bound, $ExpectedServer) {
+                $Bound.Server | Should -BeExactly $ExpectedServer
+                $Bound.ContainsKey('Credential') | Should -Be $Explicit
+                if ($Explicit) { [object]::ReferenceEquals($selectedCredential, $Bound.Credential) | Should -BeTrue }
+                $calls.Add($Step)
+            }
+            function Initialize-DrunkenADModule {}
+            function Get-ADRootDSE {
+                param($Server, $Credential, $ErrorAction)
+                Assert-DirectoryCall Root $PSBoundParameters 'example.test'
+                [pscustomobject]@{ schemaNamingContext = 'CN=Schema'; defaultNamingContext = 'DC=example,DC=test'; dnsHostName = 'dc01.example.test' }
+            }
+            function Get-ADObject {
+                param($Server, $Credential, $LDAPFilter, $Properties, $SearchBase, $ErrorAction)
+                if ($LDAPFilter -like '*attributeSchema*') {
+                    Assert-DirectoryCall Attribute $PSBoundParameters 'dc01.example.test'
+                    [pscustomobject]@{ lDAPDisplayName = 'drink' }
+                } else {
+                    Assert-DirectoryCall Class $PSBoundParameters 'dc01.example.test'
+                    [pscustomobject]@{ distinguishedName = 'CN=user'; mayContain = 'drink' }
+                }
+            }
+            function Get-ADUser {
+                param($Server, $Credential, $Identity, $Properties, $ErrorAction)
+                Assert-DirectoryCall "Read:$Identity" $PSBoundParameters 'dc01.example.test'
+                $Properties | Should -Contain 'drink'
+                [pscustomobject]@{ ObjectGUID = $Identity; SamAccountName = "user-$Identity"; drink = @('App-old') }
+            }
+            function Set-ADUser {
+                param($Server, $Credential, $Identity, $Add, $Remove, $Confirm, $ErrorAction)
+                Assert-DirectoryCall "Write:$Identity" $PSBoundParameters 'dc01.example.test'
+            }
+            $users = foreach ($id in $ids) {
+                [pscustomobject]@{ PSTypeName = 'Microsoft.ActiveDirectory.Management.ADUser'; ObjectGUID = $id }
+            }
+            $params = @{ Server = 'example.test' }
+            if ($Explicit) { $params.Credential = $selectedCredential }
+            $write = $Command -ne 'Get-ADUserDrinkData'
+            if ($write) {
+                $params.PassThru = $true
+                $params.Confirm = $false
+                if ($Command -like 'Set-*') { $params.DataMap = @{ 'App-' = 'new' } }
+                else { $params.Prefixes = 'App-' }
+            }
+            $rows = @($users | & $Command @params -ErrorAction Stop)
+            $rows.Count | Should -Be 2
+            $rows.ObjectGUID | Should -Be $ids
+            $expected = @('Root'; 'Attribute'; if ($write) { 'Class' }; foreach ($id in $ids) { "Read:$id"; if ($write) { "Write:$id" } })
+            $calls.ToArray() | Should -Be $expected
+        } $Command $Explicit
+    }
+}
+
+Describe 'ADUser pipeline contracts' -Tag 'PipelineUser' {
+    InModuleScope DrunkenAD {
+        BeforeEach {
+            $script:ids = @([guid]'11111111-1111-1111-1111-111111111111', [guid]'22222222-2222-2222-2222-222222222222')
+            $users = foreach ($id in $script:ids) {
+                [pscustomobject]@{
+                    PSTypeName = 'Microsoft.ActiveDirectory.Management.ADUser'
+                    ObjectGUID = $id; SamAccountName = 'stale-name'; drink = @('stale-value')
+                }
+            }
+            Mock Get-DrunkenADDrinkAttributeStatus {
+                if ($Server -ne 'dc01.example.test') { throw 'Wrong schema target.' }
+                [pscustomobject]@{ Enabled = $true; ReadyForUserWrite = $true; Server = $Server; RangeUpper = 256 }
+            }
+            Mock Get-ADUser {
+                if ($Server -ne 'dc01.example.test' -or $Properties -notcontains 'drink') { throw 'Wrong read target or projection.' }
+                $index = $script:ids.IndexOf([guid]$Identity)
+                if ($index -lt 0) { throw 'Unknown identity.' }
+                [pscustomobject]@{
+                    ObjectGUID = $script:ids[$index]; SamAccountName = "user$index"
+                    DistinguishedName = "CN=user$index,DC=example,DC=test"
+                    drink = @(if ($index -eq 0) { 'App-old' }; "Keep-$index")
+                }
+            }
+            Mock Set-ADUser {}
+        }
+
+        It 'returns one fresh named result per input, including an empty match' {
+            $rows = @($users | Get-ADUserDrinkData -Prefix 'App-' -Server dc01.example.test -ErrorAction Stop)
+            $rows.Count | Should -Be 2
+            $rows.SamAccountName | Should -Be @('user0', 'user1')
+            $rows.ObjectGUID | Should -Be $script:ids
+            $rows[0].DrinkValues | Should -Be @('App-old')
+            $rows[1].DrinkValues.Count | Should -Be 0
+            Assert-MockCalled Get-ADUser -Times 2 -Exactly
+        }
+
+        It 'keeps writes and results per user for <Command> (preview: <Preview>)' -TestCases @(
+            @{ Command = 'Set-ADUserDrinkData'; Preview = $false }
+            @{ Command = 'Set-ADUserDrinkData'; Preview = $true }
+            @{ Command = 'Remove-ADUserDrinkData'; Preview = $false }
+            @{ Command = 'Remove-ADUserDrinkData'; Preview = $true }
+        ) {
+            param($Command, $Preview)
+            $setting = $Command -eq 'Set-ADUserDrinkData'
+            $params = if ($setting) { @{ DataMap = @{ 'App-' = @('new') } } } else { @{ Prefixes = 'App-' } }
+            $rows = @($users | & $Command @params -DomainController dc01.example.test -WhatIf:$Preview -Confirm:$false -PassThru -ErrorAction Stop)
+            $rows.Count | Should -Be 2
+            $rows.ObjectGUID | Should -Be $script:ids
+            $rows.SamAccountName | Should -Be @('user0', 'user1')
+            $changed = if ($Preview) { 'WhatIf' } else { 'Written' }
+            $rows[0].Status | Should -Be $changed
+            $rows[0].FinalDrinkValues | Should -Be @(if ($setting) { 'Keep-0'; 'App-new' } else { 'Keep-0' })
+            $rows[1].Status | Should -Be $(if ($setting) { $changed } else { 'NoChange' })
+            $rows[1].FinalDrinkValues | Should -Be @(if ($setting) { 'Keep-1'; 'App-new' } else { 'Keep-1' })
+            Assert-MockCalled Set-ADUser -Times $(if ($Preview) { 0 } elseif ($setting) { 2 } else { 1 }) -Exactly
+            if (-not $Preview) {
+                Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                    $Identity -eq $script:ids[0] -and $Server -eq 'dc01.example.test' -and $Remove.drink -contains 'App-old' -and -not $Confirm
+                }
+                if ($setting) {
+                    Assert-MockCalled Set-ADUser -Times 1 -Exactly -ParameterFilter {
+                        $Identity -eq $script:ids[1] -and $Server -eq 'dc01.example.test' -and $Add.drink -contains 'App-new' -and -not $Remove
+                    }
+                }
+            }
+        }
+
+        It 'treats an absent drink attribute as an empty store' -Tag UnsetDrink {
+            Mock Get-ADUser { [pscustomobject]@{ ObjectGUID = $Identity; SamAccountName = 'empty' } }
+            $read = $users[0] | Get-ADUserDrinkData -Server dc01.example.test
+            $read.DrinkValues.Count | Should -Be 0
+            $set = $users[0] | Set-ADUserDrinkData -Server dc01.example.test -DataMap @{ 'App-' = 'new' } -PassThru -Confirm:$false
+            $set.Status | Should -Be 'Written'
+            $set.FinalDrinkValues | Should -Be @('App-new')
+            $remove = $users[0] | Remove-ADUserDrinkData -Server dc01.example.test -Prefixes 'App-' -PassThru -Confirm:$false
+            $remove.Status | Should -Be 'NoChange'
+            Assert-MockCalled Set-ADUser -Times 1 -Exactly
+        }
+
+        It 'emits no write results without PassThru' {
+            @($users | Set-ADUserDrinkData -Server dc01.example.test -DataMap @{ 'App-' = 'new' } -Confirm:$false -ErrorAction Stop).Count | Should -Be 0
+            Assert-MockCalled Set-ADUser -Times 2 -Exactly
+        }
+
+        It 'rejects an implicit controller and unusable GUID without directory access' {
+            { $users | Get-ADUserDrinkData -ErrorAction Stop } | Should -Throw '*DomainController*'
+            $users[0].ObjectGUID = [guid]::Empty
+            { $users[0] | Set-ADUserDrinkData -Server dc01.example.test -DataMap @{ 'App-' = 'new' } -ErrorAction Stop } | Should -Throw '*ObjectGUID*'
+            Assert-MockCalled Get-ADUser -Times 0
+            Assert-MockCalled Set-ADUser -Times 0
+        }
+
+        It 'does not bind arbitrary name-bearing objects or combine pipeline and explicit identities' {
+            { [pscustomobject]@{ SamAccountName = 'wrong' } | Remove-ADUserDrinkData -Server dc01.example.test -Prefixes 'App-' -ErrorAction Stop } | Should -Throw
+            { $users | Remove-ADUserDrinkData -SamAccountName 'wrong' -Server dc01.example.test -Prefixes 'App-' -ErrorAction Stop } | Should -Throw
+            Assert-MockCalled Get-ADUser -Times 0
+            Assert-MockCalled Set-ADUser -Times 0
         }
     }
 }
