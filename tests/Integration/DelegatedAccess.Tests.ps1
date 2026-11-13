@@ -11,7 +11,8 @@ param(
 Describe 'Pre-provisioned single-OU delegated access' -Tag 'Integration' -Skip:(-not $RunDelegatedAccess) {
     BeforeAll {
         if (-not $RunDelegatedAccess -or -not $Credential -or -not $Role -or
-            $FixtureGuid -eq [guid]::Empty -or $ParentOuGuid -eq [guid]::Empty -or
+            -not $FixtureGuid -or $FixtureGuid -eq [guid]::Empty -or
+            -not $ParentOuGuid -or $ParentOuGuid -eq [guid]::Empty -or
             [string]::IsNullOrWhiteSpace($DomainController)) {
             throw 'Explicit opt-in, role, credentials, writable DC hostname and both fixture GUIDs are required.'
         }
@@ -22,12 +23,14 @@ Describe 'Pre-provisioned single-OU delegated access' -Tag 'Integration' -Skip:(
         if ($dc.IsReadOnly -ne $false -or $dc.HostName -ine $DomainController) {
             throw 'Use the actual hostname of one writable controller.'
         }
-        $ou = ActiveDirectory\Get-ADOrganizationalUnit -Identity $ParentOuGuid @connection
         function Get-BoundedFixture {
+            $ou = ActiveDirectory\Get-ADOrganizationalUnit -Identity $ParentOuGuid @connection
+            if ($ou.ObjectGUID -ne $ParentOuGuid) { throw 'Parent OU identity did not match.' }
             $target = $FixtureGuid
             $users = @(ActiveDirectory\Get-ADUser -SearchBase $ou.DistinguishedName -SearchScope OneLevel -Filter { ObjectGUID -eq $target } -Properties drink,Description @connection)
             if ($users.Count -ne 1 -or $users[0].ObjectGUID -ne $target -or
-                $users[0].Enabled -ne $false -or $users[0].Description -cne 'DrunkenAD: delegated access test fixture') {
+                $users[0].Enabled -ne $false -or
+                -not [string]::Equals($users[0].Description, 'DrunkenAD: delegated access test fixture', [StringComparison]::Ordinal)) {
                 throw 'Fixture identity, immediate parent, disabled state or owner marker did not match.'
             }
             return $users[0]
@@ -37,9 +40,15 @@ Describe 'Pre-provisioned single-OU delegated access' -Tag 'Integration' -Skip:(
     It 'reads the fixture and enforces the selected property-write role' {
         $fixture = Get-BoundedFixture
         $result = @(Get-ADUserDrinkData -SamAccountName $fixture.SamAccountName -DomainController $DomainController -Credential $Credential -ErrorAction Stop)
-        $baseline = @($fixture.drink | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -CaseSensitive)
-        @(Compare-Object -ReferenceObject $baseline -DifferenceObject @($result | Sort-Object -CaseSensitive) -CaseSensitive).Count | Should -Be 0
+        $baseline = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($value in $fixture.drink) { [void]$baseline.Add($value) }
+        $readable = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($value in $baseline) {
+            if (-not [string]::IsNullOrWhiteSpace($value)) { [void]$readable.Add($value) }
+        }
+        $readable.SetEquals([string[]]$result) | Should -BeTrue
         $marker = 'DelegationTest-' + [guid]::NewGuid().ToString('N')
+        if ($baseline.Contains($marker)) { throw 'Test value already exists; refusing to claim ownership.' }
         try {
             $permitted = $false
             try {
@@ -56,8 +65,10 @@ Describe 'Pre-provisioned single-OU delegated access' -Tag 'Integration' -Skip:(
             if (@((Get-BoundedFixture).drink) -ccontains $marker) {
                 ActiveDirectory\Set-ADUser -Identity $FixtureGuid -Remove @{ drink = $marker } @connection
             }
-            $after = @((Get-BoundedFixture).drink | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -CaseSensitive)
-            @(Compare-Object -ReferenceObject $baseline -DifferenceObject $after -CaseSensitive).Count | Should -Be 0
+            $after = Get-BoundedFixture
+            $remaining = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($value in $after.drink) { [void]$remaining.Add($value) }
+            $baseline.SetEquals($remaining) | Should -BeTrue
         }
     }
 }
