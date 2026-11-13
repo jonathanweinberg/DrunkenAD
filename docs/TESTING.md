@@ -12,6 +12,11 @@ DrunkenAD now has four validation layers:
 
 The parser gate lives at [scripts/Test-DrunkenADSyntax.ps1](../scripts/Test-DrunkenADSyntax.ps1). The unit suite lives at [tests/DrunkenAD.Unit.Tests.ps1](../tests/DrunkenAD.Unit.Tests.ps1), with additional schema-enable coverage in [tests/SchemaEnablement.Unit.Tests.ps1](../tests/SchemaEnablement.Unit.Tests.ps1).
 
+`Find-ADUserByDrinkData` has unit-only coverage. A stub records the LDAP filter
+and connection options and supplies synthetic results. These tests do not
+contact a domain controller or verify live AD matching rules, permissions, or
+search scope.
+
 Those tests focus on the safety-critical behavior:
 
 - exact LDAP user resolution

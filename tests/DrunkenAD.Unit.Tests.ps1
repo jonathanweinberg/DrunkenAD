@@ -29,6 +29,8 @@ Describe 'DrunkenAD unit tests' {
                 param(
                     $Identity,
                     $LDAPFilter,
+                    $SearchBase,
+                    $Credential,
                     $Properties,
                     $ErrorAction,
                     $Server
@@ -128,6 +130,56 @@ Describe 'DrunkenAD unit tests' {
             Test-Path -LiteralPath (Join-Path -Path $moduleRoot -ChildPath 'Public') -PathType Container | Should -BeTrue
             $rootModuleContent | Should -Match 'Private'
             $rootModuleContent | Should -Match 'Public'
+        }
+    }
+
+    Context 'Find-ADUserByDrinkData' {
+        BeforeEach {
+            Mock Initialize-DrunkenADModule {} -ModuleName DrunkenAD
+            $global:DrunkenADTest_GetADUserCalls = @()
+            $global:DrunkenADTest_GetADUserHandler = {}
+        }
+
+        It 'uses one equality query and leaves omitted directory options at their defaults' {
+            $users = @(DrunkenAD\Find-ADUserByDrinkData -Prefix 'Dept-' -Value 'Ops')
+            $users.Count | Should -Be 0
+            $global:DrunkenADTest_GetADUserCalls.Count | Should -Be 1
+            $call = $global:DrunkenADTest_GetADUserCalls[0]
+            $call.LDAPFilter | Should -BeExactly '(drink=Dept-Ops)'
+            foreach ($key in 'Server', 'SearchBase', 'Credential') {
+                $call.ContainsKey($key) | Should -BeFalse
+            }
+        }
+
+        It 'escapes both operands and preserves Unicode and significant spaces' {
+            $name = 'caf' + [char]0x00e9 + [char]::ConvertFromUtf32(0x1f375)
+            DrunkenAD\Find-ADUserByDrinkData -Prefix 'Tag(*)-' -Value (' \*' + [char]0 + $name + ' ')
+            $global:DrunkenADTest_GetADUserCalls[0].LDAPFilter |
+                Should -BeExactly ('(drink=Tag\28\2a\29- \5c\2a\00' + $name + ' )')
+        }
+
+        It 'forwards explicit search options and streams the matching user objects' {
+            $credential = [pscredential]::new('reader', (ConvertTo-SecureString 'test-only' -AsPlainText -Force))
+            $global:DrunkenADTest_GetADUserHandler = {
+                [pscustomobject]@{ SamAccountName = 'first' }
+                [pscustomobject]@{ SamAccountName = 'second' }
+            }
+            $base = 'OU=Staff,DC=contoso,DC=com'
+            $users = @(DrunkenAD\Find-ADUserByDrinkData -Prefix 'Dept-' -Value 'Ops' -DomainController 'dc01.contoso.com' -SearchBase $base -Credential $credential)
+            $users.SamAccountName | Should -Be @('first', 'second')
+            $call = $global:DrunkenADTest_GetADUserCalls[0]
+            $call.Server | Should -BeExactly 'dc01.contoso.com'
+            $call.SearchBase | Should -BeExactly $base
+            [object]::ReferenceEquals($call.Credential, $credential) | Should -BeTrue
+        }
+
+        It 'rejects a blank <Key> before directory access' -ForEach @(
+            @{ Key = 'Prefix' }, @{ Key = 'Value' }, @{ Key = 'DomainController' }, @{ Key = 'SearchBase' }
+        ) {
+            $params = @{ Prefix = 'Dept-'; Value = 'Ops' }
+            $params[$Key] = '  '
+            { DrunkenAD\Find-ADUserByDrinkData @params } | Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])
+            $global:DrunkenADTest_GetADUserCalls.Count | Should -Be 0
         }
     }
 
