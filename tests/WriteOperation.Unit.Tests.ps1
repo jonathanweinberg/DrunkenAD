@@ -6,6 +6,8 @@ Describe 'Credential selection across directory operations' {
             function Initialize-DrunkenADModule { throw 'Unexpected directory access' }
             foreach ($invalid in @([pscredential]::Empty, $null)) {
                 { Test-ADDrinkAttributeEnabled -Credential $invalid } | Should -Throw '*validate argument*Credential*'
+                { Find-ADUserByDrinkData -Prefix 'X-' -Value 'a' -Credential $invalid } | Should -Throw '*validate argument*Credential*'
+                { Export-ADUserDrinkData -SamAccountName 'a' -Prefix 'X-' -Server 'dc.example.test' -Path './review.json' -Credential $invalid } | Should -Throw '*validate argument*Credential*'
             }
         }
     }

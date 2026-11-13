@@ -95,6 +95,13 @@
           "files": ["DrunkenAD/Public/Get-ADUserDrinkData.ps1", "docs/DATA-STORE.md"]
         },
         {
+          "id": "exportData",
+          "label": "Export-ADUserDrinkData",
+          "kind": "public",
+          "summary": "Exports one literal namespace for exact accounts to a new JSON review file.",
+          "files": ["DrunkenAD/Public/Export-ADUserDrinkData.ps1", "docs/OPERATIONS.md"]
+        },
+        {
           "id": "setData",
           "label": "Set-ADUserDrinkData",
           "kind": "public",

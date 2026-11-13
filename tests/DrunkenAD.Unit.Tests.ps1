@@ -41,6 +41,7 @@ Describe 'DrunkenAD unit tests' {
             }
             'Get-ADRootDSE' = {
                 param(
+                    $Credential,
                     $Server,
                     $ErrorAction
                 )
@@ -50,6 +51,7 @@ Describe 'DrunkenAD unit tests' {
             }
             'Get-ADObject' = {
                 param(
+                    $Credential,
                     $SearchBase,
                     $LDAPFilter,
                     $Properties,
@@ -490,6 +492,102 @@ Describe 'DrunkenAD unit tests' {
                 $result = Get-AdUserDrinkPrefixedData -SamAccountName 'demo' -DrinkValuePrefix 'Missing-'
 
                 @($result) | Should -Be @()
+            }
+        }
+
+        Context 'Export-ADUserDrinkData' -Tag 'Issue25' {
+            BeforeEach {
+                Mock Initialize-DrunkenADModule {}
+                $global:DrunkenADTest_GetADRootDSECalls = @()
+                $global:DrunkenADTest_GetADObjectCalls = @()
+                $global:DrunkenADTest_GetADUserCalls = @()
+                $global:DrunkenADTest_SetADUserCalls = @()
+                $global:DrunkenADTest_GetADRootDSEHandler = {
+                    [pscustomobject]@{ schemaNamingContext = 'CN=Schema,DC=example,DC=test' }
+                }
+                $global:DrunkenADTest_GetADObjectHandler = { [pscustomobject]@{ isDefunct = $false } }
+                $global:DrunkenADTest_GetADUserHandler = {
+                    param($LDAPFilter)
+                    switch -Exact ($LDAPFilter) {
+                        '(sAMAccountName=one\2a)' { [pscustomobject]@{ samAccountName = 'one*'; drink = @("Ns[1]-`n$([char]0x96ea),x", 'ns[1]-Z', 'Ns1-wrong') } }
+                        '(sAMAccountName=two)' { [pscustomobject]@{ samAccountName = 'two'; drink = @('Other', 'Ns[1]-only') } }
+                        '(sAMAccountName=three)' { [pscustomobject]@{ samAccountName = 'three'; drink = $null } }
+                    }
+                }
+                $export = @{
+                    DomainController = 'dc01.example.test:1389'
+                    Prefix = 'Ns[1]-'
+                    SamAccountName = @('one*', 'two', 'three')
+                    Path = Join-Path $TestDrive ("review[1]-{0}.json" -f [guid]::NewGuid())
+                }
+            }
+
+            It 'exports only exact users and literal matches as UTF-8 JSON arrays' {
+                $credential = [pscredential]::new('review-reader', (ConvertTo-SecureString 'fixture' -AsPlainText -Force))
+                Export-ADUserDrinkData @export -Credential $credential
+                $utf8 = [Text.UTF8Encoding]::new($false, $true)
+                $raw = $utf8.GetString([IO.File]::ReadAllBytes($export.Path))
+                $raw | Should -Not -Match 'review-reader|fixture|Ns1-wrong|Other'
+                $doc = ConvertFrom-Json $raw
+                $doc.schemaVersion | Should -Be 1
+                $doc.prefix | Should -BeExactly 'Ns[1]-'
+                $doc.users.samAccountName | Should -Be @('one*', 'two', 'three')
+                $doc.users[0].values | Should -BeExactly @("Ns[1]-`n$([char]0x96ea),x", 'ns[1]-Z')
+                $doc.users[1].values.GetType().IsArray | Should -BeTrue
+                $doc.users[1].values | Should -Be @('Ns[1]-only')
+                $doc.users[2].values.GetType().IsArray | Should -BeTrue
+                $doc.users[2].values.Count | Should -Be 0
+                $global:DrunkenADTest_GetADUserCalls.Count | Should -Be 3
+                $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 1
+                $global:DrunkenADTest_GetADObjectCalls.Count | Should -Be 1
+                foreach ($call in @($global:DrunkenADTest_GetADRootDSECalls + $global:DrunkenADTest_GetADObjectCalls + $global:DrunkenADTest_GetADUserCalls)) {
+                    $call.Server | Should -BeExactly $export.DomainController
+                    $call.Credential | Should -Be $credential
+                }
+                $global:DrunkenADTest_SetADUserCalls.Count | Should -Be 0
+            }
+
+            It 'leaves no partial file if the last user cannot be resolved' {
+                $export.SamAccountName = @('two', 'missing')
+                { Export-ADUserDrinkData @export } | Should -Throw '*No Active Directory user*'
+                Test-Path -LiteralPath $export.Path | Should -BeFalse
+                $global:DrunkenADTest_GetADUserCalls.Count | Should -Be 2
+                foreach ($call in @($global:DrunkenADTest_GetADRootDSECalls + $global:DrunkenADTest_GetADObjectCalls + $global:DrunkenADTest_GetADUserCalls)) {
+                    $call.ContainsKey('Credential') | Should -BeFalse
+                }
+            }
+
+            It 'refuses an existing literal path before reading AD' {
+                [IO.File]::WriteAllText($export.Path, 'original')
+                { Export-ADUserDrinkData @export } | Should -Throw '*exist*'
+                [IO.File]::ReadAllText($export.Path) | Should -BeExactly 'original'
+                $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 0
+            }
+
+            It 'does not clobber a destination created during lookup or leave a staging file' {
+                $export.SamAccountName = @('two')
+                $global:DrunkenADTest_GetADUserHandler = {
+                    [IO.File]::WriteAllText($export.Path, 'concurrent')
+                    [pscustomobject]@{ samAccountName = 'two'; drink = 'Ns[1]-only' }
+                }.GetNewClosure()
+                $before = @(Get-ChildItem -LiteralPath $TestDrive -Force).Count
+                { Export-ADUserDrinkData @export } | Should -Throw
+                [IO.File]::ReadAllText($export.Path) | Should -BeExactly 'concurrent'
+                @(Get-ChildItem -LiteralPath $TestDrive -Force).Count | Should -Be ($before + 1)
+            }
+
+            It 'rejects invalid <Key> before reading AD' -TestCases @(
+                @{ Key = 'SamAccountName'; Value = @('two', ' ') }
+                @{ Key = 'SamAccountName'; Value = @('two', 'Two') }
+                @{ Key = 'Prefix'; Value = ' ' }
+                @{ Key = 'DomainController'; Value = ' ' }
+                @{ Key = 'Path'; Value = 'Variable:export' }
+            ) {
+                param($Key, $Value)
+                $export[$Key] = $Value
+                $message = if ($Key -eq 'Path') { '*filesystem*' } else { "*$Key*" }
+                { Export-ADUserDrinkData @export } | Should -Throw $message
+                $global:DrunkenADTest_GetADRootDSECalls.Count | Should -Be 0
             }
         }
 

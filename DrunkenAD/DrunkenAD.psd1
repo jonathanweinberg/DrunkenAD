@@ -16,6 +16,7 @@
         'Private/ProjectionMap.ps1',
         'Private/SchemaStatus.ps1',
         'Private/WriteOperation.ps1',
+        'Public/Export-ADUserDrinkData.ps1',
         'Public/Find-ADUserByDrinkData.ps1',
         'Public/Get-ADUserDrinkData.ps1',
         'Public/Get-AdUserDrinkPrefixedData.ps1',
@@ -31,6 +32,7 @@
         'en-US/about_DrunkenAD.help.txt'
     )
     FunctionsToExport = @(
+        'Export-ADUserDrinkData',
         'Find-ADUserByDrinkData',
         'Get-ADUserDrinkData',
         'Set-ADUserDrinkData',

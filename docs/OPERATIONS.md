@@ -209,3 +209,25 @@ The May 7, 2026 WinServer campaign took about 31 minutes for 3,000 seed users,
 For the lab VM, restore the pre-mutation snapshot. For a broader AD forest,
 follow the organization's schema-change recovery process. This repo documents
 the checks and guardrails, but it does not automate rollback from schema changes.
+
+## Export For Review
+
+```powershell
+Export-ADUserDrinkData -SamAccountName 'ReviewerA','ReviewerB' -Prefix 'AppProfile-' -DomainController 'dc01.contoso.com' -Path './review.json'
+```
+
+Use exact, distinct account names and one literal prefix. Supply `-Credential`
+with a PSCredential to use an alternate reader for both schema and user lookups.
+The format is UTF-8 JSON without a BOM:
+
+```json
+{"schemaVersion":1,"prefix":"AppProfile-","users":[{"samAccountName":"ReviewerA","values":["AppProfile-East","AppProfile-West"]},{"samAccountName":"ReviewerB","values":[]}]}
+```
+
+Users follow request order. Values are complete strings, matched by ordinal
+case-insensitive prefix and sorted in ordinal order. Both collections are
+always arrays; an empty values array means no matching values were returned.
+A missing or ambiguous account fails the whole export. This is a plaintext
+review file, not a backup or an input format for the CSV importer. Choose a
+private existing directory and a fresh filename for each run. The command
+never replaces an existing file and publishes only after all reads succeed.

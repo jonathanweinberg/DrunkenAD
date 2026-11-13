@@ -65,6 +65,15 @@ If you only want the parser gate:
 pwsh -NoLogo -NoProfile -File /temp/DrunkenAD/scripts/Test-DrunkenADSyntax.ps1
 ```
 
+### Export For Review
+
+The operator export (`Export-ADUserDrinkData`, issue #25) has **mocked unit
+evidence only**. The `Issue25` tests in `tests/DrunkenAD.Unit.Tests.ps1`
+exercise exact user lookups, credential and endpoint forwarding, literal
+namespace matching, UTF-8 JSON arrays, and file publication without overwrite.
+They do not validate RSAT, live credentials, directory permissions, or native AD
+behavior. Prior live results for other commands do not cover export.
+
 ### Issue #22: ADUser pipeline (unit evidence only)
 
 The `PipelineUser` cases in [WriteOperation.Unit.Tests.ps1](../tests/WriteOperation.Unit.Tests.ps1)

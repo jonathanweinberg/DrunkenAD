@@ -28,6 +28,7 @@ The main public commands are:
 | `Remove-ADUserDrinkData` | Remove one or more owned prefixes. |
 | `Set-ADUserDrinkProjection` | Project AD attributes into namespaced records. |
 | `Import-ADUserDrinkCsvData` | Convert CSV rows into namespace maps and write them. |
+| `Export-ADUserDrinkData` | Read a single namespace for exact accounts and publish a new JSON review file. |
 | `Split-DrunkenADCsvField` | Preview the same literal delimiter splitting used by CSV `SplitOn` mappings. |
 | `Test-ADDrinkAttributeReadyForUserWrite` | Confirm the schema is ready for user-object writes. |
 
